@@ -1,0 +1,17 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+*.db
+.cache/
+.tapetide_token.json
+.provider_call_metrics.json
+angelone_credentials.json
+strategy_config_overrides.json
+data_source_config_overrides.json
+node_modules/
+frontend/dist/
+.pytest_cache/
+*.egg-info/
+*.log
+.claude/settings.local.json
