@@ -13,6 +13,11 @@ class SectorRSIConfig(BaseModel):
     daily_min: float = 60.0
     weekly_min: float = 60.0
     monthly_min: float = 60.0
+    # Alternate qualifying path: if weekly AND monthly are both confirmed and
+    # above their normal mins, daily only needs to clear this lower bar
+    # instead of daily_min — a sector already confirmed strong on the higher
+    # timeframes shouldn't be blocked by one lagging daily reading.
+    daily_min_relaxed: float = 55.0
 
 
 class StockRSIConfig(BaseModel):

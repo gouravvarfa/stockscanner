@@ -15,12 +15,12 @@ export function BestStockCard({ stock }: { stock: StockResult | null }) {
     <div className="card best-stock-card">
       <div className="best-stock-header">
         <h2>Best Stock Setup</h2>
-        <span className="chip" style={{ marginLeft: 4 }}>Strategy One</span>
+        <span className="chip" style={{ marginLeft: 4 }}>System One</span>
         <Badge label={stock.classification} />
         <Badge label={stock.bias} />
       </div>
       <p className="muted small" style={{ marginTop: -8, marginBottom: 14 }}>
-        This is the top pick from Strategy One only (the sector-rotation scoring strategy). GFS, Advanced GFS,
+        This is the top pick from System One only (the sector-rotation scoring strategy). GFS, Advanced GFS,
         PRD, NRD, and Value Buy each have their own separate results — see the Strategies page.
       </p>
       <div className="best-stock-main">

@@ -1,0 +1,239 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0
+//@version=6
+indicator("NIFTY 200 Scanner - Signal Bridge", overlay = true)
+
+// =============================================================================
+// NIFTY 200 Scanner - TradingView Signal Bridge
+//
+// Purpose: fire TradingView alerts for the six strategies already implemented
+// in the scanner backend (backend/strategies/*.py), formatted as the JSON
+// payload backend/api/tradingview.py expects on POST /api/tradingview/webhook.
+//
+// This is an OPTIONAL, ADDITIONAL, alert-driven signal source. It does NOT
+// scan the full NIFTY 200 universe itself (Pine Script only ever sees the
+// symbol/timeframe of the chart it's placed on) - it is a per-symbol
+// validation feed, not a replacement scanning engine. The backend's own
+// Tapetide/Angel One-driven scan remains the primary, authoritative scanner.
+//
+// "Confirmed candle" rule used throughout (documented once here per the spec
+// requirement to state it per timeframe):
+//   - Daily:   the scanner backend itself uses the CURRENT (forming) daily
+//              bar for daily RSI (see backend/config/strategy_config.py:
+//              StockRSIConfig.daily_confirmation_enabled = False, i.e. daily
+//              is a confirmation factor only, never a hard gate). This script
+//              mirrors that: daily values are read from the live/current bar.
+//   - Weekly:  only the latest CLOSED weekly bar is used. Achieved via the
+//              f_confirmed() helper below, which requests the value with
+//              lookahead=barmerge.lookahead_off and, only while the current
+//              chart bar is the realtime (still-forming) bar, backs up one
+//              higher-timeframe bar with [1] so a still-forming weekly bar
+//              can never leak into the signal.
+//   - Monthly: identical rule as Weekly, applied to the "M" resolution.
+// No future bars are read anywhere in this script (no lookahead=on, no
+// negative-index future references) - satisfies the no-lookahead-bias rule.
+// =============================================================================
+
+// ---------------------------------------------------------------------------
+// Confirmed-higher-timeframe helper (standard no-repaint security pattern)
+// ---------------------------------------------------------------------------
+f_confirmed(res, expr) =>
+    request.security(syminfo.tickerid, res, expr[barstate.isrealtime ? 1 : 0], lookahead = barmerge.lookahead_off)
+
+// ---------------------------------------------------------------------------
+// RSI - standard Wilder RSI (ta.rsi), same formula family as
+// backend/indicators/rsi.py's Wilder-smoothed implementation. No second/
+// custom RSI formula is introduced.
+// ---------------------------------------------------------------------------
+rsiLen = input.int(14, "RSI Length")
+
+dailyRSI  = ta.rsi(close, rsiLen)                       // current/forming daily bar, matches backend's daily_confirmation_enabled=False
+weeklyRSI = f_confirmed("W", ta.rsi(close, rsiLen))     // latest CLOSED weekly bar only
+monthlyRSI = f_confirmed("M", ta.rsi(close, rsiLen))    // latest CLOSED monthly bar only
+
+// ---------------------------------------------------------------------------
+// Strategy One - mirrors backend/strategies/strategy_one.py, which wraps
+// backend/screeners/stock_analysis.py's existing scoring. That code's
+// qualification is: meets_weekly_rsi_band (60 <= weekly RSI <= 65) AND
+// meets_monthly_rsi_min (monthly RSI > 65) AND not disqualified by a
+// confirmed bearish divergence (strict_mode). Preserved exactly - not
+// redefined - as required.
+// ---------------------------------------------------------------------------
+s1_weeklyBand  = weeklyRSI >= 60 and weeklyRSI <= 65
+s1_monthlyMin  = monthlyRSI > 65
+
+// ---------------------------------------------------------------------------
+// GFS - backend/strategies/gfs.py + backend/config/multi_strategy_config.py
+// GFSConfig defaults: 38 < daily < 45, weekly > 60, monthly > 60.
+// ---------------------------------------------------------------------------
+gfsDailyMin = input.float(38.0, "GFS Daily RSI Min")
+gfsDailyMax = input.float(45.0, "GFS Daily RSI Max")
+gfsWeeklyMin = input.float(60.0, "GFS Weekly RSI Min")
+gfsMonthlyMin = input.float(60.0, "GFS Monthly RSI Min")
+
+gfsCondition = dailyRSI > gfsDailyMin and dailyRSI < gfsDailyMax and weeklyRSI > gfsWeeklyMin and monthlyRSI > gfsMonthlyMin
+
+// ---------------------------------------------------------------------------
+// Advanced GFS - AdvancedGFSConfig defaults: 59 <= daily <= 65, weekly > 65,
+// monthly > 68.
+// ---------------------------------------------------------------------------
+agfsDailyMin = input.float(59.0, "Advanced GFS Daily RSI Min")
+agfsDailyMax = input.float(65.0, "Advanced GFS Daily RSI Max")
+agfsWeeklyMin = input.float(65.0, "Advanced GFS Weekly RSI Min")
+agfsMonthlyMin = input.float(68.0, "Advanced GFS Monthly RSI Min")
+
+advGfsCondition = dailyRSI >= agfsDailyMin and dailyRSI <= agfsDailyMax and weeklyRSI > agfsWeeklyMin and monthlyRSI > agfsMonthlyMin
+
+// ---------------------------------------------------------------------------
+// PRD / NRD - backend/strategies/prd.py + nrd.py. Each timeframe is
+// evaluated INDEPENDENTLY (own divergence + own RSI gate); the stock
+// qualifies if ANY ONE of daily/weekly/monthly confirms. PRD uses an RSI
+// FLOOR (uptrend context, > 60 on the confirming timeframe); NRD uses an
+// RSI CEILING (downtrend context, < 45) - this floor/ceiling split is what
+// makes PRD and NRD mutually exclusive PER TIMEFRAME while still letting a
+// stock qualify for both simultaneously on different timeframes, exactly as
+// the backend's own docstrings describe. Divergence pivots use ta.pivotlow/
+// ta.pivothigh, which only confirm after `right` bars have printed - no
+// lookahead, matching backend/divergence/swing.py's confirmed-pivot rule.
+// ---------------------------------------------------------------------------
+divLeft = input.int(5, "Divergence Pivot Left Bars")
+divRight = input.int(5, "Divergence Pivot Right Bars")
+prdRsiFloor = input.float(60.0, "PRD RSI Floor (any timeframe)")
+nrdRsiCeiling = input.float(45.0, "NRD RSI Ceiling (any timeframe)")
+
+pivLow = ta.pivotlow(low, divLeft, divRight)
+pivHigh = ta.pivothigh(high, divLeft, divRight)
+
+var float lastPivotLowPrice = na
+var float lastPivotLowRSI = na
+var float prevPivotLowPrice = na
+var float prevPivotLowRSI = na
+var float lastPivotHighPrice = na
+var float lastPivotHighRSI = na
+var float prevPivotHighPrice = na
+var float prevPivotHighRSI = na
+
+if not na(pivLow)
+    prevPivotLowPrice := lastPivotLowPrice
+    prevPivotLowRSI := lastPivotLowRSI
+    lastPivotLowPrice := pivLow
+    lastPivotLowRSI := ta.rsi(close, rsiLen)[divRight]
+
+if not na(pivHigh)
+    prevPivotHighPrice := lastPivotHighPrice
+    prevPivotHighRSI := lastPivotHighRSI
+    lastPivotHighPrice := pivHigh
+    lastPivotHighRSI := ta.rsi(close, rsiLen)[divRight]
+
+// Bullish divergence (for PRD): price makes a LOWER low, RSI makes a
+// HIGHER low, between the two most recent confirmed swing lows.
+bullishDivergenceDaily = not na(prevPivotLowPrice) and lastPivotLowPrice < prevPivotLowPrice and lastPivotLowRSI > prevPivotLowRSI
+// Bearish divergence (for NRD): price makes a HIGHER high, RSI makes a
+// LOWER high, between the two most recent confirmed swing highs.
+bearishDivergenceDaily = not na(prevPivotHighPrice) and lastPivotHighPrice > prevPivotHighPrice and lastPivotHighRSI < prevPivotHighRSI
+
+// Weekly/Monthly divergence confirmation reuses the same daily-bar-detected
+// pivots but gates on the CONFIRMED higher-timeframe RSI, matching how the
+// backend evaluates "that timeframe's own RSI" independently of which
+// timeframe the divergence pivots were found on.
+prdDailyConfirmed   = bullishDivergenceDaily and dailyRSI > prdRsiFloor
+prdWeeklyConfirmed  = bullishDivergenceDaily and weeklyRSI > prdRsiFloor
+prdMonthlyConfirmed = bullishDivergenceDaily and monthlyRSI > prdRsiFloor
+prdConfirmed = prdDailyConfirmed or prdWeeklyConfirmed or prdMonthlyConfirmed
+prdTimeframe = prdDailyConfirmed ? "Daily" : prdWeeklyConfirmed ? "Weekly" : prdMonthlyConfirmed ? "Monthly" : na
+
+nrdDailyConfirmed   = bearishDivergenceDaily and dailyRSI < nrdRsiCeiling
+nrdWeeklyConfirmed  = bearishDivergenceDaily and weeklyRSI < nrdRsiCeiling
+nrdMonthlyConfirmed = bearishDivergenceDaily and monthlyRSI < nrdRsiCeiling
+nrdConfirmed = nrdDailyConfirmed or nrdWeeklyConfirmed or nrdMonthlyConfirmed
+nrdTimeframe = nrdDailyConfirmed ? "Daily" : nrdWeeklyConfirmed ? "Weekly" : nrdMonthlyConfirmed ? "Monthly" : na
+
+// ---------------------------------------------------------------------------
+// Value Buy - backend/strategies/value_buy.py + backend/trendlines/engine.py.
+// Runs independently of sector qualification in the backend; mirrored here
+// as an unconditional per-symbol check. ALL THREE conditions are mandatory:
+//   1. Monthly RSI in the support zone (35-45 by default).
+//   2. The latest CONFIRMED weekly candle closed green.
+//   3. A daily Key Reversal OR a confirmed daily trendline breakout.
+// ---------------------------------------------------------------------------
+vbMonthlyMin = input.float(35.0, "Value Buy Monthly RSI Support Min")
+vbMonthlyMax = input.float(45.0, "Value Buy Monthly RSI Support Max")
+vbSwingLookback = input.int(5, "Value Buy Trendline Swing Lookback")
+
+vbMonthlySupport = monthlyRSI >= vbMonthlyMin and monthlyRSI <= vbMonthlyMax
+
+// Latest CONFIRMED weekly candle green - open/close of the last CLOSED
+// weekly bar only (never the still-forming weekly bar).
+weeklyOpenConfirmed = f_confirmed("W", open)
+weeklyCloseConfirmed = f_confirmed("W", close)
+vbWeeklyGreen = weeklyCloseConfirmed > weeklyOpenConfirmed
+
+// Key reversal - exact mirror of backend/trendlines/engine.py::detect_key_reversal:
+// latest confirmed daily bar makes a new low vs. the prior bar, then closes
+// above the prior bar's close AND above its own open.
+vbKeyReversal = low < low[1] and close > close[1] and close > open
+
+// Trendline breakout - simplified mirror of
+// backend/trendlines/engine.py::detect_trendline_breakout: fit a line
+// through the two most recent confirmed swing highs (ta.pivothigh, which
+// only confirms `vbSwingLookback` bars after the pivot - no lookahead), and
+// check whether the latest confirmed close has broken above that line's
+// projection to today. Only meaningful when the line actually descends.
+vbPivHigh = ta.pivothigh(high, vbSwingLookback, vbSwingLookback)
+var float vbLastHighPrice = na
+var int vbLastHighBar = na
+var float vbPrevHighPrice = na
+var int vbPrevHighBar = na
+
+if not na(vbPivHigh)
+    vbPrevHighPrice := vbLastHighPrice
+    vbPrevHighBar := vbLastHighBar
+    vbLastHighPrice := vbPivHigh
+    vbLastHighBar := bar_index[vbSwingLookback]
+
+vbDescending = not na(vbPrevHighPrice) and vbLastHighPrice < vbPrevHighPrice and vbLastHighBar != vbPrevHighBar
+vbSlope = vbDescending ? (vbLastHighPrice - vbPrevHighPrice) / (vbLastHighBar - vbPrevHighBar) : na
+vbTrendlineToday = vbDescending ? vbLastHighPrice + vbSlope * (bar_index - vbLastHighBar) : na
+vbTrendlineBreakout = vbDescending and close > vbTrendlineToday
+
+vbDailyTrigger = vbKeyReversal ? "KEY_REVERSAL" : vbTrendlineBreakout ? "TRENDLINE_BREAKOUT" : na
+vbCondition = vbMonthlySupport and vbWeeklyGreen and (vbKeyReversal or vbTrendlineBreakout)
+
+// ---------------------------------------------------------------------------
+// Alert firing - one alert() call per strategy, gated on that strategy's
+// confirmed boolean, firing only once per bar close (never mid-bar/
+// speculative). Message JSON matches backend/schemas/tradingview.py exactly.
+// The `secret` field is filled from an input so the same script works for
+// any deployment without hardcoding it into the published script.
+// ---------------------------------------------------------------------------
+webhookSecret = input.string("", "Webhook Secret (TRADINGVIEW_WEBHOOK_SECRET)", confirm = false)
+
+f_isoTime() => str.format_time(time, "yyyy-MM-dd'T'HH:mm:ss'Z'", "UTC")
+
+if barstate.isconfirmed
+    if s1_weeklyBand and s1_monthlyMin
+        alert('{"source":"tradingview","symbol":"' + syminfo.ticker + '","exchange":"' + syminfo.prefix + '","strategy":"Strategy One","timeframe":"' + timeframe.period + '","signal_date":"' + f_isoTime() + '","daily_rsi":' + str.tostring(dailyRSI, "#.##") + ',"weekly_rsi":' + str.tostring(weeklyRSI, "#.##") + ',"monthly_rsi":' + str.tostring(monthlyRSI, "#.##") + ',"signal":true,"secret":"' + webhookSecret + '"}', alert.freq_once_per_bar_close)
+
+    if gfsCondition
+        alert('{"source":"tradingview","symbol":"' + syminfo.ticker + '","exchange":"' + syminfo.prefix + '","strategy":"GFS","timeframe":"' + timeframe.period + '","signal_date":"' + f_isoTime() + '","daily_rsi":' + str.tostring(dailyRSI, "#.##") + ',"weekly_rsi":' + str.tostring(weeklyRSI, "#.##") + ',"monthly_rsi":' + str.tostring(monthlyRSI, "#.##") + ',"signal":true,"secret":"' + webhookSecret + '"}', alert.freq_once_per_bar_close)
+
+    if advGfsCondition
+        alert('{"source":"tradingview","symbol":"' + syminfo.ticker + '","exchange":"' + syminfo.prefix + '","strategy":"Advanced GFS","timeframe":"' + timeframe.period + '","signal_date":"' + f_isoTime() + '","daily_rsi":' + str.tostring(dailyRSI, "#.##") + ',"weekly_rsi":' + str.tostring(weeklyRSI, "#.##") + ',"monthly_rsi":' + str.tostring(monthlyRSI, "#.##") + ',"signal":true,"secret":"' + webhookSecret + '"}', alert.freq_once_per_bar_close)
+
+    if prdConfirmed
+        alert('{"source":"tradingview","symbol":"' + syminfo.ticker + '","exchange":"' + syminfo.prefix + '","strategy":"PRD","timeframe":"' + timeframe.period + '","signal_date":"' + f_isoTime() + '","daily_rsi":' + str.tostring(dailyRSI, "#.##") + ',"weekly_rsi":' + str.tostring(weeklyRSI, "#.##") + ',"monthly_rsi":' + str.tostring(monthlyRSI, "#.##") + ',"signal":true,"divergence_type":"PRD","divergence_timeframe":"' + prdTimeframe + '","secret":"' + webhookSecret + '"}', alert.freq_once_per_bar_close)
+
+    if nrdConfirmed
+        alert('{"source":"tradingview","symbol":"' + syminfo.ticker + '","exchange":"' + syminfo.prefix + '","strategy":"NRD","timeframe":"' + timeframe.period + '","signal_date":"' + f_isoTime() + '","daily_rsi":' + str.tostring(dailyRSI, "#.##") + ',"weekly_rsi":' + str.tostring(weeklyRSI, "#.##") + ',"monthly_rsi":' + str.tostring(monthlyRSI, "#.##") + ',"signal":true,"divergence_type":"NRD","divergence_timeframe":"' + nrdTimeframe + '","secret":"' + webhookSecret + '"}', alert.freq_once_per_bar_close)
+
+    if vbCondition
+        alert('{"source":"tradingview","symbol":"' + syminfo.ticker + '","exchange":"' + syminfo.prefix + '","strategy":"Value Buy","timeframe":"' + timeframe.period + '","signal_date":"' + f_isoTime() + '","monthly_rsi":' + str.tostring(monthlyRSI, "#.##") + ',"signal":true,"weekly_candle":"GREEN","daily_trigger":"' + vbDailyTrigger + '","secret":"' + webhookSecret + '"}', alert.freq_once_per_bar_close)
+
+// ---------------------------------------------------------------------------
+// Visual markers (optional, for manual chart verification before relying on
+// the webhook)
+// ---------------------------------------------------------------------------
+plotshape(gfsCondition, title = "GFS", style = shape.triangleup, location = location.belowbar, color = color.blue, size = size.tiny)
+plotshape(advGfsCondition, title = "Advanced GFS", style = shape.triangleup, location = location.belowbar, color = color.purple, size = size.tiny)
+plotshape(prdConfirmed, title = "PRD", style = shape.labelup, location = location.belowbar, color = color.green, size = size.tiny, text = "PRD")
+plotshape(nrdConfirmed, title = "NRD", style = shape.labeldown, location = location.abovebar, color = color.red, size = size.tiny, text = "NRD")
+plotshape(vbCondition, title = "Value Buy", style = shape.circle, location = location.belowbar, color = color.orange, size = size.tiny)

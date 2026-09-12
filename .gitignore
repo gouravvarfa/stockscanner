@@ -14,4 +14,4 @@ frontend/dist/
 .pytest_cache/
 *.egg-info/
 *.log
-.claude/settings.local.json
+.claude/

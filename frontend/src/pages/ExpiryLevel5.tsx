@@ -124,8 +124,8 @@ export function ExpiryLevel5() {
     <div className="page">
       <div className="page-header">
         <div>
-          <h1>Expiry Special Strategy — Level 5</h1>
-          <p className="muted">
+          <h1>Expiry Level 5</h1>
+          <p className="page-subtitle">
             Stock futures taking support near the 61.8% Fibonacci retracement, confirmed by a candle closing above
             the previous candle's high. Signal: BUY CE (underlying only — you pick the option contract).
           </p>
@@ -165,8 +165,9 @@ export function ExpiryLevel5() {
 
       {result && result.angelone_configured && (
         result.signals.length === 0 ? (
-          <div className="card">
-            <p className="muted">No BUY CE signals in this scan.</p>
+          <div className="card state-block">
+            <div className="state-title">No signals found</div>
+            <div className="state-subtitle">No BUY CE signals in this scan.</div>
           </div>
         ) : (
           result.signals.map((s) => <SignalCard key={s.symbol} s={s} />)

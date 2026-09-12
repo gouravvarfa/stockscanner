@@ -214,10 +214,22 @@ class TapetideMCPClient:
         await self._transport_cm.__aexit__(*exc)
 
     async def call(self, tool_name: str, arguments: dict[str, Any]) -> Any:
+        from mcp.shared.exceptions import MCPError
+
         from backend.providers import tapetide_status
 
         assert self._session is not None, "TapetideMCPClient must be used as an async context manager"
-        result = await self._session.call_tool(tool_name, arguments)
+        try:
+            result = await self._session.call_tool(tool_name, arguments)
+        except MCPError as exc:
+            # Transport/session-level failure (e.g. "Connection closed") — the
+            # session itself is dead, not just this one call. Every future call
+            # on this client will fail identically until the session is rebuilt
+            # (see provider_factory.reconnect_tapetide), so surface that
+            # distinctly rather than as a generic tool error.
+            message = f"Tapetide MCP session error on '{tool_name}': {exc}"
+            tapetide_status.record_disconnected(message)
+            raise RuntimeError(f"{message} — reconnect Tapetide from Settings and retry.") from exc
         if result.is_error:
             message = f"Tapetide tool '{tool_name}' returned an error: {result.content}"
             tapetide_status.record_error(message)

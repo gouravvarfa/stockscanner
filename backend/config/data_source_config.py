@@ -4,7 +4,7 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-DataSourceMode = Literal["auto", "tapetide", "angel_one"]
+DataSourceMode = Literal["auto", "tapetide", "angel_one", "yahoo"]
 
 
 class DataSourceConfig(BaseModel):

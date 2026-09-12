@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from backend.config.data_source_config import DataSourceConfig
 from backend.providers import call_metrics, tapetide_status
-from backend.services import angelone_credential_store, config_store
+from backend.services import angelone_credential_store, config_store, provider_factory
 
 router = APIRouter(prefix="/api/data-source", tags=["data-source"])
 
@@ -45,6 +45,22 @@ def get_provider_status() -> list[ProviderStatusOut]:
             detail=f"Connected as {creds.client_code}" if creds else None,
         ),
     ]
+
+
+@router.post("/tapetide/reconnect", response_model=ProviderStatusOut)
+async def reconnect_tapetide() -> ProviderStatusOut:
+    """
+    Rebuilds the Tapetide MCP session in place — no server restart needed.
+    Use this when the Providers panel shows Tapetide as DISCONNECTED (its
+    long-lived session dropped and stopped recovering on its own).
+    """
+    try:
+        await provider_factory.reconnect_tapetide()
+    except Exception as exc:  # noqa: BLE001 — surfaced to the UI as a clear failure, not a 500 crash
+        raise HTTPException(status_code=502, detail=f"Tapetide reconnect failed: {exc}") from exc
+
+    tp = tapetide_status.get_status()
+    return ProviderStatusOut(name="TAPETIDE", status=tp.state, detail=tp.detail)
 
 
 class CallMetricsOut(BaseModel):

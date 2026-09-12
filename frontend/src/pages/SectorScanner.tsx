@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useScan } from "../context/ScanContext";
 import type { SectorResult } from "../services/api";
 import { Badge } from "../components/Badge";
+import { SourceBadge } from "../components/SourceBadge";
 
 type SortKey = keyof Pick<
   SectorResult,
@@ -39,15 +40,28 @@ export function SectorScanner() {
   if (!latest) {
     return (
       <div className="page">
-        <h1>Sector Scanner</h1>
-        <p className="muted">Run a scan from the Dashboard to see sector data.</p>
+        <div className="page-header">
+          <div>
+            <h1>Sector Scanner</h1>
+            <p className="page-subtitle">NIFTY-relative sector strength ranking</p>
+          </div>
+        </div>
+        <div className="card state-block">
+          <div className="state-title">No signals found</div>
+          <div className="state-subtitle">Run a scan from the Dashboard to see sector data.</div>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="page">
-      <h1>Sector Scanner</h1>
+      <div className="page-header">
+        <div>
+          <h1>Sector Scanner</h1>
+          <p className="page-subtitle">NIFTY-relative sector strength ranking</p>
+        </div>
+      </div>
       <div className="table-wrap">
         <table>
           <thead>
@@ -63,6 +77,7 @@ export function SectorScanner() {
               <th onClick={() => sortBy("weekly_rsi")}>Weekly RSI</th>
               <th onClick={() => sortBy("monthly_rsi")}>Monthly RSI</th>
               <th onClick={() => sortBy("sector_score")}>Score</th>
+              <th>Status</th>
             </tr>
           </thead>
           <tbody>
@@ -70,27 +85,29 @@ export function SectorScanner() {
               const qualifies = latest.qualifying_sectors.includes(s.sector);
               return (
                 <tr key={s.sector} className={qualifies ? "row-highlight" : ""}>
-                  <td>{s.sector}{!s.available && <span className="muted small"> (unavailable)</span>}</td>
-                  <td>{s.daily_return_pct?.toFixed(2) ?? "—"}%</td>
-                  <td>{s.weekly_return_pct?.toFixed(2) ?? "—"}%</td>
-                  <td>{s.monthly_return_pct?.toFixed(2) ?? "—"}%</td>
-                  <td>{s.daily_vs_nifty?.toFixed(2) ?? "—"}</td>
-                  <td>{s.weekly_vs_nifty?.toFixed(2) ?? "—"}</td>
-                  <td>{s.monthly_vs_nifty?.toFixed(2) ?? "—"}</td>
-                  <td>{s.daily_rsi?.toFixed(1) ?? "—"}</td>
-                  <td>{s.weekly_rsi?.toFixed(1) ?? "—"}</td>
-                  <td>{s.monthly_rsi?.toFixed(1) ?? "—"}</td>
-                  <td>{s.sector_score.toFixed(1)}</td>
+                  <td className="symbol-cell">{s.sector}{!s.available && <span className="muted small"> (unavailable)</span>}</td>
+                  <td className="num-cell">{s.daily_return_pct?.toFixed(2) ?? "—"}%</td>
+                  <td className="num-cell">{s.weekly_return_pct?.toFixed(2) ?? "—"}%</td>
+                  <td className="num-cell">{s.monthly_return_pct?.toFixed(2) ?? "—"}%</td>
+                  <td className="num-cell">{s.daily_vs_nifty?.toFixed(2) ?? "—"}</td>
+                  <td className="num-cell">{s.weekly_vs_nifty?.toFixed(2) ?? "—"}</td>
+                  <td className="num-cell">{s.monthly_vs_nifty?.toFixed(2) ?? "—"}</td>
+                  <td className="num-cell">{s.daily_rsi?.toFixed(1) ?? "—"}</td>
+                  <td className="num-cell">
+                    {s.weekly_rsi?.toFixed(1) ?? "—"}{" "}
+                    {s.weekly_rsi !== null && s.weekly_data_source && <SourceBadge source={s.weekly_data_source} />}
+                  </td>
+                  <td className="num-cell">
+                    {s.monthly_rsi?.toFixed(1) ?? "—"}{" "}
+                    {s.monthly_rsi !== null && s.monthly_data_source && <SourceBadge source={s.monthly_data_source} />}
+                  </td>
+                  <td className="num-cell">{s.sector_score.toFixed(1)}</td>
+                  <td>{qualifies ? <Badge label="SECTOR OUTPERFORMING" /> : <span className="muted small">—</span>}</td>
                 </tr>
               );
             })}
           </tbody>
         </table>
-      </div>
-      <div className="legend">
-        {latest.qualifying_sectors.map((s) => (
-          <Badge key={s} label="SECTOR OUTPERFORMING" />
-        ))}
       </div>
     </div>
   );

@@ -22,7 +22,7 @@ async def run_scan(scan_type: str = "manual", db: Session = Depends(get_db)) -> 
         outcome = await run_full_scan(
             provider, config, multi_strategy_config=multi_strategy_config,
             market_data_router=get_market_data_router(), data_source_mode=data_source_mode,
-            angelone_provider=get_angelone_provider(),
+            angelone_provider=get_angelone_provider(), db=db,
         )
     except RuntimeError as exc:
         # Surfaces Tapetide-side failures (e.g. daily MCP call quota exhausted)

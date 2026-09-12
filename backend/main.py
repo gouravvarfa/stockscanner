@@ -14,6 +14,7 @@ from backend.api import expiry_level_5 as expiry_level_5_api
 from backend.api import history as history_api
 from backend.api import scan as scan_api
 from backend.api import scanner as scanner_api
+from backend.api import tradingview as tradingview_api
 from backend.core.config import settings
 from backend.core.database import init_db
 from backend.services import provider_factory
@@ -51,6 +52,7 @@ app.include_router(expiry_api.router)
 app.include_router(expiry_level_5_api.router)
 app.include_router(angelone_api.router)
 app.include_router(data_source_api.router)
+app.include_router(tradingview_api.router)
 
 
 @app.get("/api/health")

@@ -1,6 +1,7 @@
-import type { StockResult, StrategySignal } from "../services/api";
+import { strategyDisplayName, type StockResult, type StrategySignal } from "../services/api";
 import { Badge } from "./Badge";
 import { ConditionChip } from "./ConditionChip";
+import { SourceBadge } from "./SourceBadge";
 
 function fmt(value: number | null | undefined, digits = 2, suffix = ""): string {
   return value === null || value === undefined || Number.isNaN(value) ? "N/A" : `${value.toFixed(digits)}${suffix}`;
@@ -95,7 +96,7 @@ export function StockDetailPanel({
           <div>
             <div className="symbol">{signal.symbol}</div>
             <div className="muted">
-              {signal.sector} · {signal.strategy}
+              {signal.sector} · {strategyDisplayName(signal.strategy)}
             </div>
           </div>
           <button className="secondary-button" onClick={onClose}>
@@ -125,6 +126,19 @@ export function StockDetailPanel({
             <br />
             {fmt(signal.monthly_rsi, 1)}
           </div>
+          {typeof signal.extra.data_source === "string" && (
+            <div>
+              <span className="muted">Data Source</span>
+              <br />
+              <SourceBadge source={signal.extra.data_source as string} />
+            </div>
+          )}
+          {typeof signal.extra.current_price === "number" && !richData && (
+            <div>
+              <span className="muted">Price</span>
+              <br />₹{fmt(signal.extra.current_price as number)}
+            </div>
+          )}
           {richData && (
             <>
               <div>
@@ -205,8 +219,8 @@ export function StockDetailPanel({
           </div>
         ) : (
           <p className="muted">
-            Not available — detailed trend/momentum/volume/Fibonacci data is only computed for Strategy One's
-            Top 10 in this scan. This stock qualified for {signal.strategy} but wasn't in that set.
+            Not available — detailed trend/momentum/volume/Fibonacci data is only computed for System One's
+            Top 10 in this scan. This stock qualified for {strategyDisplayName(signal.strategy)} but wasn't in that set.
           </p>
         )}
 

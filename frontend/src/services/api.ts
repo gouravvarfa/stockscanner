@@ -74,6 +74,21 @@ export interface StockResult {
   explanation: string[];
   data_warnings: string[];
   trade_setup: TradeSetupOut | null;
+  data_source?: string | null;
+}
+
+export interface NiftyUniverseStock {
+  symbol: string;
+  company_name: string | null;
+  sector: string;
+  sector_source: string;
+  current_price: number | null;
+  daily_rsi: number | null;
+  weekly_rsi: number | null;
+  monthly_rsi: number | null;
+  data_source: string | null;
+  status: string; // "OK" | "DATA_UNAVAILABLE"
+  status_reason: string | null;
 }
 
 export interface SectorResult {
@@ -126,6 +141,17 @@ export const STRATEGY_NAMES = [
 ] as const;
 export type StrategyName = (typeof STRATEGY_NAMES)[number];
 
+// Display-only relabeling — the backend's strategy key stays "Strategy One"
+// (used for lookups into ScanResult.strategies, StrategySignal.strategy,
+// etc.), only the UI-facing name changes.
+const DISPLAY_NAME_OVERRIDES: Partial<Record<StrategyName, string>> = {
+  "Strategy One": "System One",
+};
+
+export function strategyDisplayName(name: string): string {
+  return DISPLAY_NAME_OVERRIDES[name as StrategyName] ?? name;
+}
+
 export interface ScanResult {
   scan_id: number | null;
   started_at: string;
@@ -144,6 +170,7 @@ export interface ScanResult {
   top10: StockResult[];
   top3: StockResult[];
   best: StockResult | null;
+  nifty200_universe: NiftyUniverseStock[];
   strategies: Record<string, StrategySignal[]>;
   errors: string[];
 }
@@ -297,6 +324,43 @@ export interface ProviderStatus {
   detail: string | null;
 }
 
+export interface CallMetrics {
+  day: string;
+  tapetide_calls: number;
+  tapetide_quota: number;
+  tapetide_quota_remaining: number;
+  tapetide_cache_hits: number;
+  tapetide_cache_misses: number;
+  cache_hit_rate_pct: number;
+  angelone_calls: number;
+  fallbacks: number;
+}
+
+export interface TradingViewSignal {
+  id: number;
+  source: string;
+  symbol: string;
+  exchange: string | null;
+  strategy: string;
+  signal_timeframe: string;
+  signal_date: string;
+  daily_rsi: number | null;
+  weekly_rsi: number | null;
+  monthly_rsi: number | null;
+  divergence_type: string | null;
+  divergence_timeframe: string | null;
+  trigger: string | null;
+  received_at: string;
+  status: string;
+}
+
+export interface TradingViewStatus {
+  enabled: boolean;
+  configured: boolean;
+  signal_count: number;
+  latest_signal_at: string | null;
+}
+
 export const api = {
   health: () => request<{ status: string }>("/api/health"),
   runScan: (scanType: string = "manual") =>
@@ -322,4 +386,8 @@ export const api = {
   updateDataSource: (config: DataSourceConfig) =>
     request<DataSourceConfig>("/api/data-source", { method: "PUT", body: JSON.stringify(config) }),
   getProviderStatus: () => request<ProviderStatus[]>("/api/data-source/providers"),
+  getCallMetrics: () => request<CallMetrics>("/api/data-source/call-metrics"),
+  reconnectTapetide: () => request<ProviderStatus>("/api/data-source/tapetide/reconnect", { method: "POST" }),
+  getTradingViewStatus: () => request<TradingViewStatus>("/api/tradingview/status"),
+  listTradingViewSignals: (limit = 200) => request<TradingViewSignal[]>(`/api/tradingview/signals?limit=${limit}`),
 };

@@ -108,7 +108,22 @@ def analyze_sector(
     benchmark: BenchmarkStats,
     config: SectorRSIConfig,
     angelone_ohlc_override: pd.DataFrame | None = None,
+    tradingview_weekly_rsi: float | None = None,
+    tradingview_monthly_rsi: float | None = None,
 ) -> SectorAnalysis:
+    """
+    tradingview_weekly_rsi / tradingview_monthly_rsi: an OPTIONAL, LAST-RESORT
+    fallback — the RSI value from the most recent TradingView SECTOR_RSI
+    webhook signal for this sector's NSE index (see
+    backend/services/tradingview_service.get_latest_sector_rsi), used only
+    when neither Angel One's override series nor Tapetide's own window could
+    produce that timeframe's RSI. Carries no return_pct (TradingView sends
+    RSI only), so weekly_vs_nifty/monthly_vs_nifty stay None for a
+    TradingView-sourced timeframe exactly as they already do for any other
+    "unavailable" timeframe — outperforms_nifty and meets_rsi_thresholds
+    degrade the same honest way as the existing UNAVAILABLE path, never a
+    stock-sector-metadata substitute (spec section 11).
+    """
     nse_index = resolve_sector_index(tapetide_sector)
 
     if nse_index is None:
@@ -149,6 +164,9 @@ def analyze_sector(
         if candidate.rsi is not None:
             weekly_stats = candidate
             weekly_data_source = "TAPETIDE"
+    if weekly_stats.rsi is None and tradingview_weekly_rsi is not None:
+        weekly_stats = TimeframeStats(None, tradingview_weekly_rsi)
+        weekly_data_source = "TRADINGVIEW"
 
     monthly_data_source = "UNAVAILABLE"
     monthly_stats = TimeframeStats(None, None)
@@ -164,6 +182,9 @@ def analyze_sector(
         if candidate.rsi is not None:
             monthly_stats = candidate
             monthly_data_source = "TAPETIDE"
+    if monthly_stats.rsi is None and tradingview_monthly_rsi is not None:
+        monthly_stats = TimeframeStats(None, tradingview_monthly_rsi)
+        monthly_data_source = "TRADINGVIEW"
 
     daily_vs_nifty = (
         daily_stats.return_pct - benchmark.daily.return_pct
@@ -192,10 +213,22 @@ def analyze_sector(
     # enforced only when actually computable (never from stale/truncated
     # data — see SectorAnalysis docstring), but at least one of them must be
     # confirmed and passing — daily alone is single-day noise, never enough.
-    daily_ok = daily_stats.rsi is not None and daily_stats.rsi > config.daily_min
     weekly_ok = weekly_stats.rsi is None or weekly_stats.rsi > config.weekly_min
     monthly_ok = monthly_stats.rsi is None or monthly_stats.rsi > config.monthly_min
     has_confirmation = weekly_stats.rsi is not None or monthly_stats.rsi is not None
+
+    # Alternate path: weekly AND monthly both confirmed and already above
+    # their own mins is itself a strong-trend confirmation, so a daily
+    # reading that's merely above the lower daily_min_relaxed bar (instead
+    # of the full daily_min) still counts — a single lagging daily candle
+    # shouldn't override two higher timeframes already confirming strength.
+    higher_timeframes_confirmed_strong = (
+        weekly_stats.rsi is not None and weekly_stats.rsi > config.weekly_min
+        and monthly_stats.rsi is not None and monthly_stats.rsi > config.monthly_min
+    )
+    daily_threshold = config.daily_min_relaxed if higher_timeframes_confirmed_strong else config.daily_min
+    daily_ok = daily_stats.rsi is not None and daily_stats.rsi > daily_threshold
+
     meets_rsi = daily_ok and weekly_ok and monthly_ok and has_confirmation
 
     # Sector Outperformance Score (0-100): average of the AVAILABLE relative-

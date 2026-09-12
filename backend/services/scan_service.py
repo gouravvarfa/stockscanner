@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import pandas as pd
+from sqlalchemy.orm import Session
 
 from backend.config.data_source_config import DataSourceMode
 from backend.config.multi_strategy_config import DEFAULT_MULTI_STRATEGY_CONFIG, MultiStrategyConfig
@@ -22,6 +23,7 @@ from backend.sector_analysis.engine import SectorAnalysis, analyze_sector, compu
 from backend.strategies.runner import evaluate_all_strategies
 from backend.strategies.types import StrategySignal
 from backend.strategies.value_buy import evaluate_value_buy
+from backend.services import tradingview_service
 
 # Enough calendar days to reliably get 15+ MONTHLY (and comfortably more
 # than enough WEEKLY) closes after resampling — Tapetide's get_index_history
@@ -57,6 +59,29 @@ logger = logging.getLogger("scanner.scan_service")
 
 
 @dataclass
+class UniverseStockEntry:
+    """
+    One row of the TRUE NIFTY 200 master universe — one entry per constituent
+    the universe provider actually returned, independent of whether that
+    stock's own price/RSI analysis later succeeded. Built BEFORE any
+    per-stock fetch is attempted (see run_full_scan) and then enriched in
+    place as each stock's analysis completes — a stock is never removed
+    just because its market data turned out to be unavailable.
+    """
+    symbol: str
+    sector: str  # stock metadata — from the same universe-provider row, never sector-index data
+    sector_source: str
+    company_name: str | None = None
+    current_price: float | None = None
+    daily_rsi: float | None = None
+    weekly_rsi: float | None = None
+    monthly_rsi: float | None = None
+    data_source: str | None = None
+    status: str = "PENDING"  # "OK" | "DATA_UNAVAILABLE" | "PENDING" (should never be observed externally)
+    status_reason: str | None = None
+
+
+@dataclass
 class ScanOutcome:
     started_at: dt.datetime
     finished_at: dt.datetime
@@ -75,6 +100,13 @@ class ScanOutcome:
     top10: list[StockAnalysisResult]
     top3: list[StockAnalysisResult]
     best: StockAnalysisResult | None
+    # The TRUE NIFTY 200 master universe — one entry per constituent the
+    # universe provider returned (200, or fewer with universe_complete=False),
+    # regardless of whether that stock's own analysis succeeded. Deliberately
+    # SEPARATE from all_results/qualifying_results/top10/best: those three
+    # stay scoped to sector-qualified stocks only (Strategy One's own
+    # ranking), unaffected by this list existing.
+    nifty200_universe: list[UniverseStockEntry] = field(default_factory=list)
     # Additive: all six strategies (incl. Strategy One) per candidate, keyed by
     # strategy name -> list of StrategySignal. A stock qualifying for several
     # strategies appears once per strategy list, never deduplicated.
@@ -102,6 +134,7 @@ async def run_full_scan(
     market_data_router: MarketDataRouter | None = None,
     data_source_mode: DataSourceMode = "auto",
     angelone_provider: AngelOneProvider | None = None,
+    db: Session | None = None,
 ) -> ScanOutcome:
     multi_strategy_config = multi_strategy_config or DEFAULT_MULTI_STRATEGY_CONFIG
     started_at = dt.datetime.utcnow()
@@ -161,7 +194,25 @@ async def run_full_scan(
                 except Exception as exc:  # noqa: BLE001
                     errors.append(f"Sector index fetch failed for '{nse_index}': {exc}")
                     logger.warning("Sector index fetch failed for %s: %s", nse_index, exc)
-        sector_analyses[sector] = analyze_sector(sector, sector_ohlc, benchmark, config.sector_rsi, angelone_override)
+
+        # Last-resort fallback: an optional TradingView SECTOR_RSI webhook
+        # signal (see backend/services/tradingview_service.py), used only
+        # when `db` is provided (the API request path always provides one;
+        # tests that call run_full_scan directly typically don't, and simply
+        # skip this — Tapetide/Angel One-only behavior stays identical for
+        # them).
+        tv_weekly_rsi: float | None = None
+        tv_monthly_rsi: float | None = None
+        if db is not None and nse_index:
+            tv_signal = tradingview_service.get_latest_sector_rsi(db, nse_index)
+            if tv_signal is not None:
+                tv_weekly_rsi = tv_signal.weekly_rsi
+                tv_monthly_rsi = tv_signal.monthly_rsi
+
+        sector_analyses[sector] = analyze_sector(
+            sector, sector_ohlc, benchmark, config.sector_rsi, angelone_override,
+            tradingview_weekly_rsi=tv_weekly_rsi, tradingview_monthly_rsi=tv_monthly_rsi,
+        )
 
     qualifying_sectors = [
         sector
@@ -169,6 +220,24 @@ async def run_full_scan(
         if analysis.available and analysis.meets_rsi_thresholds and analysis.outperforms_nifty
     ]
     logger.info("Qualifying sectors: %s", qualifying_sectors)
+    # Per-sector breakdown so "why did nothing qualify" is answerable from
+    # the log alone, without spending another live call to re-derive it.
+    for sector, a in sector_analyses.items():
+        if not a.available:
+            logger.info("[SECTOR] %-24s UNAVAILABLE (%s)", sector, a.unavailable_reason)
+            continue
+        logger.info(
+            "[SECTOR] %-24s D=%s W=%s M=%s | vsNifty D=%s W=%s M=%s | meets_rsi=%s outperforms=%s",
+            sector,
+            f"{a.daily.rsi:.1f}" if a.daily and a.daily.rsi is not None else "None",
+            f"{a.weekly.rsi:.1f}" if a.weekly and a.weekly.rsi is not None else "None",
+            f"{a.monthly.rsi:.1f}" if a.monthly and a.monthly.rsi is not None else "None",
+            f"{a.daily_vs_nifty:+.2f}" if a.daily_vs_nifty is not None else "None",
+            f"{a.weekly_vs_nifty:+.2f}" if a.weekly_vs_nifty is not None else "None",
+            f"{a.monthly_vs_nifty:+.2f}" if a.monthly_vs_nifty is not None else "None",
+            a.meets_rsi_thresholds,
+            a.outperforms_nifty,
+        )
 
     candidates = [s for s in stocks if s.get("sector") in qualifying_sectors]
     # Value Buy does not depend on sector strength at all internally (see
@@ -181,6 +250,21 @@ async def run_full_scan(
     # sector-qualified stocks, exactly as before.
     candidate_symbols = {s["symbol"] for s in candidates}
     value_buy_only_candidates = [s for s in stocks if s["symbol"] not in candidate_symbols]
+
+    # Master universe: one entry per constituent the provider actually
+    # returned, built BEFORE any per-stock fetch/analysis is attempted.
+    # process()/process_value_buy_only() below only ever ENRICH an existing
+    # entry in place (on success) or mark it DATA_UNAVAILABLE (on failure) —
+    # they never add or remove rows, so every constituent stays visible
+    # regardless of analysis outcome.
+    universe_by_symbol: dict[str, UniverseStockEntry] = {
+        s["symbol"]: UniverseStockEntry(
+            symbol=s["symbol"],
+            sector=s.get("sector") or "Unknown",
+            sector_source="Tapetide" if s.get("sector") else "UNAVAILABLE",
+        )
+        for s in stocks
+    }
 
     semaphore = asyncio.Semaphore(max_concurrent_stock_calls)
     all_results: list[StockAnalysisResult] = []
@@ -221,6 +305,7 @@ async def run_full_scan(
 
     async def process(stock_meta: dict[str, Any]) -> None:
         symbol = stock_meta["symbol"]
+        entry = universe_by_symbol[symbol]
         async with semaphore:
             try:
                 ohlcv, stock_data_source = await _fetch_ohlcv(symbol)
@@ -230,6 +315,12 @@ async def run_full_scan(
                 )
                 if result is not None:
                     all_results.append(result)
+                    entry.current_price = result.current_price
+                    entry.daily_rsi = result.daily.rsi
+                    entry.weekly_rsi = result.weekly.rsi
+                    entry.monthly_rsi = result.monthly.rsi
+                    entry.data_source = stock_data_source
+                    entry.status = "OK"
                     # Same already-fetched OHLCV and already-computed indicators
                     # feed every strategy — no extra Tapetide calls per strategy.
                     signals = evaluate_all_strategies(result, ohlcv, multi_strategy_config)
@@ -242,13 +333,18 @@ async def run_full_scan(
                             strategy_signals[name].append(signal)
                 else:
                     failed_symbols.append(symbol)
+                    entry.status = "DATA_UNAVAILABLE"
+                    entry.status_reason = "Insufficient historical data (fewer than 60 daily bars)"
             except Exception as exc:  # noqa: BLE001
                 logger.warning("Stock %s failed: %s", symbol, exc)
                 failed_symbols.append(symbol)
                 errors.append(f"{symbol}: {exc}")
+                entry.status = "DATA_UNAVAILABLE"
+                entry.status_reason = str(exc)
 
     async def process_value_buy_only(stock_meta: dict[str, Any]) -> None:
         symbol = stock_meta["symbol"]
+        entry = universe_by_symbol[symbol]
         async with semaphore:
             try:
                 ohlcv, stock_data_source = await _fetch_ohlcv(symbol)
@@ -257,6 +353,12 @@ async def run_full_scan(
                     sector_analyses.get(stock_meta.get("sector")), config,
                 )
                 if result is not None:
+                    entry.current_price = result.current_price
+                    entry.daily_rsi = result.daily.rsi
+                    entry.weekly_rsi = result.weekly.rsi
+                    entry.monthly_rsi = result.monthly.rsi
+                    entry.data_source = stock_data_source
+                    entry.status = "OK"
                     signal = evaluate_value_buy(result, ohlcv, multi_strategy_config.value_buy)
                     if signal.qualifies:
                         signal.extra["current_price"] = result.current_price
@@ -264,10 +366,14 @@ async def run_full_scan(
                         strategy_signals["Value Buy"].append(signal)
                 else:
                     failed_symbols.append(symbol)
+                    entry.status = "DATA_UNAVAILABLE"
+                    entry.status_reason = "Insufficient historical data (fewer than 60 daily bars)"
             except Exception as exc:  # noqa: BLE001
                 logger.warning("Stock %s failed (Value Buy only): %s", symbol, exc)
                 failed_symbols.append(symbol)
                 errors.append(f"{symbol}: {exc}")
+                entry.status = "DATA_UNAVAILABLE"
+                entry.status_reason = str(exc)
 
     await asyncio.gather(
         *(process(s) for s in candidates),
@@ -304,6 +410,7 @@ async def run_full_scan(
         top10=top10,
         top3=top3,
         best=best,
+        nifty200_universe=list(universe_by_symbol.values()),
         strategy_signals=strategy_signals,
         data_source_mode=data_source_mode,
         data_source_summary=data_source_summary,

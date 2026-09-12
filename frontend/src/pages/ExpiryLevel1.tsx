@@ -12,8 +12,9 @@ function fmt(value: number, digits = 1): string {
 function SignalTable({ rows }: { rows: ExpiryLevel1Signal[] }) {
   if (rows.length === 0) {
     return (
-      <div className="card">
-        <p className="muted">No confirmed signals in this scan.</p>
+      <div className="card state-block">
+        <div className="state-title">No signals found</div>
+        <div className="state-subtitle">No confirmed signals in this scan.</div>
       </div>
     );
   }
@@ -78,8 +79,8 @@ export function ExpiryLevel1() {
     <div className="page">
       <div className="page-header">
         <div>
-          <h1>Strategy 1 — Expiry Level 1</h1>
-          <p className="muted">
+          <h1>Expiry Level 1</h1>
+          <p className="page-subtitle">
             15-minute RSI between 58 and 65, with 1-hour RSI above 65. Underlying signal only — you
             choose the option contract on TradingView/your broker separately.
           </p>

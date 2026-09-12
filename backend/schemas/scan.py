@@ -61,6 +61,9 @@ class StockResultOut(BaseModel):
     explanation: list[str]
     data_warnings: list[str]
     trade_setup: TradeSetupOut | None = None
+    # Which provider actually served this stock's OHLCV this scan — None
+    # when not tracked for this particular list (e.g. legacy call sites).
+    data_source: str | None = None
 
 
 class SectorResultOut(BaseModel):
@@ -82,6 +85,26 @@ class SectorResultOut(BaseModel):
     sector_score: float
     weekly_data_source: str = "UNAVAILABLE"  # "ANGEL_ONE" | "TAPETIDE" | "UNAVAILABLE"
     monthly_data_source: str = "UNAVAILABLE"  # "ANGEL_ONE" | "TAPETIDE" | "UNAVAILABLE"
+
+
+class NiftyUniverseStockOut(BaseModel):
+    """
+    One row of the TRUE NIFTY 200 master universe — one entry per constituent
+    the universe provider actually returned, present regardless of whether
+    that stock's own price/RSI analysis succeeded. Never removed on failure;
+    unavailable fields are None with `status`/`status_reason` explaining why.
+    """
+    symbol: str
+    company_name: str | None = None
+    sector: str
+    sector_source: str
+    current_price: float | None = None
+    daily_rsi: float | None = None
+    weekly_rsi: float | None = None
+    monthly_rsi: float | None = None
+    data_source: str | None = None
+    status: str  # "OK" | "DATA_UNAVAILABLE"
+    status_reason: str | None = None
 
 
 class StrategySignalOut(BaseModel):
@@ -117,6 +140,11 @@ class ScanResultOut(BaseModel):
     top10: list[StockResultOut]
     top3: list[StockResultOut]
     best: StockResultOut | None
+    # The TRUE NIFTY 200 master universe (every constituent the provider
+    # returned, regardless of analysis success) — for the NIFTY 200 Scanner
+    # page's full-universe table + local sector/strategy/search filtering.
+    # Structurally separate from strategy results / sector analysis / top10.
+    nifty200_universe: list[NiftyUniverseStockOut] = []
     # Additive: all six strategies' qualifying stocks from this same scan run,
     # keyed by strategy name. A stock may appear under multiple strategies.
     strategies: dict[str, list[StrategySignalOut]] = {}

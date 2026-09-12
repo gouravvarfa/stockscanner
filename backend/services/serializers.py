@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from backend.schemas.scan import (
     FibonacciOut,
+    NiftyUniverseStockOut,
     ScanResultOut,
     SectorResultOut,
     StockResultOut,
@@ -11,7 +12,7 @@ from backend.schemas.scan import (
 )
 from backend.screeners.stock_analysis import StockAnalysisResult, TimeframeReading
 from backend.sector_analysis.engine import SectorAnalysis
-from backend.services.scan_service import ScanOutcome
+from backend.services.scan_service import ScanOutcome, UniverseStockEntry
 from backend.strategies.trade_setup import TradeSetup, calculate_trade_setup
 from backend.strategies.types import StrategySignal
 
@@ -39,7 +40,9 @@ def _trade_setup_out(setup: TradeSetup) -> TradeSetupOut:
     )
 
 
-def stock_result_out(result: StockAnalysisResult, rank: int, include_trade_setup: bool = False) -> StockResultOut:
+def stock_result_out(
+    result: StockAnalysisResult, rank: int, include_trade_setup: bool = False, data_source: str | None = None
+) -> StockResultOut:
     fib = result.fibonacci
     fib_out = (
         FibonacciOut(
@@ -81,6 +84,23 @@ def stock_result_out(result: StockAnalysisResult, rank: int, include_trade_setup
         explanation=result.score.explanation,
         data_warnings=result.data_warnings,
         trade_setup=_trade_setup_out(calculate_trade_setup(result)) if include_trade_setup else None,
+        data_source=data_source,
+    )
+
+
+def universe_stock_out(entry: UniverseStockEntry) -> NiftyUniverseStockOut:
+    return NiftyUniverseStockOut(
+        symbol=entry.symbol,
+        company_name=entry.company_name,
+        sector=entry.sector,
+        sector_source=entry.sector_source,
+        current_price=entry.current_price,
+        daily_rsi=entry.daily_rsi,
+        weekly_rsi=entry.weekly_rsi,
+        monthly_rsi=entry.monthly_rsi,
+        data_source=entry.data_source,
+        status=entry.status,
+        status_reason=entry.status_reason,
     )
 
 
@@ -137,6 +157,7 @@ def scan_outcome_out(outcome: ScanOutcome, scan_id: int | None = None) -> ScanRe
     top10_out = [stock_result_out(r, i + 1) for i, r in enumerate(outcome.top10)]
     top3_out = [stock_result_out(r, i + 1, include_trade_setup=True) for i, r in enumerate(outcome.top3)]
     best_out = stock_result_out(outcome.best, 1, include_trade_setup=True) if outcome.best else None
+    nifty200_universe_out = [universe_stock_out(entry) for entry in outcome.nifty200_universe]
 
     return ScanResultOut(
         scan_id=scan_id,
@@ -157,6 +178,7 @@ def scan_outcome_out(outcome: ScanOutcome, scan_id: int | None = None) -> ScanRe
         top10=top10_out,
         top3=top3_out,
         best=best_out,
+        nifty200_universe=nifty200_universe_out,
         strategies={
             name: [strategy_signal_out(s) for s in signals]
             for name, signals in outcome.strategy_signals.items()
