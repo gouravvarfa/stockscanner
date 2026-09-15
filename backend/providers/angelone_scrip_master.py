@@ -13,13 +13,14 @@ import httpx
 from backend.core.cache import cache
 
 SCRIP_MASTER_URL = "https://margincalculator.angelone.in/OpenAPI_File/files/OpenAPIScripMaster.json"
-CACHE_KEY = "angelone:scrip_master:v2"  # v2: broadened to include NFO stock futures for Expiry Level 5
+CACHE_KEY = "angelone:scrip_master:v3"  # v3: broadened to include NFO index futures for Top-Bottom Backtesting
 CACHE_TTL_SECONDS = 24 * 3600
 
-# NSE: equities ("") + indices ("AMXIDX"). NFO: stock futures ("FUTSTK"), needed
-# for Expiry Level 5's stock-future underlying — options/index futures not needed yet.
+# NSE: equities ("") + indices ("AMXIDX"). NFO: stock futures ("FUTSTK") and
+# index futures ("FUTIDX", e.g. NIFTY/BANKNIFTY) — options ("OPTSTK"/"OPTIDX")
+# are deliberately excluded, this project never trades options.
 RELEVANT_NSE_TYPES = {"", "AMXIDX"}
-RELEVANT_NFO_TYPES = {"FUTSTK"}
+RELEVANT_NFO_TYPES = {"FUTSTK", "FUTIDX"}
 
 
 @dataclass
@@ -109,3 +110,75 @@ async def resolve_stock_future(symbol: str) -> ScripMatch | None:
 
     nearest = min(candidates, key=_expiry_key)
     return ScripMatch(token=nearest["token"], trading_symbol=nearest["symbol"], exch_seg="NFO")
+
+
+def _parse_expiry(raw: str) -> "dt.datetime":
+    import datetime as dt
+
+    try:
+        return dt.datetime.strptime(raw, "%d%b%Y")
+    except ValueError:
+        return dt.datetime.max
+
+
+@dataclass
+class FutureContract:
+    underlying: str  # scrip master "name" — e.g. "RELIANCE", "NIFTY"
+    trading_symbol: str  # e.g. "RELIANCE29SEP26FUT"
+    token: str
+    exch_seg: str  # always "NFO"
+    expiry: str  # ISO date "2026-09-29"
+    is_index: bool  # True for FUTIDX (NIFTY/BANKNIFTY/...), False for FUTSTK
+    lot_size: int  # real exchange lot size, straight from Angel One's own scrip master — never guessed
+
+
+async def search_futures(query: str, limit: int = 25) -> list[FutureContract]:
+    """
+    Every live NFO futures contract (stock or index) whose underlying name
+    starts with `query` (case-insensitive) — used by the Top-Bottom
+    Backtesting module's futures search box. Deliberately NEVER returns
+    equity/cash, ETF, mutual fund, or option contracts: this module only
+    ever operates on FUTSTK/FUTIDX rows from Angel One's own live scrip
+    master, so no symbol here can be anything but a real, currently listed
+    futures contract.
+    """
+    import datetime as dt  # noqa: F401 (re-imported for _parse_expiry's annotation)
+
+    q = query.strip().upper()
+    if not q:
+        return []
+
+    rows = await _fetch_scrip_master()
+    matches = [
+        row
+        for row in rows
+        if row.get("exch_seg") == "NFO"
+        and row.get("instrumenttype") in RELEVANT_NFO_TYPES
+        and str(row.get("name", "")).upper().startswith(q)
+    ]
+    matches.sort(key=lambda r: (r["name"], _parse_expiry(r.get("expiry", ""))))
+    return [
+        FutureContract(
+            underlying=row["name"],
+            trading_symbol=row["symbol"],
+            token=row["token"],
+            exch_seg="NFO",
+            expiry=_parse_expiry(row.get("expiry", "")).date().isoformat(),
+            is_index=row.get("instrumenttype") == "FUTIDX",
+            lot_size=int(float(row.get("lotsize") or 0)),
+        )
+        for row in matches[:limit]
+    ]
+
+
+async def get_future_contracts(underlying: str) -> list[FutureContract]:
+    """All live expiries for one underlying (e.g. all RELIANCE FUT contracts), nearest first."""
+    return await search_futures(underlying, limit=50)
+
+
+async def resolve_future_contract(underlying: str, expiry: str) -> FutureContract | None:
+    """expiry: ISO date string ('2026-09-29') matching one of the live contracts' expiry exactly."""
+    for c in await get_future_contracts(underlying):
+        if c.underlying.upper() == underlying.strip().upper() and c.expiry == expiry:
+            return c
+    return None

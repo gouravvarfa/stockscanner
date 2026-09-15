@@ -17,6 +17,7 @@ const NAV_ITEMS = [
   { to: "/expiry-level-5", label: "Expiry Level 5", icon: CalendarIcon },
   { to: "/stocks", label: "A Group Scanner", icon: ListIcon },
   { to: "/tradingview", label: "TradingView Signals", icon: BellIcon },
+  { to: "/top-bottom", label: "Top Bottom Backtesting", icon: TrendIcon },
   { to: "/history", label: "Scan History", icon: HistoryIcon },
   { to: "/settings", label: "Settings", icon: SettingsIcon },
 ];

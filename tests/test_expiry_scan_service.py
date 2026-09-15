@@ -33,9 +33,10 @@ def _bars_1h(closes: list[float]) -> pd.DataFrame:
     )
 
 
-# A close-price path engineered so RSI(14) lands inside the [58, 65] band on
-# the final bar (verified: current RSI=60.0).
-_SIGNAL_15M_CLOSES = [100, 102, 100, 102, 100, 102, 100, 102, 100, 102, 100, 102, 100, 102, 106]
+# A close-price path engineered so RSI(14) sits at ~55.6 on the second-to-last
+# confirmed bar and rises to ~62.9 on the final bar — a confirmed first cross
+# above the 60 threshold (verified numerically against backend.indicators.rsi).
+_SIGNAL_15M_CLOSES = [100, 101, 99, 101, 99, 101, 99, 101, 99, 101, 99, 101, 99, 101, 103, 108]
 _SIGNAL_1H_CLOSES = [100 + i for i in range(20)]  # steady uptrend -> RSI well above 65
 
 

@@ -13,6 +13,8 @@ import { ExpiryLevel5 } from "./pages/ExpiryLevel5";
 import { ScanHistoryPage } from "./pages/ScanHistoryPage";
 import { Settings } from "./pages/Settings";
 import { TradingViewSignals } from "./pages/TradingViewSignals";
+import { TopBottomBacktest } from "./pages/TopBottomBacktest";
+import { TopBottomErrorBoundary } from "./pages/topBottom/TopBottomErrorBoundary";
 
 export default function App() {
   const [logsOpen, setLogsOpen] = useState(false);
@@ -32,6 +34,14 @@ export default function App() {
             <Route path="/stocks" element={<StockScanner />} />
             <Route path="/history" element={<ScanHistoryPage />} />
             <Route path="/tradingview" element={<TradingViewSignals />} />
+            <Route
+              path="/top-bottom"
+              element={
+                <TopBottomErrorBoundary>
+                  <TopBottomBacktest />
+                </TopBottomErrorBoundary>
+              }
+            />
             <Route path="/settings" element={<Settings />} />
           </Routes>
         </main>

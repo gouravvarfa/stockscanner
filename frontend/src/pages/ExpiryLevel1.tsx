@@ -29,6 +29,7 @@ function SignalTable({ rows }: { rows: ExpiryLevel1Signal[] }) {
             <th>15m RSI</th>
             <th>Previous 15m RSI</th>
             <th>1H RSI</th>
+            <th>Cross Status</th>
             <th>Status</th>
             <th>Reason</th>
           </tr>
@@ -42,6 +43,7 @@ function SignalTable({ rows }: { rows: ExpiryLevel1Signal[] }) {
               <td>{fmt(r.rsi_15m)}</td>
               <td>{fmt(r.rsi_15m_prev)}</td>
               <td>{fmt(r.rsi_1h)}</td>
+              <td>{r.cross_status.replace(/_/g, " ")}</td>
               <td>
                 <Badge label="BULLISH" />
                 <span style={{ marginLeft: 6 }}>{r.status}</span>
@@ -81,8 +83,8 @@ export function ExpiryLevel1() {
         <div>
           <h1>Expiry Level 1</h1>
           <p className="page-subtitle">
-            15-minute RSI between 58 and 65, with 1-hour RSI above 65. Underlying signal only — you
-            choose the option contract on TradingView/your broker separately.
+            First confirmed 15-minute close above RSI 60, with 1-hour RSI above 65. Underlying signal
+            only — you choose the option contract on TradingView/your broker separately.
           </p>
         </div>
         <button className="primary-button" onClick={handleRun} disabled={loading || !angelOneConfigured}>

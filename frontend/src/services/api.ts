@@ -208,6 +208,7 @@ export interface ExpiryLevel1Signal {
   rsi_15m: number;
   rsi_15m_prev: number;
   rsi_1h: number;
+  cross_status: string;
   status: string;
   strategy: string;
   explanation: string;
@@ -227,8 +228,7 @@ export interface ExpiryLevel1Result {
 }
 
 export interface ExpiryLevel1Config {
-  rsi_15m_min: number;
-  rsi_15m_max: number;
+  rsi_15m_threshold: number;
   rsi_1h_threshold: number;
   rsi_period: number;
   intraday_lookback_days: number;

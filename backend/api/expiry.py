@@ -21,6 +21,7 @@ def _signal_out(signal: ExpiryLevel1Signal) -> ExpiryLevel1SignalOut:
         rsi_15m=signal.rsi_15m,
         rsi_15m_prev=signal.rsi_15m_prev,
         rsi_1h=signal.rsi_1h,
+        cross_status=signal.cross_status,
         status=signal.status,
         explanation=signal.explanation,
     )

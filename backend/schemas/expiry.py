@@ -14,6 +14,7 @@ class ExpiryLevel1SignalOut(BaseModel):
     rsi_15m: float
     rsi_15m_prev: float
     rsi_1h: float
+    cross_status: str
     status: str
     strategy: str = "Expiry Level 1"
     explanation: str
