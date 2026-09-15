@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
+import { useChart } from "../chart/ChartContext";
 import { useScan } from "../context/ScanContext";
 import { STRATEGY_NAMES, strategyDisplayName, type NiftyUniverseStock } from "../services/api";
 import { SourceBadge } from "../components/SourceBadge";
 
-type SortKey = "symbol" | "sector" | "current_price" | "daily_rsi" | "weekly_rsi" | "monthly_rsi";
+type SortKey = "symbol" | "current_price" | "daily_rsi" | "weekly_rsi" | "monthly_rsi";
 const PAGE_SIZE = 50;
 
 function fmt(value: number | null | undefined, digits = 1): string {
@@ -16,9 +17,9 @@ function fmtPrice(value: number | null | undefined): string {
 
 export function StockScanner() {
   const { latest } = useScan();
+  const { openChart } = useChart();
   const [sortKey, setSortKey] = useState<SortKey>("symbol");
   const [asc, setAsc] = useState(true);
-  const [sectorFilter, setSectorFilter] = useState<string>("all");
   const [strategyFilter, setStrategyFilter] = useState<string>("all");
   const [sourceFilter, setSourceFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -42,21 +43,15 @@ export function StockScanner() {
     return map;
   }, [latest]);
 
-  const sectors = useMemo(() => {
-    const set = new Set(universe.map((s) => s.sector).filter(Boolean));
-    return ["all", ...Array.from(set).sort()];
-  }, [universe]);
-
   const sources = useMemo(() => {
     const set = new Set(universe.map((s) => s.data_source).filter((v): v is string => !!v));
     return ["all", ...Array.from(set).sort()];
   }, [universe]);
 
-  useEffect(() => setPage(1), [sectorFilter, strategyFilter, sourceFilter, statusFilter, symbolSearch]);
+  useEffect(() => setPage(1), [strategyFilter, sourceFilter, statusFilter, symbolSearch]);
 
   const filtered = useMemo(() => {
     let rows = universe;
-    if (sectorFilter !== "all") rows = rows.filter((s) => s.sector === sectorFilter);
     if (sourceFilter !== "all") rows = rows.filter((s) => s.data_source === sourceFilter);
     if (statusFilter !== "all") rows = rows.filter((s) => s.status === statusFilter);
     if (strategyFilter !== "all") {
@@ -71,9 +66,9 @@ export function StockScanner() {
     sorted.sort((a, b) => {
       let av: number | string;
       let bv: number | string;
-      if (sortKey === "symbol" || sortKey === "sector") {
-        av = a[sortKey];
-        bv = b[sortKey];
+      if (sortKey === "symbol") {
+        av = a.symbol;
+        bv = b.symbol;
         return asc ? av.localeCompare(bv) : bv.localeCompare(av);
       }
       if (sortKey === "current_price") {
@@ -87,7 +82,7 @@ export function StockScanner() {
       return asc ? (av as number) - (bv as number) : (bv as number) - (av as number);
     });
     return sorted;
-  }, [universe, sectorFilter, sourceFilter, statusFilter, strategyFilter, symbolSearch, strategiesBySymbol, sortKey, asc]);
+  }, [universe, sourceFilter, statusFilter, strategyFilter, symbolSearch, strategiesBySymbol, sortKey, asc]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
@@ -106,56 +101,33 @@ export function StockScanner() {
       <div className="page">
         <div className="page-header">
           <div>
-            <h1>NIFTY 200 Scanner</h1>
-            <p className="page-subtitle">Full universe with sector, price, RSI, and strategy signals</p>
+            <h1>A Group Scanner</h1>
+            <p className="page-subtitle">Full universe with price, RSI, and strategy signals</p>
           </div>
         </div>
         <div className="card state-block">
           <div className="state-title">No signals found</div>
-          <div className="state-subtitle">Run a scan from the Dashboard to see the NIFTY 200 universe.</div>
+          <div className="state-subtitle">Run a scan from the Dashboard to see the A Group universe.</div>
         </div>
       </div>
     );
   }
 
-  const incomplete = latest.universe_returned < latest.universe_requested;
-
   return (
     <div className="page">
       <div className="page-header">
         <div>
-          <h1>NIFTY 200 Scanner</h1>
+          <h1>A Group Scanner</h1>
           <p className="page-subtitle">
-            Showing {universe.length} of {latest.universe_requested} NIFTY 200 stocks
+            Showing {universe.length} of {latest.universe_requested} A Group stocks (from A_Group_Stock_List.xlsx)
           </p>
         </div>
       </div>
-
-      {incomplete && (
-        <div className="card state-block warning-block">
-          <div className="state-title">DATA INCOMPLETE</div>
-          <div className="state-subtitle">
-            The authoritative universe source returned {latest.universe_returned} of {latest.universe_requested}{" "}
-            constituents this scan{latest.universe_note ? ` — ${latest.universe_note}` : ""}. No stocks were
-            invented to fill the gap.
-          </div>
-        </div>
-      )}
 
       <div className="card filters-row">
         <label>
           Search symbol
           <input type="text" value={symbolSearch} onChange={(e) => setSymbolSearch(e.target.value)} placeholder="e.g. RELIANCE" />
-        </label>
-        <label>
-          Sector
-          <select value={sectorFilter} onChange={(e) => setSectorFilter(e.target.value)}>
-            {sectors.map((s) => (
-              <option key={s} value={s}>
-                {s === "all" ? "All Sectors" : s}
-              </option>
-            ))}
-          </select>
         </label>
         <label>
           Strategy
@@ -191,7 +163,7 @@ export function StockScanner() {
       {universe.length === 0 ? (
         <div className="card state-block">
           <div className="state-title">No signals found</div>
-          <div className="state-subtitle">The universe provider returned no constituents for this scan.</div>
+          <div className="state-subtitle">The universe file returned no constituents for this scan.</div>
         </div>
       ) : filtered.length === 0 ? (
         <div className="card state-block">
@@ -204,8 +176,6 @@ export function StockScanner() {
             <thead>
               <tr>
                 <th onClick={() => sortBy("symbol")}>Symbol</th>
-                <th>Company</th>
-                <th onClick={() => sortBy("sector")}>Sector</th>
                 <th onClick={() => sortBy("current_price")} className="num-cell">Price</th>
                 <th onClick={() => sortBy("daily_rsi")} className="num-cell">Daily RSI</th>
                 <th onClick={() => sortBy("weekly_rsi")} className="num-cell">Weekly RSI</th>
@@ -213,6 +183,7 @@ export function StockScanner() {
                 <th>Signal</th>
                 <th>Data Source</th>
                 <th>Status</th>
+                <th>Chart</th>
               </tr>
             </thead>
             <tbody>
@@ -222,8 +193,6 @@ export function StockScanner() {
                 return (
                   <tr key={s.symbol} className={unavailable ? "row-unavailable" : undefined}>
                     <td className="symbol-cell">{s.symbol}</td>
-                    <td>{s.company_name ?? "—"}</td>
-                    <td>{s.sector}</td>
                     <td className="num-cell">{fmtPrice(s.current_price)}</td>
                     <td className="num-cell">{fmt(s.daily_rsi)}</td>
                     <td className="num-cell">{fmt(s.weekly_rsi)}</td>
@@ -250,6 +219,23 @@ export function StockScanner() {
                       ) : (
                         <span className="chip chip-fail">DATA UNAVAILABLE</span>
                       )}
+                    </td>
+                    <td>
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        onClick={() =>
+                          openChart(s.symbol, {
+                            strategy: strategies[0] ?? "—",
+                            daily_rsi: s.daily_rsi,
+                            weekly_rsi: s.weekly_rsi,
+                            monthly_rsi: s.monthly_rsi,
+                            signal_date: null,
+                          })
+                        }
+                      >
+                        Chart
+                      </button>
                     </td>
                   </tr>
                 );

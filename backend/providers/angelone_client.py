@@ -1,7 +1,6 @@
 """
-Thin REST client over Angel One's SmartAPI, used ONLY for intraday (15m/1h)
-OHLCV — Tapetide (the primary provider) has no intraday history at all
-(confirmed from its own tool documentation: "Only end-of-day bars exist").
+Thin REST client over Angel One's SmartAPI — the only market-data provider
+in this project (daily, intraday 15m/1h, and stock-future OHLCV).
 
 Endpoints/payload shapes are taken from Angel One's own SmartAPI reference
 (https://smartapi.angelone.in/docs), the same source the project's other

@@ -64,10 +64,6 @@ def validate_strategy_fields(payload: TradingViewWebhookPayload) -> None:
                 f"divergence_timeframe must be one of Daily/Weekly/Monthly, got '{payload.divergence_timeframe}'"
             )
 
-    elif payload.strategy == "SECTOR_RSI":
-        if payload.weekly_rsi is None and payload.monthly_rsi is None:
-            raise TradingViewValidationError("SECTOR_RSI requires at least one of weekly_rsi or monthly_rsi")
-
     elif payload.strategy == "Value Buy":
         if payload.monthly_rsi is None:
             raise TradingViewValidationError("Value Buy requires monthly_rsi")
@@ -91,21 +87,6 @@ def compute_dedupe_key(payload: TradingViewWebhookPayload) -> str:
         trigger,
     ])
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
-
-
-def get_latest_sector_rsi(db: Session, nse_index: str) -> TradingViewSignal | None:
-    """
-    Most recent SECTOR_RSI signal for this NSE sectoral index (e.g.
-    "Nifty Healthcare"), if any has ever been delivered. Used only as a
-    fallback data source by backend/sector_analysis/engine.py — never
-    queried for, or capable of affecting, per-stock strategy evaluation.
-    """
-    return (
-        db.query(TradingViewSignal)
-        .filter(TradingViewSignal.strategy == "SECTOR_RSI", TradingViewSignal.symbol == nse_index.upper())
-        .order_by(TradingViewSignal.signal_date.desc())
-        .first()
-    )
 
 
 def store_signal(db: Session, payload: TradingViewWebhookPayload) -> tuple[TradingViewSignal, bool]:

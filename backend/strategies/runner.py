@@ -20,7 +20,7 @@ def evaluate_all_strategies(
 ) -> dict[str, StrategySignal]:
     """
     Runs all six strategies against ONE already-fetched/analyzed stock. No
-    additional Tapetide calls are made here — everything derives from
+    additional Angel One calls are made here — everything derives from
     `result` (Strategy One's already-computed indicators/divergences) and
     `daily_ohlcv` (already fetched by the caller). A stock can qualify for
     several of these at once; callers must keep them as separate entries,
@@ -30,7 +30,7 @@ def evaluate_all_strategies(
         "Strategy One": evaluate_strategy_one(result),
         "GFS": evaluate_gfs(result, config.gfs),
         "Advanced GFS": evaluate_advanced_gfs(result, config.advanced_gfs),
-        "PRD": evaluate_prd(result, config.prd),
+        "PRD": evaluate_prd(result, daily_ohlcv, config.prd),
         "NRD": evaluate_nrd(result, config.nrd),
         "Value Buy": evaluate_value_buy(result, daily_ohlcv, config.value_buy),
     }

@@ -23,8 +23,8 @@ def compute_score(
 ) -> ScoreBreakdown:
     """
     `components` values must each be 0-100 and use the exact keys from
-    ScoringWeights (sector_outperformance, sector_rsi, stock_rsi, divergence,
-    fibonacci, trend, volume, macd_adx). The final score is the weighted
+    ScoringWeights (stock_rsi, divergence, fibonacci, trend, volume,
+    macd_adx). The final score is the weighted
     average, normalized against the configured weight total so custom weight
     sets that don't sum to exactly 100 still yield a 0-100 score.
     """

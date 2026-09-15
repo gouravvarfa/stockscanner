@@ -9,17 +9,6 @@ from __future__ import annotations
 from pydantic import BaseModel, Field
 
 
-class SectorRSIConfig(BaseModel):
-    daily_min: float = 60.0
-    weekly_min: float = 60.0
-    monthly_min: float = 60.0
-    # Alternate qualifying path: if weekly AND monthly are both confirmed and
-    # above their normal mins, daily only needs to clear this lower bar
-    # instead of daily_min — a sector already confirmed strong on the higher
-    # timeframes shouldn't be blocked by one lagging daily reading.
-    daily_min_relaxed: float = 55.0
-
-
 class StockRSIConfig(BaseModel):
     weekly_min: float = 60.0
     weekly_max: float = 65.0
@@ -57,8 +46,13 @@ class TrendConfig(BaseModel):
 
 
 class ScoringWeights(BaseModel):
-    sector_outperformance: float = 25.0
-    sector_rsi: float = 15.0
+    # Sector-based components (sector_outperformance, sector_rsi) were
+    # removed along with the rest of the sector system — the scanner now
+    # runs entirely on stock-level Angel One data, no sector index at all.
+    # compute_score() (backend/ranking/scorer.py) normalizes by the
+    # configured weight total, so removing them simply redistributes their
+    # share across the remaining components rather than leaving a scoring
+    # gap.
     stock_rsi: float = 20.0
     divergence: float = 15.0
     fibonacci: float = 10.0
@@ -67,16 +61,7 @@ class ScoringWeights(BaseModel):
     macd_adx: float = 5.0
 
     def total(self) -> float:
-        return (
-            self.sector_outperformance
-            + self.sector_rsi
-            + self.stock_rsi
-            + self.divergence
-            + self.fibonacci
-            + self.trend
-            + self.volume
-            + self.macd_adx
-        )
+        return self.stock_rsi + self.divergence + self.fibonacci + self.trend + self.volume + self.macd_adx
 
 
 class ClassificationThresholds(BaseModel):
@@ -86,7 +71,6 @@ class ClassificationThresholds(BaseModel):
 
 
 class StrategyConfig(BaseModel):
-    sector_rsi: SectorRSIConfig = Field(default_factory=SectorRSIConfig)
     stock_rsi: StockRSIConfig = Field(default_factory=StockRSIConfig)
     divergence: DivergenceConfig = Field(default_factory=DivergenceConfig)
     fibonacci: FibonacciConfig = Field(default_factory=FibonacciConfig)

@@ -7,10 +7,10 @@ pydantic-settings>=2.6
 pandas
 numpy
 httpx
-mcp>=2.2.0
 python-dotenv
 pyotp
 celery
 redis
+openpyxl
 pytest
 pytest-asyncio

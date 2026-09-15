@@ -29,6 +29,5 @@ class ExpiryLevel1ResultOut(BaseModel):
     failed_symbols: list[str]
     index_signals: list[ExpiryLevel1SignalOut]
     stock_signals: list[ExpiryLevel1SignalOut]
-    data_source_mode: str = "AUTO"
     data_source_summary: dict[str, int] = {}
     errors: list[str]

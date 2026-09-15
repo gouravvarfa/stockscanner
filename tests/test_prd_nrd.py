@@ -7,243 +7,244 @@ from backend.strategies.nrd import evaluate_nrd
 from backend.strategies.prd import evaluate_prd
 from tests.strategy_helpers import make_result
 
+LAST_BAR = 100  # "current completed bar" for all fixtures below
 
-def _bullish_signal() -> DivergenceSignal:
-    p1 = SwingPoint(index=10, date=pd.Timestamp("2024-01-10"), price=100.0, kind="low")
-    p2 = SwingPoint(index=30, date=pd.Timestamp("2024-02-10"), price=90.0, kind="low")  # lower low
+
+def _positive_reversal_signal(leg1_rsi: float, leg2_rsi: float, leg2_bar: int) -> DivergenceSignal:
+    """Positive Reversal (PRD's real pattern): price higher low, RSI lower low."""
+    p1 = SwingPoint(index=leg2_bar - 12, date=pd.Timestamp("2024-01-10"), price=90.0, kind="low")
+    p2 = SwingPoint(index=leg2_bar, date=pd.Timestamp("2024-02-10"), price=100.0, kind="low")
+    return DivergenceSignal(
+        kind="hidden_bullish", first_point=p1, second_point=p2,
+        first_rsi=leg1_rsi, second_rsi=leg2_rsi, price_change_pct=11.1, rsi_change=leg2_rsi - leg1_rsi,
+    )
+
+
+def _negative_reversal_signal(leg1_rsi: float, leg2_rsi: float, leg2_bar: int) -> DivergenceSignal:
+    """Negative Reversal (NRD's real pattern): price lower high, RSI higher high."""
+    p1 = SwingPoint(index=leg2_bar - 10, date=pd.Timestamp("2024-01-10"), price=110.0, kind="high")
+    p2 = SwingPoint(index=leg2_bar, date=pd.Timestamp("2024-02-10"), price=100.0, kind="high")
+    return DivergenceSignal(
+        kind="hidden_bearish", first_point=p1, second_point=p2,
+        first_rsi=leg1_rsi, second_rsi=leg2_rsi, price_change_pct=-9.1, rsi_change=leg2_rsi - leg1_rsi,
+    )
+
+
+def _regular_bullish_signal(leg2_bar: int) -> DivergenceSignal:
+    """Regular bullish divergence (price lower low + RSI higher low) — must NEVER satisfy PRD."""
+    p1 = SwingPoint(index=leg2_bar - 10, date=pd.Timestamp("2024-01-10"), price=100.0, kind="low")
+    p2 = SwingPoint(index=leg2_bar, date=pd.Timestamp("2024-02-10"), price=90.0, kind="low")
     return DivergenceSignal(
         kind="bullish", first_point=p1, second_point=p2,
-        first_rsi=25.0, second_rsi=35.0,  # higher RSI low -> bullish divergence
-        price_change_pct=-10.0, rsi_change=10.0,
+        first_rsi=65.0, second_rsi=70.0, price_change_pct=-10.0, rsi_change=5.0,
     )
 
 
-def _bearish_signal() -> DivergenceSignal:
-    p1 = SwingPoint(index=10, date=pd.Timestamp("2024-01-10"), price=100.0, kind="high")
-    p2 = SwingPoint(index=30, date=pd.Timestamp("2024-02-10"), price=110.0, kind="high")  # higher high
+def _regular_bearish_signal(leg2_bar: int) -> DivergenceSignal:
+    """Regular bearish divergence (price higher high + RSI lower high) — must NEVER satisfy NRD."""
+    p1 = SwingPoint(index=leg2_bar - 10, date=pd.Timestamp("2024-01-10"), price=100.0, kind="high")
+    p2 = SwingPoint(index=leg2_bar, date=pd.Timestamp("2024-02-10"), price=110.0, kind="high")
     return DivergenceSignal(
         kind="bearish", first_point=p1, second_point=p2,
-        first_rsi=75.0, second_rsi=65.0,  # lower RSI high -> bearish divergence
-        price_change_pct=10.0, rsi_change=-10.0,
+        first_rsi=20.0, second_rsi=15.0, price_change_pct=10.0, rsi_change=-5.0,
     )
 
 
-# PRD = uptrend context -> each timeframe's own RSI gate is a FLOOR (>60).
-_HIGH_RSI = dict(daily_rsi=65.0, weekly_rsi=62.0, monthly_rsi=61.0)
-# NRD = downtrend context -> each timeframe's own RSI gate is a CEILING (<45).
-_LOW_RSI = dict(daily_rsi=35.0, weekly_rsi=38.0, monthly_rsi=40.0)
+def _ohlcv_with_last_two(red_first: bool = True) -> pd.DataFrame:
+    """
+    A short daily OHLCV frame whose LAST TWO rows are a confirmed RED bar
+    immediately followed by a confirmed GREEN breakout bar (green close >
+    red high) — the exact PRD candle-confirmation pattern. Enough rows
+    precede them for to_weekly/to_monthly to run without error (their
+    resampled divergences are always empty in these tests since weekly/
+    monthly TimeframeReading.divergences default to [] unless set).
+    """
+    idx = pd.bdate_range("2024-01-01", periods=20)
+    closes = [100.0 + i * 0.2 for i in range(18)]
+    rows = [(c, c + 1, c - 1, c, 1000) for c in closes]
+    if red_first:
+        # Bar N-1: RED (close < open). Bar N: GREEN, closing above red's high.
+        rows.append((110.0, 111.0, 107.0, 108.0, 1000))  # red: open 110 -> close 108
+        rows.append((108.5, 112.5, 108.0, 112.0, 1000))  # green: 108.5 -> 112.0, > red high 111.0
+    else:
+        # No red-then-green: both green (no confirmation should trigger).
+        rows.append((108.0, 111.0, 107.5, 110.0, 1000))
+        rows.append((110.5, 112.5, 110.0, 112.0, 1000))
+    df = pd.DataFrame(rows, columns=["open", "high", "low", "close", "volume"], index=idx)
+    return df
+
+
+CONFIRMED_OHLCV = _ohlcv_with_last_two(red_first=True)
+NOT_CONFIRMED_OHLCV = _ohlcv_with_last_two(red_first=False)
 
 
 # ---------------------------------------------------------------------------
-# PRD: qualifies on ANY ONE (or more) of daily/weekly/monthly independently.
+# PRD
 # ---------------------------------------------------------------------------
 
-def test_prd_daily_only_included():
-    result = make_result(**_HIGH_RSI, daily_divergences=[_bullish_signal()])
-    signal = evaluate_prd(result, PRDConfig())
+def test_prd_confirmed_zero_bars_ago_with_candle_confirmation():
+    sig = _positive_reversal_signal(65.0, 70.0, leg2_bar=LAST_BAR)  # bars_ago = 0
+    result = make_result(daily_divergences=[sig], daily_last_bar_index=LAST_BAR)
+    signal = evaluate_prd(result, CONFIRMED_OHLCV, PRDConfig())
     assert signal.qualifies
-    assert signal.extra["divergence_timeframes"] == ["DAILY"]
+    assert signal.extra["status"] == "PRD_CONFIRMED"
 
 
-def test_prd_weekly_only_included():
-    result = make_result(**_HIGH_RSI, weekly_divergences=[_bullish_signal()])
-    signal = evaluate_prd(result, PRDConfig())
+def test_prd_confirmed_seven_bars_ago_with_candle_confirmation():
+    sig = _positive_reversal_signal(65.0, 70.0, leg2_bar=LAST_BAR - 7)  # bars_ago = 7 (boundary, still valid)
+    result = make_result(daily_divergences=[sig], daily_last_bar_index=LAST_BAR)
+    signal = evaluate_prd(result, CONFIRMED_OHLCV, PRDConfig())
     assert signal.qualifies
-    assert signal.extra["divergence_timeframes"] == ["WEEKLY"]
 
 
-def test_prd_monthly_only_included():
-    result = make_result(**_HIGH_RSI, monthly_divergences=[_bullish_signal()])
-    signal = evaluate_prd(result, PRDConfig())
-    assert signal.qualifies
-    assert signal.extra["divergence_timeframes"] == ["MONTHLY"]
-
-
-def test_prd_daily_and_weekly_included():
-    result = make_result(**_HIGH_RSI, daily_divergences=[_bullish_signal()], weekly_divergences=[_bullish_signal()])
-    signal = evaluate_prd(result, PRDConfig())
-    assert signal.qualifies
-    assert signal.extra["divergence_timeframes"] == ["DAILY", "WEEKLY"]
-
-
-def test_prd_weekly_and_monthly_included():
-    result = make_result(**_HIGH_RSI, weekly_divergences=[_bullish_signal()], monthly_divergences=[_bullish_signal()])
-    signal = evaluate_prd(result, PRDConfig())
-    assert signal.qualifies
-    assert signal.extra["divergence_timeframes"] == ["WEEKLY", "MONTHLY"]
-
-
-def test_prd_daily_and_monthly_included():
-    result = make_result(**_HIGH_RSI, daily_divergences=[_bullish_signal()], monthly_divergences=[_bullish_signal()])
-    signal = evaluate_prd(result, PRDConfig())
-    assert signal.qualifies
-    assert signal.extra["divergence_timeframes"] == ["DAILY", "MONTHLY"]
-
-
-def test_prd_all_three_included():
-    result = make_result(
-        **_HIGH_RSI,
-        daily_divergences=[_bullish_signal()],
-        weekly_divergences=[_bullish_signal()],
-        monthly_divergences=[_bullish_signal()],
-    )
-    signal = evaluate_prd(result, PRDConfig())
-    assert signal.qualifies
-    assert signal.extra["divergence_timeframes"] == ["DAILY", "WEEKLY", "MONTHLY"]
-
-
-def test_prd_no_divergence_anywhere_excluded():
-    result = make_result(**_HIGH_RSI)
-    signal = evaluate_prd(result, PRDConfig())
-    assert not signal.qualifies
-    assert signal.extra["divergence_timeframes"] == []
-
-
-def test_prd_divergence_timeframe_not_coupled_to_other_timeframes_rsi():
-    # Daily has a bullish divergence and passes ITS OWN RSI floor, even
-    # though weekly/monthly RSI are in the NRD-like (low) zone and have no
-    # divergence at all. Must still qualify via daily alone.
-    result = make_result(daily_rsi=65.0, weekly_rsi=30.0, monthly_rsi=30.0, daily_divergences=[_bullish_signal()])
-    signal = evaluate_prd(result, PRDConfig())
-    assert signal.qualifies
-    assert signal.extra["divergence_timeframes"] == ["DAILY"]
-
-
-def test_prd_ignores_bearish_signals():
-    result = make_result(**_HIGH_RSI, daily_divergences=[_bearish_signal()])
-    signal = evaluate_prd(result, PRDConfig())
+def test_prd_rejects_eight_bars_ago():
+    sig = _positive_reversal_signal(65.0, 70.0, leg2_bar=LAST_BAR - 8)  # bars_ago = 8, too old
+    result = make_result(daily_divergences=[sig], daily_last_bar_index=LAST_BAR)
+    signal = evaluate_prd(result, CONFIRMED_OHLCV, PRDConfig())
     assert not signal.qualifies
 
 
-def test_prd_rejects_when_rsi_too_low_on_the_only_divergent_timeframe():
-    # Divergence present on daily, but daily's own RSI fails PRD's floor —
-    # must not qualify even though daily has a divergence signal.
-    result = make_result(**_LOW_RSI, daily_divergences=[_bullish_signal()])
-    signal = evaluate_prd(result, PRDConfig())
+def test_prd_rejects_leg_rsi_exactly_at_threshold():
+    sig = _positive_reversal_signal(60.0, 70.0, leg2_bar=LAST_BAR)  # leg1 == 60, strict > required
+    result = make_result(daily_divergences=[sig], daily_last_bar_index=LAST_BAR)
+    signal = evaluate_prd(result, CONFIRMED_OHLCV, PRDConfig())
     assert not signal.qualifies
-    assert signal.conditions["daily_bullish_divergence"]
-    assert not signal.conditions["daily_rsi_above_min"]
+
+
+def test_prd_rejects_leg_rsi_below_threshold():
+    sig = _positive_reversal_signal(58.0, 70.0, leg2_bar=LAST_BAR)  # leg1 < 60
+    result = make_result(daily_divergences=[sig], daily_last_bar_index=LAST_BAR)
+    signal = evaluate_prd(result, CONFIRMED_OHLCV, PRDConfig())
+    assert not signal.qualifies
+
+
+def test_prd_rejects_regular_bullish_divergence_not_positive_reversal():
+    sig = _regular_bullish_signal(leg2_bar=LAST_BAR)
+    result = make_result(daily_divergences=[sig], daily_last_bar_index=LAST_BAR)
+    signal = evaluate_prd(result, CONFIRMED_OHLCV, PRDConfig())
+    assert not signal.qualifies
+
+
+def test_prd_reports_only_the_single_most_recent_setup_when_multiple_fresh_pivots_exist():
+    older = _positive_reversal_signal(62.0, 68.0, leg2_bar=LAST_BAR - 6)
+    newer = _positive_reversal_signal(65.0, 70.0, leg2_bar=LAST_BAR)
+    result = make_result(daily_divergences=[older, newer], daily_last_bar_index=LAST_BAR)
+    signal = evaluate_prd(result, CONFIRMED_OHLCV, PRDConfig())
+    assert signal.qualifies
+    assert len(signal.extra["divergences"]) == 1
+    assert signal.extra["divergences"][0]["bars_ago"] == 0
+
+
+def test_prd_forming_when_structure_valid_but_no_candle_confirmation_yet():
+    sig = _positive_reversal_signal(65.0, 70.0, leg2_bar=LAST_BAR)
+    result = make_result(daily_divergences=[sig], daily_last_bar_index=LAST_BAR)
+    signal = evaluate_prd(result, NOT_CONFIRMED_OHLCV, PRDConfig())
+    assert not signal.qualifies
+    assert signal.extra["status"] == "PRD_FORMING"
+
+
+def test_prd_never_shows_confirmed_before_green_candle_closes():
+    # Structure + RSI + freshness all pass, but only a RED candle so far (no
+    # green breakout yet) -> must stay FORMING, never CONFIRMED.
+    sig = _positive_reversal_signal(65.0, 70.0, leg2_bar=LAST_BAR)
+    result = make_result(daily_divergences=[sig], daily_last_bar_index=LAST_BAR)
+    signal = evaluate_prd(result, NOT_CONFIRMED_OHLCV, PRDConfig())
+    assert signal.extra["status"] != "PRD_CONFIRMED"
 
 
 # ---------------------------------------------------------------------------
-# NRD: qualifies on ANY ONE (or more) of daily/weekly/monthly independently.
+# NRD
 # ---------------------------------------------------------------------------
 
-def test_nrd_daily_only_included():
-    result = make_result(**_LOW_RSI, daily_divergences=[_bearish_signal()])
+def test_nrd_confirmed_zero_bars_ago():
+    sig = _negative_reversal_signal(25.0, 20.0, leg2_bar=LAST_BAR)
+    result = make_result(daily_divergences=[sig], daily_last_bar_index=LAST_BAR)
     signal = evaluate_nrd(result, NRDConfig())
     assert signal.qualifies
-    assert signal.extra["divergence_timeframes"] == ["DAILY"]
+    assert signal.extra["status"] == "NRD_CONFIRMED"
 
 
-def test_nrd_weekly_only_included():
-    result = make_result(**_LOW_RSI, weekly_divergences=[_bearish_signal()])
+def test_nrd_confirmed_seven_bars_ago():
+    sig = _negative_reversal_signal(25.0, 20.0, leg2_bar=LAST_BAR - 7)
+    result = make_result(daily_divergences=[sig], daily_last_bar_index=LAST_BAR)
     signal = evaluate_nrd(result, NRDConfig())
     assert signal.qualifies
-    assert signal.extra["divergence_timeframes"] == ["WEEKLY"]
 
 
-def test_nrd_monthly_only_included():
-    result = make_result(**_LOW_RSI, monthly_divergences=[_bearish_signal()])
-    signal = evaluate_nrd(result, NRDConfig())
-    assert signal.qualifies
-    assert signal.extra["divergence_timeframes"] == ["MONTHLY"]
-
-
-def test_nrd_daily_and_weekly_included():
-    result = make_result(**_LOW_RSI, daily_divergences=[_bearish_signal()], weekly_divergences=[_bearish_signal()])
-    signal = evaluate_nrd(result, NRDConfig())
-    assert signal.qualifies
-    assert signal.extra["divergence_timeframes"] == ["DAILY", "WEEKLY"]
-
-
-def test_nrd_weekly_and_monthly_included():
-    result = make_result(**_LOW_RSI, weekly_divergences=[_bearish_signal()], monthly_divergences=[_bearish_signal()])
-    signal = evaluate_nrd(result, NRDConfig())
-    assert signal.qualifies
-    assert signal.extra["divergence_timeframes"] == ["WEEKLY", "MONTHLY"]
-
-
-def test_nrd_daily_and_monthly_included():
-    result = make_result(**_LOW_RSI, daily_divergences=[_bearish_signal()], monthly_divergences=[_bearish_signal()])
-    signal = evaluate_nrd(result, NRDConfig())
-    assert signal.qualifies
-    assert signal.extra["divergence_timeframes"] == ["DAILY", "MONTHLY"]
-
-
-def test_nrd_all_three_included():
-    result = make_result(
-        **_LOW_RSI,
-        daily_divergences=[_bearish_signal()],
-        weekly_divergences=[_bearish_signal()],
-        monthly_divergences=[_bearish_signal()],
-    )
-    signal = evaluate_nrd(result, NRDConfig())
-    assert signal.qualifies
-    assert signal.extra["divergence_timeframes"] == ["DAILY", "WEEKLY", "MONTHLY"]
-
-
-def test_nrd_no_divergence_anywhere_excluded():
-    result = make_result(**_LOW_RSI)
-    signal = evaluate_nrd(result, NRDConfig())
-    assert not signal.qualifies
-    assert signal.extra["divergence_timeframes"] == []
-
-
-def test_nrd_divergence_timeframe_not_coupled_to_other_timeframes_rsi():
-    result = make_result(daily_rsi=35.0, weekly_rsi=70.0, monthly_rsi=70.0, daily_divergences=[_bearish_signal()])
-    signal = evaluate_nrd(result, NRDConfig())
-    assert signal.qualifies
-    assert signal.extra["divergence_timeframes"] == ["DAILY"]
-
-
-def test_nrd_ignores_bullish_signals():
-    result = make_result(**_LOW_RSI, weekly_divergences=[_bullish_signal()])
+def test_nrd_rejects_eight_bars_ago():
+    sig = _negative_reversal_signal(25.0, 20.0, leg2_bar=LAST_BAR - 8)
+    result = make_result(daily_divergences=[sig], daily_last_bar_index=LAST_BAR)
     signal = evaluate_nrd(result, NRDConfig())
     assert not signal.qualifies
 
 
-def test_nrd_rejects_when_rsi_too_high_on_the_only_divergent_timeframe():
-    result = make_result(**_HIGH_RSI, weekly_divergences=[_bearish_signal()])
+def test_nrd_rejects_leg_rsi_exactly_at_threshold():
+    sig = _negative_reversal_signal(30.0, 20.0, leg2_bar=LAST_BAR)  # leg1 == 30, strict < required
+    result = make_result(daily_divergences=[sig], daily_last_bar_index=LAST_BAR)
     signal = evaluate_nrd(result, NRDConfig())
     assert not signal.qualifies
-    assert signal.conditions["weekly_bearish_divergence"]
-    assert not signal.conditions["weekly_rsi_below_max"]
+
+
+def test_nrd_rejects_leg_rsi_above_threshold():
+    sig = _negative_reversal_signal(32.0, 20.0, leg2_bar=LAST_BAR)  # leg1 > 30
+    result = make_result(daily_divergences=[sig], daily_last_bar_index=LAST_BAR)
+    signal = evaluate_nrd(result, NRDConfig())
+    assert not signal.qualifies
+
+
+def test_nrd_rejects_regular_bearish_divergence_not_negative_reversal():
+    sig = _regular_bearish_signal(leg2_bar=LAST_BAR)
+    result = make_result(daily_divergences=[sig], daily_last_bar_index=LAST_BAR)
+    signal = evaluate_nrd(result, NRDConfig())
+    assert not signal.qualifies
+
+
+def test_nrd_reports_only_the_single_most_recent_setup_when_multiple_fresh_pivots_exist():
+    # Two separate valid Negative Reversal pivots both fall inside the
+    # 7-bar freshness window (bars_ago 5 and 1) — only the freshest (most
+    # recent) one may ever be reported, never both.
+    older = _negative_reversal_signal(25.0, 20.0, leg2_bar=LAST_BAR - 5)
+    newer = _negative_reversal_signal(28.0, 22.0, leg2_bar=LAST_BAR - 1)
+    result = make_result(daily_divergences=[older, newer], daily_last_bar_index=LAST_BAR)
+    signal = evaluate_nrd(result, NRDConfig())
+    assert signal.qualifies
+    assert len(signal.extra["divergences"]) == 1
+    assert signal.extra["divergences"][0]["bars_ago"] == 1
 
 
 # ---------------------------------------------------------------------------
-# Separation: PRD and NRD must never satisfy each other, even on the same
-# stock with different timeframes triggering each.
+# Separation: PRD and NRD must never satisfy each other.
 # ---------------------------------------------------------------------------
 
 def test_daily_prd_and_weekly_nrd_appear_separately():
+    prd_sig = _positive_reversal_signal(65.0, 70.0, leg2_bar=LAST_BAR)
+    nrd_sig = _negative_reversal_signal(25.0, 20.0, leg2_bar=LAST_BAR)
     result = make_result(
-        daily_rsi=65.0, weekly_rsi=40.0, monthly_rsi=50.0,
-        daily_divergences=[_bullish_signal()], weekly_divergences=[_bearish_signal()],
+        daily_divergences=[prd_sig], weekly_divergences=[nrd_sig],
+        daily_last_bar_index=LAST_BAR, weekly_last_bar_index=LAST_BAR,
     )
-    prd_signal = evaluate_prd(result, PRDConfig())
+    prd_signal = evaluate_prd(result, CONFIRMED_OHLCV, PRDConfig())
     nrd_signal = evaluate_nrd(result, NRDConfig())
 
     assert prd_signal.qualifies
-    assert prd_signal.extra["divergence_timeframes"] == ["DAILY"]
     assert nrd_signal.qualifies
+    assert prd_signal.extra["divergence_timeframes"] == ["DAILY"]
     assert nrd_signal.extra["divergence_timeframes"] == ["WEEKLY"]
-    assert prd_signal.strategy != nrd_signal.strategy
 
 
 def test_prd_never_satisfies_nrd():
-    # A pure bullish-divergence, high-RSI stock -> PRD qualifies, NRD must not.
-    result = make_result(**_HIGH_RSI, daily_divergences=[_bullish_signal()])
-    prd_signal = evaluate_prd(result, PRDConfig())
+    sig = _positive_reversal_signal(65.0, 70.0, leg2_bar=LAST_BAR)
+    result = make_result(daily_divergences=[sig], daily_last_bar_index=LAST_BAR)
+    prd_signal = evaluate_prd(result, CONFIRMED_OHLCV, PRDConfig())
     nrd_signal = evaluate_nrd(result, NRDConfig())
     assert prd_signal.qualifies
     assert not nrd_signal.qualifies
 
 
 def test_nrd_never_satisfies_prd():
-    # A pure bearish-divergence, low-RSI stock -> NRD qualifies, PRD must not.
-    result = make_result(**_LOW_RSI, daily_divergences=[_bearish_signal()])
-    prd_signal = evaluate_prd(result, PRDConfig())
+    sig = _negative_reversal_signal(25.0, 20.0, leg2_bar=LAST_BAR)
+    result = make_result(daily_divergences=[sig], daily_last_bar_index=LAST_BAR)
+    prd_signal = evaluate_prd(result, CONFIRMED_OHLCV, PRDConfig())
     nrd_signal = evaluate_nrd(result, NRDConfig())
     assert not prd_signal.qualifies
     assert nrd_signal.qualifies

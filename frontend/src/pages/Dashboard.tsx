@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { STRATEGY_NAMES, strategyDisplayName, type StockResult, type StrategyName, type StrategySignal } from "../services/api";
+import { useChart } from "../chart/ChartContext";
 import { useScan } from "../context/ScanContext";
 import { BestStockCard } from "../components/BestStockCard";
 import { StockDetailPanel } from "../components/StockDetailPanel";
@@ -7,7 +8,7 @@ import { ConditionChip } from "../components/ConditionChip";
 import { SourceBadge } from "../components/SourceBadge";
 import { FilterIcon } from "../components/icons";
 
-type SortKey = "symbol" | "sector" | "daily_rsi" | "weekly_rsi" | "monthly_rsi" | "score" | "price";
+type SortKey = "symbol" | "daily_rsi" | "weekly_rsi" | "monthly_rsi" | "score" | "price";
 
 const PAGE_SIZE = 10;
 
@@ -20,11 +21,36 @@ function timeframesOf(signal: StrategySignal): string[] {
   return Array.isArray(tf) ? (tf as string[]) : [];
 }
 
-function rsiForTimeframes(signal: StrategySignal, timeframes: string[]): number | null {
-  if (timeframes.includes("DAILY")) return signal.daily_rsi;
-  if (timeframes.includes("WEEKLY")) return signal.weekly_rsi;
-  if (timeframes.includes("MONTHLY")) return signal.monthly_rsi;
-  return signal.daily_rsi;
+interface DivergenceLeg {
+  rsi1: number | null;
+  rsi2: number | null;
+  bars_ago: number | null;
+  fresh: boolean;
+}
+
+// The backend (backend/strategies/prd.py / nrd.py) sorts `extra.divergences`
+// freshest-first and only ever includes entries that already passed the
+// leg-RSI + 7-bar freshness + (PRD only) candle-confirmation checks — so
+// the first entry is always the one that qualified this signal.
+function bestDivergenceLeg(signal: StrategySignal): DivergenceLeg | null {
+  const divergences = signal.extra.divergences;
+  if (!Array.isArray(divergences) || divergences.length === 0) return null;
+  const best = divergences[0] as Record<string, unknown>;
+  return {
+    rsi1: typeof best.rsi1 === "number" ? best.rsi1 : null,
+    rsi2: typeof best.rsi2 === "number" ? best.rsi2 : null,
+    bars_ago: typeof best.bars_ago === "number" ? best.bars_ago : null,
+    fresh: Boolean(best.fresh),
+  };
+}
+
+function FreshnessBadge({ leg }: { leg: DivergenceLeg | null }) {
+  if (!leg || leg.bars_ago === null) return <span className="muted small">—</span>;
+  return (
+    <span className={leg.fresh ? "chip chip-pass" : "muted small"}>
+      {leg.fresh ? "🔥 Fresh" : ""} — {leg.bars_ago} bar{leg.bars_ago === 1 ? "" : "s"} ago
+    </span>
+  );
 }
 
 function countTimeframes(signals: StrategySignal[]): { daily: number; weekly: number; monthly: number } {
@@ -57,18 +83,18 @@ function SkeletonRows({ columns }: { columns: number }) {
 
 export function Dashboard() {
   const { latest, scanning, scanError, runScan } = useScan();
+  const { openChart } = useChart();
 
   const [activeStrategy, setActiveStrategy] = useState<StrategyName>("PRD");
   const [showFilters, setShowFilters] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>("symbol");
   const [asc, setAsc] = useState(true);
-  const [sectorFilter, setSectorFilter] = useState<string>("all");
   const [sourceFilter, setSourceFilter] = useState<string>("all");
   const [timeframeFilter, setTimeframeFilter] = useState<string>("all");
   const [symbolSearch, setSymbolSearch] = useState("");
   const [page, setPage] = useState(1);
 
-  useEffect(() => setPage(1), [activeStrategy, sectorFilter, sourceFilter, timeframeFilter, symbolSearch]);
+  useEffect(() => setPage(1), [activeStrategy, sourceFilter, timeframeFilter, symbolSearch]);
 
   const isDivergenceTab = activeStrategy === "PRD" || activeStrategy === "NRD";
   const signalsForActive: StrategySignal[] = latest?.strategies?.[activeStrategy] ?? [];
@@ -90,11 +116,6 @@ export function Dashboard() {
   const prdBreakdown = useMemo(() => countTimeframes(prdSignals), [prdSignals]);
   const nrdBreakdown = useMemo(() => countTimeframes(nrdSignals), [nrdSignals]);
 
-  const sectors = useMemo(() => {
-    const set = new Set(signalsForActive.map((s) => s.sector));
-    return ["all", ...Array.from(set).sort()];
-  }, [signalsForActive]);
-
   const sources = useMemo(() => {
     const set = new Set(signalsForActive.map((s) => String(s.extra.data_source ?? "")).filter(Boolean));
     return ["all", ...Array.from(set).sort()];
@@ -104,7 +125,6 @@ export function Dashboard() {
 
   const filtered = useMemo(() => {
     let rows = signalsForActive;
-    if (sectorFilter !== "all") rows = rows.filter((s) => s.sector === sectorFilter);
     if (sourceFilter !== "all") rows = rows.filter((s) => s.extra.data_source === sourceFilter);
     if (isDivergenceTab && timeframeFilter !== "all") {
       rows = rows.filter((s) => timeframesOf(s).includes(timeframeFilter));
@@ -118,9 +138,9 @@ export function Dashboard() {
     sorted.sort((a, b) => {
       let av: number | string;
       let bv: number | string;
-      if (sortKey === "symbol" || sortKey === "sector") {
-        av = a[sortKey];
-        bv = b[sortKey];
+      if (sortKey === "symbol") {
+        av = a.symbol;
+        bv = b.symbol;
         return asc ? av.localeCompare(bv) : bv.localeCompare(av);
       }
       if (sortKey === "score") {
@@ -136,7 +156,7 @@ export function Dashboard() {
       return asc ? (av as number) - (bv as number) : (bv as number) - (av as number);
     });
     return sorted;
-  }, [signalsForActive, sectorFilter, sourceFilter, timeframeFilter, symbolSearch, sortKey, asc, isDivergenceTab]);
+  }, [signalsForActive, sourceFilter, timeframeFilter, symbolSearch, sortKey, asc, isDivergenceTab]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
@@ -150,7 +170,7 @@ export function Dashboard() {
     }
   }
 
-  const columnCount = isDivergenceTab ? 8 : activeStrategy === "Strategy One" ? 8 : activeStrategy === "Value Buy" ? 7 : 7;
+  const columnCount = isDivergenceTab ? 10 : activeStrategy === "Strategy One" ? 8 : activeStrategy === "Value Buy" ? 7 : 7;
 
   return (
     <div className="page">
@@ -160,7 +180,7 @@ export function Dashboard() {
           <p className="page-subtitle">Quick overview of all active signals and market insights</p>
         </div>
         <button className="primary-button" onClick={runScan} disabled={scanning}>
-          {scanning ? "Scanning NIFTY 200…" : "Run Scan"}
+          {scanning ? "Scanning A Group…" : "Run Scan"}
         </button>
       </div>
 
@@ -181,11 +201,9 @@ export function Dashboard() {
             Data as of <strong>{new Date(latest.finished_at).toLocaleString()}</strong>
           </div>
           <div>
-            Universe: {latest.universe_returned}/{latest.universe_requested}
-            {!latest.universe_complete && <span className="muted"> (partial coverage)</span>}
+            A Group universe: {latest.universe_returned}/{latest.universe_requested} (all strategies)
           </div>
           <div>Stocks scanned: {latest.stocks_scanned} · failed: {latest.stocks_failed}</div>
-          <div>Qualifying sectors: {latest.qualifying_sectors.join(", ") || "none"}</div>
           <div>Execution time: {latest.execution_seconds.toFixed(1)}s</div>
         </div>
       )}
@@ -194,7 +212,7 @@ export function Dashboard() {
         <div className="card state-block">
           <div className="state-icon">📊</div>
           <div className="state-title">No signals found</div>
-          <div className="state-subtitle">Run a scan to populate the dashboard with live NIFTY 200 signals.</div>
+          <div className="state-subtitle">Run a scan to populate the dashboard with live A Group signals.</div>
         </div>
       )}
 
@@ -261,16 +279,6 @@ export function Dashboard() {
 
           {showFilters && (
             <div className="card filters-row filter-panel">
-              <label>
-                Sector
-                <select value={sectorFilter} onChange={(e) => setSectorFilter(e.target.value)}>
-                  {sectors.map((s) => (
-                    <option key={s} value={s}>
-                      {s === "all" ? "All sectors" : s}
-                    </option>
-                  ))}
-                </select>
-              </label>
               {isDivergenceTab && (
                 <label>
                   Timeframe
@@ -310,12 +318,15 @@ export function Dashboard() {
                 <thead>
                   <tr>
                     <th onClick={() => sortBy("symbol")}>Symbol</th>
-                    <th onClick={() => sortBy("sector")}>Sector</th>
                     {isDivergenceTab && <th>Divergence Type</th>}
                     {isDivergenceTab && <th>Timeframe</th>}
                     <th>Signal Date</th>
                     {isDivergenceTab ? (
-                      <th>RSI</th>
+                      <>
+                        <th>RSI Leg 1</th>
+                        <th>RSI Leg 2</th>
+                        <th>Bars Ago</th>
+                      </>
                     ) : (
                       <>
                         <th onClick={() => sortBy("daily_rsi")}>Daily RSI</th>
@@ -327,6 +338,7 @@ export function Dashboard() {
                     {activeStrategy === "Value Buy" && <th>Conditions</th>}
                     <th onClick={() => sortBy("price")} className="num-cell">Price</th>
                     <th>Data Source</th>
+                    <th>Chart</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -335,12 +347,12 @@ export function Dashboard() {
                   ) : (
                     pageRows.map((s) => {
                       const tfs = timeframesOf(s);
+                      const leg = bestDivergenceLeg(s);
                       const price = s.extra.current_price as number | undefined;
                       const source = s.extra.data_source as string | undefined;
                       return (
                         <tr key={`${s.strategy}-${s.symbol}`} onClick={() => setSelected(s)} className="clickable-row">
                           <td className="symbol-cell">{s.symbol}</td>
-                          <td>{s.sector}</td>
                           {isDivergenceTab && (
                             <td>
                               <span className={`divergence-badge divergence-badge-${activeStrategy.toLowerCase()}`}>
@@ -359,7 +371,11 @@ export function Dashboard() {
                           )}
                           <td>{s.signal_date ? new Date(s.signal_date).toLocaleDateString() : "N/A"}</td>
                           {isDivergenceTab ? (
-                            <td className="num-cell">{fmt(rsiForTimeframes(s, tfs))}</td>
+                            <>
+                              <td className="num-cell">{fmt(leg?.rsi1 ?? null)}</td>
+                              <td className="num-cell">{fmt(leg?.rsi2 ?? null)}</td>
+                              <td><FreshnessBadge leg={leg} /></td>
+                            </>
                           ) : (
                             <>
                               <td className="num-cell">{fmt(s.daily_rsi)}</td>
@@ -382,6 +398,26 @@ export function Dashboard() {
                           <td className="num-cell">{price !== undefined ? `₹${price.toFixed(2)}` : "—"}</td>
                           <td>
                             <SourceBadge source={source} />
+                          </td>
+                          <td>
+                            <button
+                              type="button"
+                              className="secondary-button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openChart(s.symbol, {
+                                  strategy: s.strategy,
+                                  daily_rsi: s.daily_rsi,
+                                  weekly_rsi: s.weekly_rsi,
+                                  monthly_rsi: s.monthly_rsi,
+                                  signal_date: s.signal_date,
+                                  divergence_timeframe: tfs.length > 0 ? tfs.join(" + ") : null,
+                                  explanation: s.explanation,
+                                });
+                              }}
+                            >
+                              Chart
+                            </button>
                           </td>
                         </tr>
                       );

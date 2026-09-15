@@ -57,7 +57,6 @@ export function ScanHistoryPage() {
                 <th>Universe</th>
                 <th>Scanned</th>
                 <th>Failed</th>
-                <th>Qualifying Sectors</th>
                 <th>Qualifying Stocks</th>
               </tr>
             </thead>
@@ -65,7 +64,7 @@ export function ScanHistoryPage() {
               {loading
                 ? [0, 1, 2, 3, 4].map((row) => (
                     <tr key={row} className="skeleton-row">
-                      {Array.from({ length: 9 }).map((_, col) => (
+                      {Array.from({ length: 8 }).map((_, col) => (
                         <td key={col}>
                           <div className="skeleton-bar" style={{ width: col === 0 ? "40%" : "60%" }} />
                         </td>
@@ -83,7 +82,6 @@ export function ScanHistoryPage() {
                       </td>
                       <td className="num-cell">{r.stocks_scanned}</td>
                       <td className="num-cell">{r.stocks_failed}</td>
-                      <td className="num-cell">{r.qualifying_sectors}</td>
                       <td className="num-cell">{r.qualifying_stocks}</td>
                     </tr>
                   ))}

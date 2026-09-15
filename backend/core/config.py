@@ -7,14 +7,11 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     database_url: str = "sqlite:///./scanner.db"
-    cache_url: str = "file://.cache/tapetide_cache.pkl"
+    cache_url: str = "file://.cache/scanner_cache.pkl"
     environment: str = "development"
     log_level: str = "INFO"
 
-    tapetide_mcp_url: str = "https://mcp.tapetide.com/mcp"
-    tapetide_token_cache_path: str = ".tapetide_token.json"
-
-    # Angel One SmartAPI — intraday (15m/1h) data source for Expiry Level 1 only.
+    # Angel One SmartAPI — the ONLY market-data provider in this project.
     angelone_api_key: str = ""
     angelone_client_code: str = ""
     angelone_pin: str = ""

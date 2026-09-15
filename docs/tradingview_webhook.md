@@ -88,46 +88,6 @@ retries webhooks that don't return 2xx; a user can also fire the same alert
 twice) returns the same `signal_id` and never creates a duplicate row or
 deletes anything.
 
-## Sector RSI fallback (SECTOR_RSI)
-
-A separate use of the same webhook: instead of a per-stock strategy signal,
-`strategy: "SECTOR_RSI"` carries a **sector index's own** D/W/M RSI (e.g.
-`symbol: "Nifty Healthcare"`). This is used **only** as a last-resort
-fallback in `backend/sector_analysis/engine.py` when neither Tapetide nor
-Angel One can supply that sector's weekly/monthly RSI — roughly 9-12 of the
-~21 mapped sectors have no Angel One index equivalent and are subject to
-Tapetide's history-truncation bug, so their weekly/monthly RSI is often
-`UNAVAILABLE` today. It never touches per-stock analysis or strategy
-evaluation, and never overrides a real, already-computed Tapetide/Angel One
-value — only fills a genuine gap.
-
-Pine Script: `pinescript/nifty200_sector_rsi_signals.pine` — place on the
-sector's own index chart (e.g. `NSE:NIFTYBANK`, `NSE:CNXHEALTH`), set the
-`Sector Name` input to the **exact** string
-`backend/config/sector_mapping.py` resolves to for that sector (e.g.
-`"Nifty Healthcare"`), and alert per usual.
-
-Required fields: `source`, `symbol`, `strategy: "SECTOR_RSI"`, `timeframe`,
-`signal_date`, `signal: true`, and at least one of `weekly_rsi`/`monthly_rsi`.
-
-```json
-{
-  "source": "tradingview",
-  "symbol": "Nifty Healthcare",
-  "strategy": "SECTOR_RSI",
-  "timeframe": "1W",
-  "signal_date": "2026-09-08T00:00:00Z",
-  "weekly_rsi": 63.4,
-  "monthly_rsi": 71.0,
-  "signal": true,
-  "secret": "your-webhook-secret"
-}
-```
-
-The resulting sector row will show `weekly_data_source`/`monthly_data_source
-= "TRADINGVIEW"` in the scan result whenever this fallback was actually
-used.
-
 ## Other endpoints
 
 - `GET /api/tradingview/status` → `{ enabled, configured, signal_count, latest_signal_at }`

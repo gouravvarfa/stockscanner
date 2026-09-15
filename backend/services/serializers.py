@@ -4,14 +4,12 @@ from backend.schemas.scan import (
     FibonacciOut,
     NiftyUniverseStockOut,
     ScanResultOut,
-    SectorResultOut,
     StockResultOut,
     StrategySignalOut,
     TimeframeReadingOut,
     TradeSetupOut,
 )
 from backend.screeners.stock_analysis import StockAnalysisResult, TimeframeReading
-from backend.sector_analysis.engine import SectorAnalysis
 from backend.services.scan_service import ScanOutcome, UniverseStockEntry
 from backend.strategies.trade_setup import TradeSetup, calculate_trade_setup
 from backend.strategies.types import StrategySignal
@@ -41,7 +39,7 @@ def _trade_setup_out(setup: TradeSetup) -> TradeSetupOut:
 
 
 def stock_result_out(
-    result: StockAnalysisResult, rank: int, include_trade_setup: bool = False, data_source: str | None = None
+    result: StockAnalysisResult, rank: int, include_trade_setup: bool = False, data_source: str | None = "ANGEL_ONE"
 ) -> StockResultOut:
     fib = result.fibonacci
     fib_out = (
@@ -60,7 +58,6 @@ def stock_result_out(
     return StockResultOut(
         rank=rank,
         symbol=result.symbol,
-        sector=result.sector,
         current_price=result.current_price,
         data_as_of=result.data_as_of.to_pydatetime(),
         score=result.score.total_score,
@@ -91,9 +88,6 @@ def stock_result_out(
 def universe_stock_out(entry: UniverseStockEntry) -> NiftyUniverseStockOut:
     return NiftyUniverseStockOut(
         symbol=entry.symbol,
-        company_name=entry.company_name,
-        sector=entry.sector,
-        sector_source=entry.sector_source,
         current_price=entry.current_price,
         daily_rsi=entry.daily_rsi,
         weekly_rsi=entry.weekly_rsi,
@@ -101,29 +95,6 @@ def universe_stock_out(entry: UniverseStockEntry) -> NiftyUniverseStockOut:
         data_source=entry.data_source,
         status=entry.status,
         status_reason=entry.status_reason,
-    )
-
-
-def sector_result_out(sector: str, analysis: SectorAnalysis) -> SectorResultOut:
-    return SectorResultOut(
-        sector=sector,
-        nse_index=analysis.nse_index,
-        available=analysis.available,
-        unavailable_reason=analysis.unavailable_reason,
-        daily_rsi=analysis.daily.rsi if analysis.daily else None,
-        weekly_rsi=analysis.weekly.rsi if analysis.weekly else None,
-        monthly_rsi=analysis.monthly.rsi if analysis.monthly else None,
-        daily_return_pct=analysis.daily.return_pct if analysis.daily else None,
-        weekly_return_pct=analysis.weekly.return_pct if analysis.weekly else None,
-        monthly_return_pct=analysis.monthly.return_pct if analysis.monthly else None,
-        daily_vs_nifty=analysis.daily_vs_nifty,
-        weekly_vs_nifty=analysis.weekly_vs_nifty,
-        monthly_vs_nifty=analysis.monthly_vs_nifty,
-        meets_rsi_thresholds=analysis.meets_rsi_thresholds,
-        outperforms_nifty=analysis.outperforms_nifty,
-        sector_score=analysis.sector_score,
-        weekly_data_source=analysis.weekly_data_source,
-        monthly_data_source=analysis.monthly_data_source,
     )
 
 
@@ -141,7 +112,6 @@ def strategy_signal_out(signal: StrategySignal) -> StrategySignalOut:
     return StrategySignalOut(
         strategy=signal.strategy,
         symbol=signal.symbol,
-        sector=signal.sector,
         qualifies=signal.qualifies,
         signal_date=signal.signal_date.to_pydatetime() if signal.signal_date is not None else None,
         daily_rsi=signal.daily_rsi,
@@ -164,17 +134,15 @@ def scan_outcome_out(outcome: ScanOutcome, scan_id: int | None = None) -> ScanRe
         started_at=outcome.started_at,
         finished_at=outcome.finished_at,
         execution_seconds=outcome.execution_seconds,
-        data_source=outcome.data_source_mode.upper(),
         data_source_summary=outcome.data_source_summary,
         universe_requested=outcome.universe_requested,
         universe_returned=outcome.universe_returned,
         universe_complete=outcome.universe_complete,
-        universe_note=outcome.universe_note,
+        value_buy_universe_requested=outcome.value_buy_universe_requested,
+        value_buy_universe_returned=outcome.value_buy_universe_returned,
         stocks_scanned=outcome.stocks_scanned,
         stocks_failed=outcome.stocks_failed,
         failed_symbols=outcome.failed_symbols,
-        qualifying_sectors=outcome.qualifying_sectors,
-        sectors=[sector_result_out(s, a) for s, a in sorted(outcome.sector_analyses.items(), key=lambda kv: -kv[1].sector_score)],
         top10=top10_out,
         top3=top3_out,
         best=best_out,

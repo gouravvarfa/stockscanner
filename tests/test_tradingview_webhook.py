@@ -223,40 +223,6 @@ def test_value_buy_requires_green_confirmed_weekly_candle(client):
     assert body["success"] is False
 
 
-def test_valid_sector_rsi_webhook_is_accepted(client):
-    payload = {
-        "source": "tradingview",
-        "symbol": "Nifty Healthcare",
-        "strategy": "SECTOR_RSI",
-        "timeframe": "1W",
-        "signal_date": "2026-09-08T00:00:00Z",
-        "weekly_rsi": 63.4,
-        "monthly_rsi": 71.0,
-        "signal": True,
-        "secret": "test-secret-123",
-    }
-    res = client.post("/api/tradingview/webhook", json=payload)
-    body = res.json()
-    assert body["success"] is True
-    assert body["strategy"] == "SECTOR_RSI"
-
-
-def test_sector_rsi_requires_at_least_one_rsi_value(client):
-    payload = {
-        "source": "tradingview",
-        "symbol": "Nifty Healthcare",
-        "strategy": "SECTOR_RSI",
-        "timeframe": "1W",
-        "signal_date": "2026-09-08T00:00:00Z",
-        "signal": True,
-        "secret": "test-secret-123",
-    }
-    res = client.post("/api/tradingview/webhook", json=payload)
-    body = res.json()
-    assert body["success"] is False
-    assert "weekly_rsi or monthly_rsi" in body["message"]
-
-
 def test_status_endpoint_reports_enabled_and_configured(client):
     res = client.get("/api/tradingview/status")
     body = res.json()

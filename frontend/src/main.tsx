@@ -4,12 +4,15 @@ import { BrowserRouter } from 'react-router-dom'
 import './index.css'
 import App from './App.tsx'
 import { ScanProvider } from './context/ScanContext'
+import { ChartProvider } from './chart/ChartContext'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <BrowserRouter>
       <ScanProvider>
-        <App />
+        <ChartProvider>
+          <App />
+        </ChartProvider>
       </ScanProvider>
     </BrowserRouter>
   </StrictMode>,

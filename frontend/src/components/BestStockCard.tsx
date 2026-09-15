@@ -20,13 +20,12 @@ export function BestStockCard({ stock }: { stock: StockResult | null }) {
         <Badge label={stock.bias} />
       </div>
       <p className="muted small" style={{ marginTop: -8, marginBottom: 14 }}>
-        This is the top pick from System One only (the sector-rotation scoring strategy). GFS, Advanced GFS,
-        PRD, NRD, and Value Buy each have their own separate results — see the Strategies page.
+        This is the top pick from System One only. GFS, Advanced GFS, PRD, NRD, and Value Buy each have their
+        own separate results — see the Strategies page.
       </p>
       <div className="best-stock-main">
         <div>
           <div className="symbol">{stock.symbol}</div>
-          <div className="muted">{stock.sector}</div>
         </div>
         <div className="price">₹{stock.current_price.toFixed(2)}</div>
         <div className="score">{stock.score.toFixed(1)}<span className="muted">/100</span></div>

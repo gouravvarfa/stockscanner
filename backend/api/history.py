@@ -20,7 +20,6 @@ class ScanRunOut(BaseModel):
     execution_seconds: float | None
     stocks_scanned: int
     stocks_failed: int
-    qualifying_sectors: int
     qualifying_stocks: int
     universe_requested: int
     universe_returned: int

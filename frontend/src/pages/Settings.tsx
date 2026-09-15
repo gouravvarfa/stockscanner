@@ -1,70 +1,6 @@
 import { useEffect, useState } from "react";
-import { api, type CallMetrics, type StrategyConfig } from "../services/api";
-import { DataSourceSelector } from "../components/DataSourceSelector";
-
-function DataUsageCard() {
-  const [metrics, setMetrics] = useState<CallMetrics | null>(null);
-
-  function refresh() {
-    api.getCallMetrics().then(setMetrics).catch(() => undefined);
-  }
-
-  useEffect(() => {
-    refresh();
-  }, []);
-
-  if (!metrics) {
-    return (
-      <div className="card">
-        <h3>Data Usage</h3>
-        <p className="muted small">Loading…</p>
-      </div>
-    );
-  }
-
-  const usedPct = metrics.tapetide_quota > 0 ? (metrics.tapetide_calls / metrics.tapetide_quota) * 100 : 0;
-  const barClass = usedPct >= 90 ? "usage-bar-fill danger" : usedPct >= 70 ? "usage-bar-fill warning" : "usage-bar-fill";
-
-  return (
-    <div className="card">
-      <h3>Data Usage — Tapetide ({metrics.day})</h3>
-      <div className="usage-bar">
-        <div className={barClass} style={{ width: `${Math.min(100, usedPct)}%` }} />
-      </div>
-      <div className="usage-grid" style={{ marginTop: 14 }}>
-        <div className="usage-stat">
-          <span className="usage-value">{metrics.tapetide_quota}</span>
-          <span className="usage-label">Daily Limit</span>
-        </div>
-        <div className="usage-stat">
-          <span className="usage-value">{metrics.tapetide_calls}</span>
-          <span className="usage-label">Calls Used</span>
-        </div>
-        <div className="usage-stat">
-          <span className="usage-value">{metrics.tapetide_quota_remaining}</span>
-          <span className="usage-label">Calls Remaining</span>
-        </div>
-        <div className="usage-stat">
-          <span className="usage-value">{metrics.tapetide_cache_hits}</span>
-          <span className="usage-label">Cache Hits</span>
-        </div>
-        <div className="usage-stat">
-          <span className="usage-value">{metrics.tapetide_cache_misses}</span>
-          <span className="usage-label">Cache Misses</span>
-        </div>
-        <div className="usage-stat">
-          <span className="usage-value">{metrics.angelone_calls}</span>
-          <span className="usage-label">Angel One Calls</span>
-        </div>
-      </div>
-      <div className="settings-actions">
-        <button className="secondary-button" onClick={refresh}>
-          Refresh
-        </button>
-      </div>
-    </div>
-  );
-}
+import { api, type StrategyConfig } from "../services/api";
+import { AngelOneSettings } from "../components/AngelOneSettings";
 
 export function Settings() {
   const [config, setConfig] = useState<StrategyConfig | null>(null);
@@ -111,8 +47,7 @@ export function Settings() {
         </div>
       </div>
 
-      <DataSourceSelector />
-      <DataUsageCard />
+      <AngelOneSettings />
 
       {!config ? (
         <div className="card">

@@ -40,6 +40,5 @@ class ExpiryLevel5ResultOut(BaseModel):
     symbols_failed: int
     failed_symbols: list[str]
     signals: list[ExpiryLevel5SignalOut]
-    data_source_mode: str = "AUTO"
     data_source_summary: dict[str, int] = {}
     errors: list[str]

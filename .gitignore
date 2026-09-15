@@ -15,3 +15,4 @@ frontend/dist/
 *.egg-info/
 *.log
 .claude/
+tools/

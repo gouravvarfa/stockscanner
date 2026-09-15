@@ -19,14 +19,13 @@ class ScanRun(Base):
 
     stocks_scanned: Mapped[int] = mapped_column(Integer, default=0)
     stocks_failed: Mapped[int] = mapped_column(Integer, default=0)
-    qualifying_sectors: Mapped[int] = mapped_column(Integer, default=0)
     qualifying_stocks: Mapped[int] = mapped_column(Integer, default=0)
 
     universe_requested: Mapped[int] = mapped_column(Integer, default=0)
     universe_returned: Mapped[int] = mapped_column(Integer, default=0)
     universe_complete: Mapped[bool] = mapped_column(default=False)
 
-    data_source: Mapped[str] = mapped_column(String(50), default="tapetide")
+    data_source: Mapped[str] = mapped_column(String(50), default="ANGEL_ONE")
     errors: Mapped[list] = mapped_column(JSON, default=list)
 
     results: Mapped[list["ScanResultRow"]] = relationship(back_populates="scan_run")
@@ -41,7 +40,6 @@ class ScanResultRow(Base):
 
     rank: Mapped[int] = mapped_column(Integer)
     symbol: Mapped[str] = mapped_column(String(30))
-    sector: Mapped[str] = mapped_column(String(100))
     score: Mapped[float] = mapped_column(Float)
     classification: Mapped[str] = mapped_column(String(30))
     bias: Mapped[str] = mapped_column(String(20))  # BULLISH|NEUTRAL|HIGH RISK

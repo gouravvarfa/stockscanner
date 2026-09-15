@@ -24,32 +24,30 @@ class AdvancedGFSConfig(BaseModel):
 
 class PRDConfig(BaseModel):
     """
-    PRD (Positive Reverse Divergence) is confirmed in an UPTREND context —
-    real bullish divergence (price lower low, RSI higher low) found while
-    D/W/M RSI is ABOVE a floor. Gate is a RSI FLOOR, not a ceiling — using
-    the same ">60" gate as NRD (as an earlier version of this project did,
-    following the original spec literally) let a single stock satisfy both
-    PRD and NRD simultaneously, which is wrong. This floor/ceiling split
-    (PRD=floor, NRD=ceiling) makes PRD and NRD mutually exclusive by
-    construction, per explicit user direction: PRD = up/uptrend, NRD =
-    down/downtrend.
+    PRD (Positive Reversal Divergence) = a genuine Positive Reversal (price
+    higher low + RSI lower low, at two confirmed swing lows — see
+    backend/strategies/prd.py) whose BOTH pivot-leg RSI values (not the
+    current/latest RSI) are above `leg_rsi_min`, whose confirming pivot
+    occurred within `lookback_bars` completed bars of now, AND whose candle
+    sequence shows a RED bar immediately followed by a GREEN breakout bar
+    (green close > red high) — both bars fully completed. Per explicit user
+    direction (2026-09-13): strict thresholds, no substitution.
     """
-    daily_min: float = 60.0
-    weekly_min: float = 60.0
-    monthly_min: float = 60.0
+    leg_rsi_min: float = 60.0
+    lookback_bars: int = 7
 
 
 class NRDConfig(BaseModel):
     """
-    NRD (Negative Reverse Divergence) is confirmed in a DOWNTREND context —
-    real bearish divergence (price higher high, RSI lower high) found while
-    D/W/M RSI is BELOW a ceiling. Gate is a RSI CEILING (all three
-    timeframes below it); see PRDConfig's docstring for why this differs
-    from PRD's floor gate.
+    NRD (Negative Reversal Divergence) = a genuine Negative Reversal (price
+    lower high + RSI higher high, at two confirmed swing highs — see
+    backend/strategies/nrd.py) whose BOTH pivot-leg RSI values are below
+    `leg_rsi_max`, and whose confirming pivot occurred within
+    `lookback_bars` completed bars of now. Per explicit user direction
+    (2026-09-13): strict thresholds, no substitution.
     """
-    daily_max: float = 45.0
-    weekly_max: float = 45.0
-    monthly_max: float = 45.0
+    leg_rsi_max: float = 30.0
+    lookback_bars: int = 7
 
 
 class ValueBuyConfig(BaseModel):

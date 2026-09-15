@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { api, type ExpiryLevel5Result, type ExpiryLevel5Signal } from "../services/api";
 import { Badge } from "../components/Badge";
-import { AngelOneConnect } from "../components/AngelOneConnect";
+import { AngelOneStatusBanner } from "../components/AngelOneStatusBanner";
 import { ConditionChip } from "../components/ConditionChip";
 
 function fmt(value: number | null, digits = 2): string {
@@ -135,7 +135,7 @@ export function ExpiryLevel5() {
         </button>
       </div>
 
-      <AngelOneConnect onConnectedChange={setAngelOneConfigured} />
+      <AngelOneStatusBanner onConnectedChange={setAngelOneConfigured} />
 
       {error && <div className="error-banner">Scan failed: {error}</div>}
 

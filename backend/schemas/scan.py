@@ -37,7 +37,6 @@ class TradeSetupOut(BaseModel):
 class StockResultOut(BaseModel):
     rank: int
     symbol: str
-    sector: str
     current_price: float
     data_as_of: dt.datetime
     score: float
@@ -61,43 +60,17 @@ class StockResultOut(BaseModel):
     explanation: list[str]
     data_warnings: list[str]
     trade_setup: TradeSetupOut | None = None
-    # Which provider actually served this stock's OHLCV this scan — None
-    # when not tracked for this particular list (e.g. legacy call sites).
-    data_source: str | None = None
-
-
-class SectorResultOut(BaseModel):
-    sector: str
-    nse_index: str | None
-    available: bool
-    unavailable_reason: str | None
-    daily_rsi: float | None
-    weekly_rsi: float | None
-    monthly_rsi: float | None
-    daily_return_pct: float | None
-    weekly_return_pct: float | None
-    monthly_return_pct: float | None
-    daily_vs_nifty: float | None
-    weekly_vs_nifty: float | None
-    monthly_vs_nifty: float | None
-    meets_rsi_thresholds: bool
-    outperforms_nifty: bool
-    sector_score: float
-    weekly_data_source: str = "UNAVAILABLE"  # "ANGEL_ONE" | "TAPETIDE" | "UNAVAILABLE"
-    monthly_data_source: str = "UNAVAILABLE"  # "ANGEL_ONE" | "TAPETIDE" | "UNAVAILABLE"
+    data_source: str | None = None  # always "ANGEL_ONE" — the only provider in this project
 
 
 class NiftyUniverseStockOut(BaseModel):
     """
-    One row of the TRUE NIFTY 200 master universe — one entry per constituent
-    the universe provider actually returned, present regardless of whether
-    that stock's own price/RSI analysis succeeded. Never removed on failure;
+    One row of the NIFTY 200 master universe (from NIFTY_200_Sector_List.xlsx)
+    — one entry per symbol in that file, present regardless of whether that
+    stock's own price/RSI analysis succeeded. Never removed on failure;
     unavailable fields are None with `status`/`status_reason` explaining why.
     """
     symbol: str
-    company_name: str | None = None
-    sector: str
-    sector_source: str
     current_price: float | None = None
     daily_rsi: float | None = None
     weekly_rsi: float | None = None
@@ -110,7 +83,6 @@ class NiftyUniverseStockOut(BaseModel):
 class StrategySignalOut(BaseModel):
     strategy: str
     symbol: str
-    sector: str
     qualifies: bool
     signal_date: dt.datetime | None
     daily_rsi: float | None
@@ -126,26 +98,26 @@ class ScanResultOut(BaseModel):
     started_at: dt.datetime
     finished_at: dt.datetime
     execution_seconds: float
-    data_source: str = "tapetide"  # kept for compatibility; now the SELECTED mode (auto/tapetide/angel_one)
-    data_source_summary: dict[str, int] = {}  # actual provider used per stock, e.g. {"TAPETIDE": 45, "ANGEL_ONE": 3}
+    data_source: str = "ANGEL_ONE"  # the only market-data provider in this project
+    data_source_summary: dict[str, int] = {}
+    # NIFTY 200 universe (Strategy One/GFS/Advanced GFS/PRD/NRD).
     universe_requested: int
     universe_returned: int
     universe_complete: bool
-    universe_note: str | None
+    # NIFTY 500 universe (Value Buy only) — a separate, larger list.
+    value_buy_universe_requested: int
+    value_buy_universe_returned: int
     stocks_scanned: int
     stocks_failed: int
     failed_symbols: list[str]
-    qualifying_sectors: list[str]
-    sectors: list[SectorResultOut]
     top10: list[StockResultOut]
     top3: list[StockResultOut]
     best: StockResultOut | None
-    # The TRUE NIFTY 200 master universe (every constituent the provider
-    # returned, regardless of analysis success) — for the NIFTY 200 Scanner
-    # page's full-universe table + local sector/strategy/search filtering.
-    # Structurally separate from strategy results / sector analysis / top10.
+    # The NIFTY 200 master universe (every symbol in the Excel file,
+    # regardless of analysis success) — for the NIFTY 200 Scanner page's
+    # full-universe table + local strategy/search filtering.
     nifty200_universe: list[NiftyUniverseStockOut] = []
-    # Additive: all six strategies' qualifying stocks from this same scan run,
-    # keyed by strategy name. A stock may appear under multiple strategies.
+    # All six strategies' qualifying stocks from this same scan run, keyed by
+    # strategy name. A stock may appear under multiple strategies.
     strategies: dict[str, list[StrategySignalOut]] = {}
     errors: list[str]

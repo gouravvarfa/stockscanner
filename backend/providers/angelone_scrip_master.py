@@ -58,11 +58,28 @@ async def resolve_index(name: str) -> ScripMatch | None:
     return None
 
 
+# NSE cash-segment series, in preference order. "EQ" is the normal rolling
+# segment; "BE"/"BZ" are the trade-to-trade/surveillance series — still real,
+# fully tradable cash listings with the same historical-candle support, and
+# the ONLY listing for stocks such as HEG, HFCL, STLTECH and INDIAGLYCO.
+# Matching "-EQ" alone silently made ~240 NSE stocks unresolvable.
+EQUITY_SERIES = ("EQ", "BE", "BZ")
+
+
 async def resolve_equity(symbol: str) -> ScripMatch | None:
-    """symbol e.g. 'RELIANCE' -> resolves the '-EQ' NSE equity listing."""
+    """symbol e.g. 'RELIANCE' -> resolves its NSE cash listing (EQ, else BE/BZ)."""
     rows = await _fetch_scrip_master()
+    by_series: dict[str, dict] = {}
     for row in rows:
-        if row.get("instrumenttype") == "" and row.get("name") == symbol and str(row.get("symbol", "")).endswith("-EQ"):
+        if row.get("instrumenttype") != "" or row.get("name") != symbol:
+            continue
+        series = str(row.get("symbol", "")).rpartition("-")[2]
+        if series in EQUITY_SERIES:
+            by_series.setdefault(series, row)
+
+    for series in EQUITY_SERIES:
+        row = by_series.get(series)
+        if row is not None:
             return ScripMatch(token=row["token"], trading_symbol=row["symbol"], exch_seg="NSE")
     return None
 

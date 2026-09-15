@@ -1,8 +1,11 @@
+import { useState } from "react";
 import { Route, Routes } from "react-router-dom";
+import { ChartDrawer } from "./chart/ChartDrawer";
+import { useChart } from "./chart/ChartContext";
 import { Header } from "./components/Header";
+import { LogsPanel } from "./components/LogsPanel";
 import { Sidebar } from "./components/Sidebar";
 import { Dashboard } from "./pages/Dashboard";
-import { SectorScanner } from "./pages/SectorScanner";
 import { StockScanner } from "./pages/StockScanner";
 import { Strategies } from "./pages/Strategies";
 import { ExpiryLevel1 } from "./pages/ExpiryLevel1";
@@ -12,18 +15,20 @@ import { Settings } from "./pages/Settings";
 import { TradingViewSignals } from "./pages/TradingViewSignals";
 
 export default function App() {
+  const [logsOpen, setLogsOpen] = useState(false);
+  const chart = useChart();
+
   return (
     <div className="app-shell">
       <Sidebar />
       <div className="app-main">
-        <Header />
+        <Header onToggleLogs={() => setLogsOpen((v) => !v)} logsOpen={logsOpen} />
         <main className="app-content">
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/strategies" element={<Strategies />} />
             <Route path="/expiry-level-1" element={<ExpiryLevel1 />} />
             <Route path="/expiry-level-5" element={<ExpiryLevel5 />} />
-            <Route path="/sectors" element={<SectorScanner />} />
             <Route path="/stocks" element={<StockScanner />} />
             <Route path="/history" element={<ScanHistoryPage />} />
             <Route path="/tradingview" element={<TradingViewSignals />} />
@@ -31,6 +36,8 @@ export default function App() {
           </Routes>
         </main>
       </div>
+      <LogsPanel open={logsOpen} onClose={() => setLogsOpen(false)} />
+      <ChartDrawer state={chart.state} onToggleMaximize={chart.toggleMaximize} onClose={chart.closeChart} />
     </div>
   );
 }

@@ -32,8 +32,8 @@ function StatusBanner({ status }: { status: TradingViewStatus | null }) {
         <div className="state-title">TradingView not configured</div>
         <div className="state-subtitle">
           Set TRADINGVIEW_ENABLED=true and TRADINGVIEW_WEBHOOK_SECRET in the backend's .env, then restart the
-          backend. This is a separate, optional signal source — the existing scanner (Tapetide/Angel One) is
-          completely unaffected either way.
+          backend. This is a separate, optional signal source — the existing scanner (Angel One) is completely
+          unaffected either way.
         </div>
       </div>
     );
@@ -44,7 +44,7 @@ function StatusBanner({ status }: { status: TradingViewStatus | null }) {
       <div className="state-subtitle">
         {status.signal_count} signal{status.signal_count === 1 ? "" : "s"} received so far
         {status.latest_signal_at ? `, latest at ${fmtDate(status.latest_signal_at)}` : ""}. This list only shows
-        signals TradingView alerts have actually delivered to the webhook — it is not a live scan of NIFTY 200.
+        signals TradingView alerts have actually delivered to the webhook — it is not a live scan of the A Group universe.
       </div>
     </div>
   );
@@ -98,7 +98,7 @@ export function TradingViewSignals() {
           <h1>TradingView Signals</h1>
           <p className="page-subtitle">
             Optional, alert-driven signal source from a TradingView Pine Script — additional to, never a replacement
-            for, the scanner's own Tapetide/Angel One-driven scans.
+            for, the scanner's own Angel One-driven scans.
           </p>
         </div>
         <button onClick={refresh} disabled={loading}>

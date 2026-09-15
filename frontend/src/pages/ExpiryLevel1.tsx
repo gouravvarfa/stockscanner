@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { api, type ExpiryLevel1Result, type ExpiryLevel1Signal } from "../services/api";
 import { Badge } from "../components/Badge";
-import { AngelOneConnect } from "../components/AngelOneConnect";
+import { AngelOneStatusBanner } from "../components/AngelOneStatusBanner";
 
 type Section = "index" | "stock";
 
@@ -90,7 +90,7 @@ export function ExpiryLevel1() {
         </button>
       </div>
 
-      <AngelOneConnect onConnectedChange={setAngelOneConfigured} />
+      <AngelOneStatusBanner onConnectedChange={setAngelOneConfigured} />
 
       {error && <div className="error-banner">Scan failed: {error}</div>}
 

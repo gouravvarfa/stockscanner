@@ -15,7 +15,6 @@ from backend.indicators.resample import to_monthly, to_weekly
 from backend.indicators.rsi import rsi
 from backend.indicators.volume import distance_from_52w_high, volume_ratio
 from backend.ranking.scorer import ScoreBreakdown, compute_score
-from backend.sector_analysis.engine import SectorAnalysis
 
 
 @dataclass
@@ -23,12 +22,17 @@ class TimeframeReading:
     rsi: float | None
     divergences: list[DivergenceSignal]
     has_bearish_divergence: bool
+    # Index of the latest bar in the series this reading was computed from
+    # (i.e. len(close) - 1) — used by PRD/NRD to measure how many bars ago
+    # a divergence's confirming pivot occurred (freshness), independent of
+    # any absolute date. Defaults to 0 so existing test fixtures that
+    # construct a TimeframeReading directly without this field keep working.
+    last_bar_index: int = 0
 
 
 @dataclass
 class StockAnalysisResult:
     symbol: str
-    sector: str
     current_price: float
     data_as_of: pd.Timestamp
     daily: TimeframeReading
@@ -56,7 +60,12 @@ def _timeframe_reading(
     signals = detect_divergences(high, low, close, r, config.divergence)
     bearish = has_significant_bearish_divergence(signals)
     last_rsi = float(r.iloc[-1]) if len(r) and not pd.isna(r.iloc[-1]) else None
-    return TimeframeReading(rsi=last_rsi, divergences=signals, has_bearish_divergence=bearish)
+    return TimeframeReading(
+        rsi=last_rsi,
+        divergences=signals,
+        has_bearish_divergence=bearish,
+        last_bar_index=len(close) - 1,
+    )
 
 
 def _rsi_component(weekly_rsi: float | None, monthly_rsi: float | None, cfg) -> float:
@@ -129,9 +138,7 @@ def _macd_adx_component(macd_hist: float | None, adx_value: float | None, adx_he
 
 def analyze_stock(
     symbol: str,
-    sector: str,
     daily_ohlcv: pd.DataFrame,
-    sector_analysis: SectorAnalysis | None,
     config: StrategyConfig,
 ) -> StockAnalysisResult | None:
     warnings: list[str] = []
@@ -197,8 +204,6 @@ def analyze_stock(
     ) if config.divergence.strict_mode else weekly_reading.has_bearish_divergence
 
     components = {
-        "sector_outperformance": sector_analysis.outperformance_component if sector_analysis and sector_analysis.available else 0.0,
-        "sector_rsi": sector_analysis.rsi_component if sector_analysis and sector_analysis.available else 0.0,
         "stock_rsi": _rsi_component(weekly_reading.rsi, monthly_reading.rsi, config.stock_rsi),
         "divergence": _divergence_component(daily_reading, weekly_reading, monthly_reading),
         "fibonacci": _fibonacci_component(fib_analysis, bullish_confirmed),
@@ -207,15 +212,12 @@ def analyze_stock(
         "macd_adx": _macd_adx_component(macd_hist, adx_value, config.trend.adx_healthy_min),
     }
 
-    explanation = _build_explanation(
-        components, weekly_reading, monthly_reading, sector_analysis, fib_analysis, config
-    )
+    explanation = _build_explanation(components, weekly_reading, monthly_reading, fib_analysis, config)
 
     score = compute_score(components, config.weights, config.classification, explanation)
 
     return StockAnalysisResult(
         symbol=symbol,
-        sector=sector,
         current_price=float(close.iloc[-1]),
         data_as_of=close.index[-1],
         daily=daily_reading,
@@ -241,19 +243,10 @@ def _build_explanation(
     components: dict[str, float],
     weekly: TimeframeReading,
     monthly: TimeframeReading,
-    sector_analysis: SectorAnalysis | None,
     fib: FibonacciAnalysis | None,
     config: StrategyConfig,
 ) -> list[str]:
     lines: list[str] = []
-    if sector_analysis and sector_analysis.available:
-        lines.append(
-            f"Sector '{sector_analysis.tapetide_sector}' ({sector_analysis.nse_index}) "
-            f"outperforms NIFTY: {sector_analysis.outperforms_nifty}, sector RSI thresholds met: "
-            f"{sector_analysis.meets_rsi_thresholds}."
-        )
-    elif sector_analysis:
-        lines.append(f"Sector data unavailable: {sector_analysis.unavailable_reason}")
 
     if weekly.rsi is not None:
         lines.append(

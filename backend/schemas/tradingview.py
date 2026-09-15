@@ -5,14 +5,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
-VALID_STRATEGIES = {"Strategy One", "GFS", "Advanced GFS", "PRD", "NRD", "Value Buy", "SECTOR_RSI"}
+VALID_STRATEGIES = {"Strategy One", "GFS", "Advanced GFS", "PRD", "NRD", "Value Buy"}
 VALID_DIVERGENCE_TYPES = {"PRD", "NRD"}
-
-# SECTOR_RSI is a distinct kind of TradingView signal from the six stock
-# strategies above: it carries a sector/NSE-index's own D/W/M RSI (e.g.
-# symbol="Nifty Healthcare"), used only as an optional fallback data source
-# for backend/sector_analysis/engine.py when Tapetide/Angel One can't supply
-# weekly/monthly sector RSI. It never feeds stock-level strategy signals.
 
 
 class TradingViewWebhookPayload(BaseModel):

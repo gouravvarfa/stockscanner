@@ -13,7 +13,7 @@ import pandas as pd
 
 from backend.indicators.confirmed_bars import drop_incomplete_trailing_bars, drop_incomplete_trailing_daily_bar
 from backend.providers import angelone_scrip_master as scrip_master
-from backend.providers.angelone_client import AngelOneInterval, AngelOneSession, get_candle_data, login
+from backend.providers.angelone_client import AngelOneApiError, AngelOneInterval, AngelOneSession, get_candle_data, login
 from backend.services import angelone_credential_store
 
 IST = ZoneInfo("Asia/Kolkata")
@@ -65,15 +65,31 @@ class AngelOneProvider:
         session = await self._ensure_session()
         now_ist = dt.datetime.now(IST)
         from_dt = now_ist - dt.timedelta(days=days_back)
+        from_date = _format_angel_date(from_dt.replace(tzinfo=None))
+        to_date = _format_angel_date(now_ist.replace(tzinfo=None))
 
-        rows = await get_candle_data(
-            session,
-            exchange=exch_seg,
-            symbol_token=symbol_token,
-            interval=interval,
-            from_date=_format_angel_date(from_dt.replace(tzinfo=None)),
-            to_date=_format_angel_date(now_ist.replace(tzinfo=None)),
-        )
+        try:
+            rows = await get_candle_data(
+                session, exchange=exch_seg, symbol_token=symbol_token, interval=interval,
+                from_date=from_date, to_date=to_date,
+            )
+        except AngelOneApiError:
+            # Angel One allows only ONE active API session per account —
+            # logging in from the app/web elsewhere silently invalidates
+            # this cached session, and every further call then fails
+            # identically no matter how many times get_candle_data's own
+            # internal retry loop tries again with the SAME dead session
+            # (this was a real bug: an entire scan could fail 100% of its
+            # stocks this way, recoverable only by restarting the backend).
+            # Force exactly one fresh re-login and retry before giving up —
+            # if the credentials themselves are the problem, this second
+            # attempt fails too and the real error still surfaces normally.
+            self.reset_session()
+            session = await self._ensure_session()
+            rows = await get_candle_data(
+                session, exchange=exch_seg, symbol_token=symbol_token, interval=interval,
+                from_date=from_date, to_date=to_date,
+            )
 
         if not rows:
             return pd.DataFrame(columns=["open", "high", "low", "close", "volume"])

@@ -5,7 +5,6 @@ import {
   DashboardIcon,
   HistoryIcon,
   ListIcon,
-  SectorIcon,
   SettingsIcon,
   TargetIcon,
   TrendIcon,
@@ -16,8 +15,7 @@ const NAV_ITEMS = [
   { to: "/strategies", label: "Strategies", icon: TargetIcon },
   { to: "/expiry-level-1", label: "Expiry Level 1", icon: CalendarIcon },
   { to: "/expiry-level-5", label: "Expiry Level 5", icon: CalendarIcon },
-  { to: "/sectors", label: "Sector Scanner", icon: SectorIcon },
-  { to: "/stocks", label: "NIFTY 200 Scanner", icon: ListIcon },
+  { to: "/stocks", label: "A Group Scanner", icon: ListIcon },
   { to: "/tradingview", label: "TradingView Signals", icon: BellIcon },
   { to: "/history", label: "Scan History", icon: HistoryIcon },
   { to: "/settings", label: "Settings", icon: SettingsIcon },
@@ -30,7 +28,7 @@ export function Sidebar() {
         <span className="sidebar-brand-icon">
           <TrendIcon width={17} height={17} />
         </span>
-        NIFTY 200 Scanner
+        A Group Scanner
       </div>
       <nav className="sidebar-nav">
         {NAV_ITEMS.map((item) => {

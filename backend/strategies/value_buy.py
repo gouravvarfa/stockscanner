@@ -43,7 +43,6 @@ def evaluate_value_buy(
     return StrategySignal(
         strategy="Value Buy",
         symbol=result.symbol,
-        sector=result.sector,
         qualifies=qualifies,
         signal_date=result.data_as_of,
         daily_rsi=d,

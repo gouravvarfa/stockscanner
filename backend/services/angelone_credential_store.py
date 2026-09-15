@@ -3,10 +3,8 @@ Local credential store for Angel One, so the user can connect from the
 frontend instead of hand-editing .env. Falls back to .env values
 (settings.angelone_*) if no saved file exists, so either path still works.
 
-Local-dev-only storage: plaintext JSON on disk (gitignored), same trust
-model as .tapetide_token.json already used for the Tapetide OAuth token in
-this project — appropriate for a single-user local app, not a multi-tenant
-deployment.
+Local-dev-only storage: plaintext JSON on disk (gitignored) — appropriate
+for a single-user local app, not a multi-tenant deployment.
 """
 from __future__ import annotations
 
@@ -25,6 +23,9 @@ class AngelOneCredentials(BaseModel):
     client_code: str
     pin: str
     totp_secret: str
+    # Set only on a real, verified successful login — never backdated,
+    # never set just because credentials were saved.
+    connected_at: str | None = None
 
 
 def get_credentials() -> AngelOneCredentials | None:

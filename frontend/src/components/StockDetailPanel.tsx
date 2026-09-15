@@ -20,14 +20,17 @@ function renderDivergenceExtra(extra: Record<string, unknown>) {
             <th>Timeframe</th>
             <th>Swing 1</th>
             <th>Swing 2</th>
-            <th>RSI 1 → RSI 2</th>
+            <th>RSI Leg 1 → Leg 2</th>
             <th>Price Δ%</th>
             <th>RSI Δ</th>
+            <th>Bars Ago</th>
           </tr>
         </thead>
         <tbody>
           {divergences.map((d, i) => {
             const row = d as Record<string, unknown>;
+            const barsAgo = row.bars_ago as number | undefined;
+            const fresh = Boolean(row.fresh);
             return (
               <tr key={i}>
                 <td>{String(row.timeframe)}</td>
@@ -44,6 +47,15 @@ function renderDivergenceExtra(extra: Record<string, unknown>) {
                 </td>
                 <td>{fmt(row.price_change_pct as number, 2, "%")}</td>
                 <td>{fmt(row.rsi_change as number, 1)}</td>
+                <td>
+                  {barsAgo !== undefined ? (
+                    <span className={fresh ? "chip chip-pass" : "muted small"}>
+                      {fresh ? "🔥 " : ""}{barsAgo} bar{barsAgo === 1 ? "" : "s"} ago
+                    </span>
+                  ) : (
+                    "—"
+                  )}
+                </td>
               </tr>
             );
           })}
@@ -95,9 +107,7 @@ export function StockDetailPanel({
         <div className="detail-header">
           <div>
             <div className="symbol">{signal.symbol}</div>
-            <div className="muted">
-              {signal.sector} · {strategyDisplayName(signal.strategy)}
-            </div>
+            <div className="muted">{strategyDisplayName(signal.strategy)}</div>
           </div>
           <button className="secondary-button" onClick={onClose}>
             Close
@@ -166,7 +176,7 @@ export function StockDetailPanel({
 
         {(signal.strategy === "PRD" || signal.strategy === "NRD") && (
           <>
-            <h4>{signal.strategy === "PRD" ? "Positive Reverse Divergence" : "Negative Reverse Divergence"}</h4>
+            <h4>{signal.strategy === "PRD" ? "Positive Reversal" : "Negative Reversal"}</h4>
             {renderDivergenceExtra(signal.extra)}
           </>
         )}

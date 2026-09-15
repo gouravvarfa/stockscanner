@@ -84,14 +84,21 @@ agfsMonthlyMin = input.float(68.0, "Advanced GFS Monthly RSI Min")
 advGfsCondition = dailyRSI >= agfsDailyMin and dailyRSI <= agfsDailyMax and weeklyRSI > agfsWeeklyMin and monthlyRSI > agfsMonthlyMin
 
 // ---------------------------------------------------------------------------
-// PRD / NRD - backend/strategies/prd.py + nrd.py. Each timeframe is
-// evaluated INDEPENDENTLY (own divergence + own RSI gate); the stock
-// qualifies if ANY ONE of daily/weekly/monthly confirms. PRD uses an RSI
-// FLOOR (uptrend context, > 60 on the confirming timeframe); NRD uses an
-// RSI CEILING (downtrend context, < 45) - this floor/ceiling split is what
-// makes PRD and NRD mutually exclusive PER TIMEFRAME while still letting a
-// stock qualify for both simultaneously on different timeframes, exactly as
-// the backend's own docstrings describe. Divergence pivots use ta.pivotlow/
+// PRD / NRD - backend/strategies/prd.py + nrd.py. PRD/NRD detect Cardwell's
+// "Positive Reversal" / "Negative Reversal" pattern - NOT regular bullish/
+// bearish divergence (a real bug fixed in both this script and the backend:
+// they used to be defined as regular divergence, which produced wrong
+// signals, e.g. ABB showing NRD from an unrelated old swing pair).
+//   Positive Reversal (PRD): at two confirmed swing LOWS, price forms a
+//     HIGHER low while RSI forms a LOWER low.
+//   Negative Reversal (NRD): at two confirmed swing HIGHS, price forms a
+//     LOWER high while RSI forms a HIGHER high.
+// Each timeframe is evaluated INDEPENDENTLY (own reversal + own RSI gate);
+// the stock qualifies if ANY ONE of daily/weekly/monthly confirms. PRD uses
+// an RSI FLOOR (uptrend context, > 60); NRD uses an RSI CEILING (downtrend
+// context, < 45) - this floor/ceiling split makes PRD and NRD mutually
+// exclusive PER TIMEFRAME while still letting a stock qualify for both
+// simultaneously on different timeframes. Pivots use ta.pivotlow/
 // ta.pivothigh, which only confirm after `right` bars have printed - no
 // lookahead, matching backend/divergence/swing.py's confirmed-pivot rule.
 // ---------------------------------------------------------------------------
@@ -124,26 +131,26 @@ if not na(pivHigh)
     lastPivotHighPrice := pivHigh
     lastPivotHighRSI := ta.rsi(close, rsiLen)[divRight]
 
-// Bullish divergence (for PRD): price makes a LOWER low, RSI makes a
-// HIGHER low, between the two most recent confirmed swing lows.
-bullishDivergenceDaily = not na(prevPivotLowPrice) and lastPivotLowPrice < prevPivotLowPrice and lastPivotLowRSI > prevPivotLowRSI
-// Bearish divergence (for NRD): price makes a HIGHER high, RSI makes a
-// LOWER high, between the two most recent confirmed swing highs.
-bearishDivergenceDaily = not na(prevPivotHighPrice) and lastPivotHighPrice > prevPivotHighPrice and lastPivotHighRSI < prevPivotHighRSI
+// Positive Reversal (for PRD): price makes a HIGHER low, RSI makes a
+// LOWER low, between the two most recent confirmed swing lows.
+positiveReversalDaily = not na(prevPivotLowPrice) and lastPivotLowPrice > prevPivotLowPrice and lastPivotLowRSI < prevPivotLowRSI
+// Negative Reversal (for NRD): price makes a LOWER high, RSI makes a
+// HIGHER high, between the two most recent confirmed swing highs.
+negativeReversalDaily = not na(prevPivotHighPrice) and lastPivotHighPrice < prevPivotHighPrice and lastPivotHighRSI > prevPivotHighRSI
 
 // Weekly/Monthly divergence confirmation reuses the same daily-bar-detected
 // pivots but gates on the CONFIRMED higher-timeframe RSI, matching how the
 // backend evaluates "that timeframe's own RSI" independently of which
 // timeframe the divergence pivots were found on.
-prdDailyConfirmed   = bullishDivergenceDaily and dailyRSI > prdRsiFloor
-prdWeeklyConfirmed  = bullishDivergenceDaily and weeklyRSI > prdRsiFloor
-prdMonthlyConfirmed = bullishDivergenceDaily and monthlyRSI > prdRsiFloor
+prdDailyConfirmed   = positiveReversalDaily and dailyRSI > prdRsiFloor
+prdWeeklyConfirmed  = positiveReversalDaily and weeklyRSI > prdRsiFloor
+prdMonthlyConfirmed = positiveReversalDaily and monthlyRSI > prdRsiFloor
 prdConfirmed = prdDailyConfirmed or prdWeeklyConfirmed or prdMonthlyConfirmed
 prdTimeframe = prdDailyConfirmed ? "Daily" : prdWeeklyConfirmed ? "Weekly" : prdMonthlyConfirmed ? "Monthly" : na
 
-nrdDailyConfirmed   = bearishDivergenceDaily and dailyRSI < nrdRsiCeiling
-nrdWeeklyConfirmed  = bearishDivergenceDaily and weeklyRSI < nrdRsiCeiling
-nrdMonthlyConfirmed = bearishDivergenceDaily and monthlyRSI < nrdRsiCeiling
+nrdDailyConfirmed   = negativeReversalDaily and dailyRSI < nrdRsiCeiling
+nrdWeeklyConfirmed  = negativeReversalDaily and weeklyRSI < nrdRsiCeiling
+nrdMonthlyConfirmed = negativeReversalDaily and monthlyRSI < nrdRsiCeiling
 nrdConfirmed = nrdDailyConfirmed or nrdWeeklyConfirmed or nrdMonthlyConfirmed
 nrdTimeframe = nrdDailyConfirmed ? "Daily" : nrdWeeklyConfirmed ? "Weekly" : nrdMonthlyConfirmed ? "Monthly" : na
 

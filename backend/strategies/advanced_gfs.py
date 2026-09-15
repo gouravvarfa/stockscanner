@@ -27,7 +27,6 @@ def evaluate_advanced_gfs(result: StockAnalysisResult, config: AdvancedGFSConfig
     return StrategySignal(
         strategy="Advanced GFS",
         symbol=result.symbol,
-        sector=result.sector,
         qualifies=qualifies,
         signal_date=result.data_as_of,
         daily_rsi=d,

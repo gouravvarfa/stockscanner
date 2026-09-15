@@ -5,6 +5,7 @@ import pytest
 
 from backend.config.expiry_level_5_config import ExpiryLevel5Config
 from backend.providers.market_data_router import MarketDataRouter
+from backend.services import universe_loader
 from backend.services.expiry_level_5_scan_service import run_expiry_level_5_scan
 
 
@@ -63,24 +64,6 @@ class FakeAngelOneProvider:
         return _signal_df() if symbol in self.signal_symbols else _no_signal_df()
 
 
-class FakeTapetideProvider:
-    def __init__(self, stocks: list[dict], fail_universe: bool = False):
-        self._stocks = stocks
-        self._fail_universe = fail_universe
-
-    async def get_universe(self, index_slug="nifty-200"):
-        if self._fail_universe:
-            raise RuntimeError("Simulated Tapetide quota exhaustion")
-        return {"stocks": self._stocks, "requested": len(self._stocks), "returned": len(self._stocks),
-                "complete": True, "sources": [], "note": None}
-
-    async def get_index_ohlc(self, *a, **kw): raise NotImplementedError
-    async def get_stock_ohlcv(self, *a, **kw): raise NotImplementedError
-    async def get_sector_performance(self, *a, **kw): raise NotImplementedError
-    async def screen_technical(self, *a, **kw): raise NotImplementedError
-    async def get_batch_quotes(self, *a, **kw): raise NotImplementedError
-
-
 def _isolate_credential_store(monkeypatch, tmp_path, configured: bool) -> None:
     from backend.core.config import settings
     from backend.services import angelone_credential_store
@@ -93,6 +76,15 @@ def _isolate_credential_store(monkeypatch, tmp_path, configured: bool) -> None:
     monkeypatch.setattr(settings, "angelone_totp_secret", value)
 
 
+def _set_universe(monkeypatch, symbols: list[str] | None = None, fail: bool = False) -> None:
+    if fail:
+        def _raise():
+            raise RuntimeError("Simulated universe load failure")
+        monkeypatch.setattr(universe_loader, "load_a_group_universe", _raise)
+    else:
+        monkeypatch.setattr(universe_loader, "load_a_group_universe", lambda: symbols or [])
+
+
 @pytest.fixture(autouse=True)
 def angelone_configured(monkeypatch, tmp_path):
     _isolate_credential_store(monkeypatch, tmp_path, True)
@@ -100,17 +92,17 @@ def angelone_configured(monkeypatch, tmp_path):
 
 async def test_returns_unconfigured_message_when_angelone_missing(monkeypatch, tmp_path):
     _isolate_credential_store(monkeypatch, tmp_path, False)
-    tapetide = FakeTapetideProvider([])
+    _set_universe(monkeypatch, [])
     angelone = FakeAngelOneProvider()
-    outcome = await run_expiry_level_5_scan(tapetide, MarketDataRouter(tapetide, angelone), ExpiryLevel5Config())
+    outcome = await run_expiry_level_5_scan(MarketDataRouter(angelone), ExpiryLevel5Config())
     assert not outcome.angelone_configured
     assert outcome.signals == []
 
 
-async def test_produces_signal_for_qualifying_stock():
-    tapetide = FakeTapetideProvider([{"symbol": "RELIANCE", "sector": "Petroleum Products"}])
+async def test_produces_signal_for_qualifying_stock(monkeypatch):
+    _set_universe(monkeypatch, ["RELIANCE"])
     angelone = FakeAngelOneProvider(signal_symbols={"RELIANCE"})
-    outcome = await run_expiry_level_5_scan(tapetide, MarketDataRouter(tapetide, angelone), ExpiryLevel5Config())
+    outcome = await run_expiry_level_5_scan(MarketDataRouter(angelone), ExpiryLevel5Config())
 
     assert len(outcome.signals) == 1
     assert outcome.signals[0].symbol == "RELIANCE"
@@ -118,32 +110,29 @@ async def test_produces_signal_for_qualifying_stock():
     assert outcome.signals[0].instrument_type == "STOCK_FUTURE"
 
 
-async def test_stock_without_a_listed_future_is_skipped_not_failed():
-    tapetide = FakeTapetideProvider([{"symbol": "SMALLCAP", "sector": "Unknown"}])
+async def test_stock_without_a_listed_future_is_skipped_not_failed(monkeypatch):
+    _set_universe(monkeypatch, ["SMALLCAP"])
     angelone = FakeAngelOneProvider(no_future_symbols={"SMALLCAP"})
-    outcome = await run_expiry_level_5_scan(tapetide, MarketDataRouter(tapetide, angelone), ExpiryLevel5Config())
+    outcome = await run_expiry_level_5_scan(MarketDataRouter(angelone), ExpiryLevel5Config())
 
     assert outcome.signals == []
     assert "SMALLCAP" not in outcome.failed_symbols  # no future listed isn't a scan failure
 
 
-async def test_one_bad_symbol_does_not_crash_the_scan():
-    tapetide = FakeTapetideProvider([
-        {"symbol": "RELIANCE", "sector": "Petroleum Products"},
-        {"symbol": "BADSTOCK", "sector": "Unknown"},
-    ])
+async def test_one_bad_symbol_does_not_crash_the_scan(monkeypatch):
+    _set_universe(monkeypatch, ["RELIANCE", "BADSTOCK"])
     angelone = FakeAngelOneProvider(signal_symbols={"RELIANCE"}, fail_symbols={"BADSTOCK"})
-    outcome = await run_expiry_level_5_scan(tapetide, MarketDataRouter(tapetide, angelone), ExpiryLevel5Config())
+    outcome = await run_expiry_level_5_scan(MarketDataRouter(angelone), ExpiryLevel5Config())
 
     assert "BADSTOCK" in outcome.failed_symbols
     assert len(outcome.signals) == 1
     assert outcome.signals[0].symbol == "RELIANCE"
 
 
-async def test_tapetide_failure_reported_but_not_fatal():
-    tapetide = FakeTapetideProvider([], fail_universe=True)
+async def test_universe_failure_reported_but_not_fatal(monkeypatch):
+    _set_universe(monkeypatch, fail=True)
     angelone = FakeAngelOneProvider()
-    outcome = await run_expiry_level_5_scan(tapetide, MarketDataRouter(tapetide, angelone), ExpiryLevel5Config())
+    outcome = await run_expiry_level_5_scan(MarketDataRouter(angelone), ExpiryLevel5Config())
 
     assert outcome.angelone_configured
     assert outcome.signals == []

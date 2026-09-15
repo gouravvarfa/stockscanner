@@ -50,7 +50,6 @@ export interface TradeSetupOut {
 export interface StockResult {
   rank: number;
   symbol: string;
-  sector: string;
   current_price: number;
   data_as_of: string;
   score: number;
@@ -79,9 +78,6 @@ export interface StockResult {
 
 export interface NiftyUniverseStock {
   symbol: string;
-  company_name: string | null;
-  sector: string;
-  sector_source: string;
   current_price: number | null;
   daily_rsi: number | null;
   weekly_rsi: number | null;
@@ -91,31 +87,9 @@ export interface NiftyUniverseStock {
   status_reason: string | null;
 }
 
-export interface SectorResult {
-  sector: string;
-  nse_index: string | null;
-  available: boolean;
-  unavailable_reason: string | null;
-  daily_rsi: number | null;
-  weekly_rsi: number | null;
-  monthly_rsi: number | null;
-  daily_return_pct: number | null;
-  weekly_return_pct: number | null;
-  monthly_return_pct: number | null;
-  daily_vs_nifty: number | null;
-  weekly_vs_nifty: number | null;
-  monthly_vs_nifty: number | null;
-  meets_rsi_thresholds: boolean;
-  outperforms_nifty: boolean;
-  sector_score: number;
-  weekly_data_source?: string;
-  monthly_data_source?: string;
-}
-
 export interface StrategySignal {
   strategy: string;
   symbol: string;
-  sector: string;
   qualifies: boolean;
   signal_date: string | null;
   daily_rsi: number | null;
@@ -157,16 +131,17 @@ export interface ScanResult {
   started_at: string;
   finished_at: string;
   execution_seconds: number;
-  data_source: string;
+  data_source: string; // always "ANGEL_ONE"
+  // NIFTY 200 universe (Strategy One/GFS/Advanced GFS/PRD/NRD).
   universe_requested: number;
   universe_returned: number;
   universe_complete: boolean;
-  universe_note: string | null;
+  // NIFTY 500 universe (Value Buy only).
+  value_buy_universe_requested: number;
+  value_buy_universe_returned: number;
   stocks_scanned: number;
   stocks_failed: number;
   failed_symbols: string[];
-  qualifying_sectors: string[];
-  sectors: SectorResult[];
   top10: StockResult[];
   top3: StockResult[];
   best: StockResult | null;
@@ -183,7 +158,6 @@ export interface ScanRunSummary {
   execution_seconds: number | null;
   stocks_scanned: number;
   stocks_failed: number;
-  qualifying_sectors: number;
   qualifying_stocks: number;
   universe_requested: number;
   universe_returned: number;
@@ -191,7 +165,6 @@ export interface ScanRunSummary {
 }
 
 export interface StrategyConfig {
-  sector_rsi: { daily_min: number; weekly_min: number; monthly_min: number };
   stock_rsi: {
     weekly_min: number;
     weekly_max: number;
@@ -265,6 +238,7 @@ export interface AngelOneStatus {
   configured: boolean;
   client_code: string | null;
   message: string;
+  connected_at: string | null;
 }
 
 export interface AngelOneConnectRequest {
@@ -272,6 +246,11 @@ export interface AngelOneConnectRequest {
   client_code: string;
   pin: string;
   totp_secret: string;
+}
+
+export interface AngelOneTestResult {
+  success: boolean;
+  message: string;
 }
 
 export interface ExpiryLevel5Candle {
@@ -312,28 +291,28 @@ export interface ExpiryLevel5Result {
   errors: string[];
 }
 
-export type DataSourceMode = "auto" | "tapetide" | "angel_one";
-
-export interface DataSourceConfig {
-  mode: DataSourceMode;
+export interface ChartCandle {
+  time: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
 }
 
-export interface ProviderStatus {
-  name: string;
-  status: string;
-  detail: string | null;
+export interface ChartCandlesResponse {
+  symbol: string;
+  timeframe: string;
+  candles: ChartCandle[];
+  data_source: string;
 }
 
-export interface CallMetrics {
-  day: string;
-  tapetide_calls: number;
-  tapetide_quota: number;
-  tapetide_quota_remaining: number;
-  tapetide_cache_hits: number;
-  tapetide_cache_misses: number;
-  cache_hit_rate_pct: number;
-  angelone_calls: number;
-  fallbacks: number;
+export interface LogEntry {
+  id: number;
+  timestamp: string;
+  level: string;
+  logger: string;
+  message: string;
 }
 
 export interface TradingViewSignal {
@@ -379,15 +358,14 @@ export const api = {
   connectAngelOne: (body: AngelOneConnectRequest) =>
     request<AngelOneStatus>("/api/expiry/angelone/connect", { method: "POST", body: JSON.stringify(body) }),
   disconnectAngelOne: () => request<AngelOneStatus>("/api/expiry/angelone/disconnect", { method: "POST" }),
+  testAngelOneConnection: (body: AngelOneConnectRequest) =>
+    request<AngelOneTestResult>("/api/expiry/angelone/test-connection", { method: "POST", body: JSON.stringify(body) }),
   runExpiryLevel5Scan: (maxStocks = 40) =>
     request<ExpiryLevel5Result>(`/api/expiry-level-5/scan?max_stocks=${maxStocks}`, { method: "POST" }),
   getExpiryLevel5Config: () => request<Record<string, unknown>>("/api/expiry-level-5/config"),
-  getDataSource: () => request<DataSourceConfig>("/api/data-source"),
-  updateDataSource: (config: DataSourceConfig) =>
-    request<DataSourceConfig>("/api/data-source", { method: "PUT", body: JSON.stringify(config) }),
-  getProviderStatus: () => request<ProviderStatus[]>("/api/data-source/providers"),
-  getCallMetrics: () => request<CallMetrics>("/api/data-source/call-metrics"),
-  reconnectTapetide: () => request<ProviderStatus>("/api/data-source/tapetide/reconnect", { method: "POST" }),
   getTradingViewStatus: () => request<TradingViewStatus>("/api/tradingview/status"),
   listTradingViewSignals: (limit = 200) => request<TradingViewSignal[]>(`/api/tradingview/signals?limit=${limit}`),
+  getLogs: (sinceId = 0, limit = 200) => request<LogEntry[]>(`/api/logs?since_id=${sinceId}&limit=${limit}`),
+  getChartCandles: (symbol: string, timeframe: string, signal?: AbortSignal) =>
+    request<ChartCandlesResponse>(`/api/chart/candles?symbol=${encodeURIComponent(symbol)}&timeframe=${timeframe}`, { signal }),
 };

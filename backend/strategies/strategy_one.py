@@ -20,7 +20,6 @@ def evaluate_strategy_one(result: StockAnalysisResult) -> StrategySignal:
     return StrategySignal(
         strategy="Strategy One",
         symbol=result.symbol,
-        sector=result.sector,
         qualifies=qualifies,
         signal_date=result.data_as_of,
         daily_rsi=result.daily.rsi,

@@ -6,7 +6,7 @@ from backend.config.expiry_level_5_config import ExpiryLevel5Config
 from backend.schemas.expiry_level_5 import CandleOut, ExpiryLevel5ResultOut, ExpiryLevel5SignalOut
 from backend.services import config_store
 from backend.services.expiry_level_5_scan_service import ExpiryLevel5Signal, run_expiry_level_5_scan
-from backend.services.provider_factory import get_market_data_router, get_provider
+from backend.services.provider_factory import get_market_data_router
 
 router = APIRouter(prefix="/api/expiry-level-5", tags=["expiry-level-5"])
 
@@ -34,15 +34,11 @@ def _signal_out(signal: ExpiryLevel5Signal) -> ExpiryLevel5SignalOut:
 
 @router.post("/scan", response_model=ExpiryLevel5ResultOut)
 async def run_scan(max_stocks: int = 40) -> ExpiryLevel5ResultOut:
-    tapetide = get_provider()
     market_data_router = get_market_data_router()
     config = config_store.get_current_expiry_level_5_config()
-    data_source_mode = config_store.get_current_data_source_config().mode
 
     try:
-        outcome = await run_expiry_level_5_scan(
-            tapetide, market_data_router, config, max_stocks=max_stocks, data_source_mode=data_source_mode
-        )
+        outcome = await run_expiry_level_5_scan(market_data_router, config, max_stocks=max_stocks)
     except RuntimeError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
@@ -55,7 +51,6 @@ async def run_scan(max_stocks: int = 40) -> ExpiryLevel5ResultOut:
         symbols_failed=outcome.symbols_failed,
         failed_symbols=outcome.failed_symbols,
         signals=[_signal_out(s) for s in outcome.signals],
-        data_source_mode=outcome.data_source_mode.upper(),
         data_source_summary=outcome.data_source_summary,
         errors=outcome.errors,
     )

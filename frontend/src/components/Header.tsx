@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useScan } from "../context/ScanContext";
-import { BellIcon, MoonIcon, SunIcon, UserIcon } from "./icons";
+import { BellIcon, ListIcon, MoonIcon, SunIcon, UserIcon } from "./icons";
 
 const IST_OFFSET_MINUTES = 5.5 * 60;
 
@@ -41,7 +41,7 @@ function useTheme() {
   return { theme, toggle: () => setTheme((t) => (t === "light" ? "dark" : "light")) };
 }
 
-export function Header() {
+export function Header({ onToggleLogs, logsOpen }: { onToggleLogs: () => void; logsOpen: boolean }) {
   const [ist, setIst] = useState(getIstNow());
   const { theme, toggle } = useTheme();
   const { scanning } = useScan();
@@ -60,7 +60,7 @@ export function Header() {
         {scanning && (
           <span className="scanning-indicator">
             <span className="spinner" />
-            Scanning NIFTY 200…
+            Scanning A Group…
           </span>
         )}
       </div>
@@ -70,6 +70,14 @@ export function Header() {
           <span>{open ? "Market Open" : "Market Closed"}</span>
           <span className="time">{timeLabel} (IST)</span>
         </div>
+        <button
+          className={logsOpen ? "icon-button active" : "icon-button"}
+          onClick={onToggleLogs}
+          title="Live logs"
+          aria-label="Toggle live logs panel"
+        >
+          <ListIcon width={16} height={16} />
+        </button>
         <button className="icon-button" onClick={toggle} title="Toggle theme" aria-label="Toggle theme">
           {theme === "light" ? <MoonIcon width={16} height={16} /> : <SunIcon width={16} height={16} />}
         </button>

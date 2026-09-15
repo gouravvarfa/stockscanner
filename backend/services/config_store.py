@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from backend.config.data_source_config import DEFAULT_DATA_SOURCE_CONFIG, DataSourceConfig
 from backend.config.expiry_level_1_config import DEFAULT_EXPIRY_LEVEL_1_CONFIG, ExpiryLevel1Config
 from backend.config.expiry_level_5_config import DEFAULT_EXPIRY_LEVEL_5_CONFIG, ExpiryLevel5Config
 from backend.config.multi_strategy_config import DEFAULT_MULTI_STRATEGY_CONFIG, MultiStrategyConfig
@@ -20,9 +19,6 @@ _current_expiry: ExpiryLevel1Config | None = None
 
 _EXPIRY5_OVERRIDE_PATH = Path("expiry_level_5_config_overrides.json")
 _current_expiry5: ExpiryLevel5Config | None = None
-
-_DATA_SOURCE_OVERRIDE_PATH = Path("data_source_config_overrides.json")
-_current_data_source: DataSourceConfig | None = None
 
 
 def get_current_config() -> StrategyConfig:
@@ -123,20 +119,3 @@ def reset_expiry_level_5_config() -> ExpiryLevel5Config:
     if _EXPIRY5_OVERRIDE_PATH.exists():
         _EXPIRY5_OVERRIDE_PATH.unlink()
     return _current_expiry5
-
-
-def get_current_data_source_config() -> DataSourceConfig:
-    global _current_data_source
-    if _current_data_source is None:
-        if _DATA_SOURCE_OVERRIDE_PATH.exists():
-            _current_data_source = DataSourceConfig.model_validate(json.loads(_DATA_SOURCE_OVERRIDE_PATH.read_text()))
-        else:
-            _current_data_source = DEFAULT_DATA_SOURCE_CONFIG.model_copy(deep=True)
-    return _current_data_source
-
-
-def update_data_source_config(new_config: DataSourceConfig) -> DataSourceConfig:
-    global _current_data_source
-    _current_data_source = new_config
-    _DATA_SOURCE_OVERRIDE_PATH.write_text(json.dumps(new_config.model_dump(), indent=2))
-    return _current_data_source

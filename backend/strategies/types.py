@@ -13,8 +13,10 @@ def divergence_signal_detail(sig: DivergenceSignal, timeframe: str) -> dict:
         "timeframe": timeframe,
         "swing1_date": sig.first_point.date,
         "swing1_price": sig.first_point.price,
+        "swing1_bar": sig.first_point.index,
         "swing2_date": sig.second_point.date,
         "swing2_price": sig.second_point.price,
+        "swing2_bar": sig.second_point.index,
         "rsi1": sig.first_rsi,
         "rsi2": sig.second_rsi,
         "price_change_pct": sig.price_change_pct,
@@ -26,7 +28,6 @@ def divergence_signal_detail(sig: DivergenceSignal, timeframe: str) -> dict:
 class StrategySignal:
     strategy: str
     symbol: str
-    sector: str
     qualifies: bool
     signal_date: pd.Timestamp | None
     daily_rsi: float | None
