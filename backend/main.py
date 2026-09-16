@@ -41,9 +41,12 @@ app = FastAPI(title="NIFTY 200 Scanner", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:5173", "http://127.0.0.1:5173",
-        "http://localhost:5180", "http://127.0.0.1:5180",
-    ],
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:5180",
+    "http://127.0.0.1:5180",
+    "https://stockscanner-1-c0hl.onrender.com",
+],
     allow_methods=["*"],
     allow_headers=["*"],
 )
