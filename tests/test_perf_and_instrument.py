@@ -54,7 +54,7 @@ async def test_results_emitted_incrementally_before_scan_completes(monkeypatch):
     class SlowLast(FakeAngelOneProvider):
         async def get_intraday_ohlc(self, exch_seg, symbol_token, interval, days_back):
             if symbol_token.endswith("CCC"):
-                await asyncio.sleep(0.4)
+                await asyncio.sleep(2.5)
             return await super().get_intraday_ohlc(exch_seg, symbol_token, interval, days_back)
 
     task = asyncio.create_task(run_full_scan(
@@ -62,7 +62,10 @@ async def test_results_emitted_incrementally_before_scan_completes(monkeypatch):
         on_progress=lambda s, ok, e: seen.append(s),
     ))
     task.add_done_callback(lambda _t: finished.append(True))
-    await asyncio.sleep(0.2)
+    for _ in range(100):  # wait (bounded) for the two fast stocks; CCC is still sleeping
+        if len(seen) >= 2:
+            break
+        await asyncio.sleep(0.02)
     assert sorted(seen) == ["AAA", "BBB"] and not finished  # visible while CCC still running
     out = await task
     assert sorted(seen) == ["AAA", "BBB", "CCC"] and out.stocks_scanned == 3
