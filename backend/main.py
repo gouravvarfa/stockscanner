@@ -13,7 +13,9 @@ from backend.api import expiry as expiry_api
 from backend.api import expiry_level_5 as expiry_level_5_api
 from backend.api import history as history_api
 from backend.api import logs as logs_api
+from backend.api import ranking as ranking_api
 from backend.api import scan as scan_api
+from backend.api import scan_jobs as scan_jobs_api
 from backend.api import scanner as scanner_api
 from backend.api import top_bottom as top_bottom_api
 from backend.api import tradingview as tradingview_api
@@ -41,17 +43,21 @@ app = FastAPI(title="NIFTY 200 Scanner", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-    "http://localhost:5180",
-    "http://127.0.0.1:5180",
-    "https://stockscanner-1-c0hl.onrender.com",
-],
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:5180",
+        "http://127.0.0.1:5180",
+        "http://localhost:5174",
+        "http://127.0.0.1:5174",
+        "https://stockscanner-1-c0hl.onrender.com",
+    ],
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 app.include_router(scan_api.router)
+app.include_router(scan_jobs_api.router)
+app.include_router(ranking_api.router)
 app.include_router(history_api.router)
 app.include_router(config_api.router)
 app.include_router(scanner_api.router)
@@ -67,3 +73,7 @@ app.include_router(top_bottom_api.router)
 @app.get("/api/health")
 def health() -> dict:
     return {"status": "ok"}
+
+
+
+

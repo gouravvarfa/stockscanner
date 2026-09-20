@@ -4,6 +4,7 @@ import asyncio
 import datetime as dt
 import logging
 from dataclasses import dataclass, field
+from typing import Callable
 
 from backend.config.expiry_level_1_config import ExpiryLevel1Config
 from backend.indicators.rsi import rsi
@@ -67,7 +68,11 @@ async def run_expiry_level_1_scan(
     config: ExpiryLevel1Config,
     max_stocks: int = 40,
     max_concurrent: int = 3,
+    on_progress: Callable[[str, bool, str | None], None] | None = None,
 ) -> ExpiryLevel1Outcome:
+    """`on_progress(symbol, success, error)` — optional, called once per
+    index/stock as it finishes. Defaults to None (existing callers/tests
+    unaffected)."""
     started_at = dt.datetime.utcnow()
     errors: list[str] = []
     failed_symbols: list[str] = []
@@ -102,10 +107,14 @@ async def run_expiry_level_1_scan(
             )
             if signal is not None:
                 index_signals.append(signal)
+            if on_progress is not None:
+                on_progress(index_name, True, None)
         except Exception as exc:  # noqa: BLE001
             logger.warning("Index %s failed: %s", index_name, exc)
             failed_symbols.append(index_name)
             errors.append(f"{index_name}: {exc}")
+            if on_progress is not None:
+                on_progress(index_name, False, str(exc))
 
     # Index signals need only Angel One and must not be blocked by a
     # universe-fetch failure — so it's isolated here, not fatal to the whole
@@ -128,10 +137,14 @@ async def run_expiry_level_1_scan(
                 )
                 if signal is not None:
                     stock_signals.append(signal)
+                if on_progress is not None:
+                    on_progress(symbol, True, None)
             except Exception as exc:  # noqa: BLE001
                 logger.warning("Stock %s failed: %s", symbol, exc)
                 failed_symbols.append(symbol)
                 errors.append(f"{symbol}: {exc}")
+                if on_progress is not None:
+                    on_progress(symbol, False, str(exc))
 
     await asyncio.gather(*(process(s) for s in candidates))
 

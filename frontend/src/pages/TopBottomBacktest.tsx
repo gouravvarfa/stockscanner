@@ -1,3 +1,4 @@
+import { InstrumentBadge } from "../components/InstrumentBadge";
 import { useMemo, useState } from "react";
 import { EquityCurveChart } from "./topBottom/EquityCurveChart";
 import { EquitySearchBox } from "./topBottom/EquitySearchBox";
@@ -247,7 +248,10 @@ export function TopBottomBacktest() {
           )}
 
           <div className="card">
-            <h2 style={{ marginTop: 0 }}>Backtest Summary</h2>
+            <h2 style={{ marginTop: 0 }}>
+              Backtest Summary — {result.symbol}
+              <InstrumentBadge type={result.instrument_type} />
+            </h2>
             <div className="tb-summary-grid">
               <SummaryTile label="Total Signals" value={result.statistics.total_signals} />
               <SummaryTile label="Buy Signals" value={result.statistics.buy_signals} />

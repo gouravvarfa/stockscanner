@@ -1229,3 +1229,131 @@ td .symbol-cell { font-weight: 700; color: var(--text-primary); }
 @media (max-width: 480px) {
   .tb-config-grid { grid-template-columns: 1fr; }
 }
+
+/* Global Active Scans panel — floating, survives page navigation */
+.active-scans-panel {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  width: 300px;
+  max-width: calc(100vw - 36px);
+  max-height: 60vh;
+  overflow-y: auto;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md, 0 8px 24px rgba(0, 0, 0, 0.12));
+  z-index: 500;
+}
+.active-scans-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border);
+}
+.active-scans-badge {
+  display: inline-block;
+  margin-left: 6px;
+  background: var(--accent);
+  color: white;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  padding: 1px 7px;
+}
+.active-scans-toggle { opacity: 0.6; font-size: 0.7rem; }
+.active-scans-body { padding: 6px 10px 10px; }
+.active-scan-row { padding: 8px 4px; border-bottom: 1px solid var(--border); }
+.active-scan-row:last-child { border-bottom: none; }
+.active-scan-row-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.83rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+.active-scan-pct { color: var(--accent); font-weight: 700; }
+.active-scan-dismiss {
+  background: none;
+  border: none;
+  cursor: pointer;
+  opacity: 0.5;
+  font-size: 0.75rem;
+  padding: 0 2px;
+}
+.active-scan-dismiss:hover { opacity: 1; }
+.active-scan-bar {
+  height: 6px;
+  border-radius: 4px;
+  background: var(--border);
+  overflow: hidden;
+  margin-bottom: 4px;
+}
+.active-scan-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.4s ease;
+}
+.active-scan-meta { font-size: 0.75rem; color: var(--text-muted); line-height: 1.5; }
+.active-scan-warn { color: var(--danger, #dc2626); }
+
+@media (max-width: 600px) {
+  .active-scans-panel { left: 12px; right: 12px; width: auto; bottom: 12px; }
+}
+
+/* Top Ranked Candidates */
+.ranked-list { display: flex; flex-direction: column; gap: 8px; }
+.ranked-row {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.ranked-row:hover { background: color-mix(in srgb, var(--accent) 6%, transparent); }
+.ranked-row-top { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+.ranked-rank { font-weight: 700; color: var(--text-muted); width: 28px; }
+.ranked-symbol { font-weight: 600; flex: 1; }
+.ranked-score { font-weight: 700; color: var(--accent); font-size: 1.05rem; }
+.ranked-strategies { display: flex; flex-wrap: wrap; gap: 4px; }
+.ranked-explanation {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  font-size: 0.82rem;
+}
+.ranked-components { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px; opacity: 0.85; }
+.ranked-component { font-size: 0.78rem; }
+
+/* FUTURE / EQUITY instrument badge */
+.instrument-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  vertical-align: middle;
+  line-height: 1.5;
+}
+.instrument-badge-future { background: rgba(124, 58, 237, 0.14); color: #7c3aed; border: 1px solid rgba(124, 58, 237, 0.35); }
+.instrument-badge-equity { background: rgba(100, 116, 139, 0.14); color: #64748b; border: 1px solid rgba(100, 116, 139, 0.3); }
+
+.live-results { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; max-height: 96px; overflow: auto; }
+.live-result-chip { font-size: 12px; padding: 2px 8px; border-radius: 6px; background: rgba(34, 197, 94, 0.12); border: 1px solid rgba(34, 197, 94, 0.3); }
+
+/* Dashboard side-by-side panels: clean header/subtitle, equal height, scrollable lists */
+.panel-head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.panel-head h2 { margin: 0; font-size: 18px; line-height: 1.3; }
+.panel-sub { font-size: 12px; opacity: 0.7; margin: 0 0 12px; line-height: 1.45; }
+.dash-side-by-side { align-items: stretch; }
+.dash-side-by-side > .card { margin: 0; display: flex; flex-direction: column; min-width: 0; }
+.ranked-panel .ranked-list { max-height: 420px; overflow-y: auto; padding-right: 4px; }
+.prd-forming-list { max-height: 420px; }

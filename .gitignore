@@ -16,3 +16,4 @@ frontend/dist/
 *.log
 .claude/
 tools/
+data/scan_cache/

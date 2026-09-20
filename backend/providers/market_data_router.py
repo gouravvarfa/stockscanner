@@ -19,6 +19,16 @@ from backend.providers.angelone_provider import AngelOneProvider
 
 logger = logging.getLogger("scanner.data_router")
 
+# Shared by every caller that resamples daily bars into a monthly series for
+# RSI(14): scan_service.py's full analysis pipeline and chart_service.py's
+# "1M" chart timeframe. Wilder's RSI is a recursive smoothing, not a fixed
+# rolling window, so its value depends on how much history feeds it — too
+# short a lookback under-converges. Verified on MAHLIFE: the exact same
+# underlying candles resampled from 800 days (26 monthly bars) gave RSI
+# 40.04, while 1500 days (49 monthly bars) gave RSI 47.03. Both call sites
+# must request the SAME depth so they can never disagree on this number.
+MONTHLY_RSI_LOOKBACK_DAYS = 1500
+
 DataKind = Literal["daily", "15m", "1h", "future_daily"]
 
 _INTERVAL_FOR_KIND = {"15m": "FIFTEEN_MINUTE", "1h": "ONE_HOUR"}

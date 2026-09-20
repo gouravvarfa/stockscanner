@@ -14,7 +14,6 @@ def evaluate_advanced_gfs(result: StockAnalysisResult, config: AdvancedGFSConfig
         "monthly_rsi_above_min": m is not None and m > config.monthly_min,
     }
     qualifies = all(conditions.values())
-
     if qualifies:
         explanation = (
             f"Advanced GFS qualified: Daily RSI {d:.1f} is between {config.daily_min} and {config.daily_max}, "

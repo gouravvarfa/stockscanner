@@ -1,8 +1,10 @@
 import { useState } from "react";
-import { api, type ExpiryLevel5Result, type ExpiryLevel5Signal } from "../services/api";
+import type { ExpiryLevel5Result, ExpiryLevel5Signal } from "../services/api";
 import { Badge } from "../components/Badge";
+import { InstrumentBadge } from "../components/InstrumentBadge";
 import { AngelOneStatusBanner } from "../components/AngelOneStatusBanner";
 import { ConditionChip } from "../components/ConditionChip";
+import { useScanJob } from "../hooks/useScanJob";
 
 function fmt(value: number | null, digits = 2): string {
   return value === null || !Number.isFinite(value) ? "N/A" : value.toFixed(digits);
@@ -12,7 +14,7 @@ function SignalCard({ s }: { s: ExpiryLevel5Signal }) {
   return (
     <div className="card">
       <div className="best-stock-header">
-        <div className="symbol">{s.symbol}</div>
+        <div className="symbol">{s.symbol}<InstrumentBadge type={s.fno_type} /></div>
         <Badge label="BULLISH" />
         <span className="chip chip-pass">{s.signal}</span>
         <span className="muted small" style={{ marginLeft: "auto" }}>
@@ -102,23 +104,10 @@ function SignalCard({ s }: { s: ExpiryLevel5Signal }) {
 }
 
 export function ExpiryLevel5() {
-  const [result, setResult] = useState<ExpiryLevel5Result | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { result, running, error, cache, run, runFresh } = useScanJob<ExpiryLevel5Result>("expiry_level_5");
   const [angelOneConfigured, setAngelOneConfigured] = useState(false);
 
-  async function handleRun() {
-    setLoading(true);
-    setError(null);
-    try {
-      const r = await api.runExpiryLevel5Scan();
-      setResult(r);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoading(false);
-    }
-  }
+  const cacheAgeSeconds = cache ? (Date.now() - new Date(cache.completed_at).getTime()) / 1000 : null;
 
   return (
     <div className="page">
@@ -130,12 +119,25 @@ export function ExpiryLevel5() {
             the previous candle's high. Signal: BUY CE (underlying only — you pick the option contract).
           </p>
         </div>
-        <button className="primary-button" onClick={handleRun} disabled={loading || !angelOneConfigured}>
-          {loading ? "Scanning…" : "Run Level 5 Scan"}
-        </button>
+        <div style={{ display: "flex", gap: 10 }}>
+          <button className="primary-button" onClick={run} disabled={running || !angelOneConfigured}>
+            {running ? "Scanning…" : "Run Level 5 Scan"}
+          </button>
+          {!running && (
+            <button className="secondary-button" onClick={runFresh} disabled={!angelOneConfigured} title="Ignore cache, fetch fresh data">
+              Fresh Scan
+            </button>
+          )}
+        </div>
       </div>
 
       <AngelOneStatusBanner onConnectedChange={setAngelOneConfigured} />
+
+      {!running && cacheAgeSeconds !== null && (
+        <p style={{ fontSize: 12, opacity: 0.7 }}>
+          Cached data — age {Math.floor(cacheAgeSeconds / 3600)}h {Math.floor((cacheAgeSeconds % 3600) / 60)}m
+        </p>
+      )}
 
       {error && <div className="error-banner">Scan failed: {error}</div>}
 

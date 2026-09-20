@@ -4,8 +4,10 @@ import datetime as dt
 
 from pydantic import BaseModel
 
+from backend.schemas.instrument import FnoTyped
 
-class ExpiryLevel1SignalOut(BaseModel):
+
+class ExpiryLevel1SignalOut(FnoTyped):
     symbol: str
     instrument_type: str
     name: str

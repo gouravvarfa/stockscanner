@@ -137,3 +137,20 @@ async def test_universe_failure_reported_but_not_fatal(monkeypatch):
     assert outcome.angelone_configured
     assert outcome.signals == []
     assert any("Stock universe unavailable" in e for e in outcome.errors)
+
+
+async def test_on_progress_fires_for_every_symbol_including_no_future(monkeypatch):
+    _set_universe(monkeypatch, ["RELIANCE", "NOFUTURE", "BADSTOCK"])
+    angelone = FakeAngelOneProvider(no_future_symbols={"NOFUTURE"}, fail_symbols={"BADSTOCK"})
+
+    calls: list[tuple[str, bool, str | None]] = []
+    await run_expiry_level_5_scan(
+        MarketDataRouter(angelone), ExpiryLevel5Config(), max_stocks=10,
+        on_progress=lambda symbol, success, error: calls.append((symbol, success, error)),
+    )
+
+    by_symbol = {c[0]: c for c in calls}
+    assert set(by_symbol) == {"RELIANCE", "NOFUTURE", "BADSTOCK"}
+    assert by_symbol["RELIANCE"][1] is True
+    assert by_symbol["NOFUTURE"][1] is True  # no listed future is not a failure
+    assert by_symbol["BADSTOCK"][1] is False

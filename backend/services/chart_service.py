@@ -16,7 +16,7 @@ import pandas as pd
 
 from backend.indicators.resample import resample_ohlcv
 from backend.providers.angelone_provider import AngelOneProvider
-from backend.providers.market_data_router import DataUnavailableError
+from backend.providers.market_data_router import MONTHLY_RSI_LOOKBACK_DAYS, DataUnavailableError
 
 # Timeframes Angel One's historical-candle endpoint supports natively.
 _NATIVE_INTERVAL = {
@@ -39,10 +39,13 @@ VALID_TIMEFRAMES = set(_NATIVE_INTERVAL) | set(_AGGREGATE_FROM)
 
 # How many calendar days of history to request per timeframe — generous
 # enough for a useful chart without requesting more than Angel One is
-# likely to actually hold for intraday granularities.
+# likely to actually hold for intraday granularities. "1M" reuses the same
+# MONTHLY_RSI_LOOKBACK_DAYS the scanner's monthly RSI is computed from, so
+# the chart's monthly RSI can never disagree with the scanner's for the
+# same stock (both resample from the same depth of daily history).
 _LOOKBACK_DAYS = {
     "1m": 5, "5m": 10, "15m": 20, "30m": 40, "1H": 90,
-    "4H": 180, "1D": 800, "1W": 800, "1M": 1500,
+    "4H": 180, "1D": 800, "1W": 800, "1M": MONTHLY_RSI_LOOKBACK_DAYS,
 }
 
 

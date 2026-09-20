@@ -1,7 +1,9 @@
 import { useState } from "react";
-import { api, type ExpiryLevel1Result, type ExpiryLevel1Signal } from "../services/api";
+import type { ExpiryLevel1Result, ExpiryLevel1Signal } from "../services/api";
 import { Badge } from "../components/Badge";
+import { InstrumentBadge } from "../components/InstrumentBadge";
 import { AngelOneStatusBanner } from "../components/AngelOneStatusBanner";
+import { useScanJob } from "../hooks/useScanJob";
 
 type Section = "index" | "stock";
 
@@ -37,7 +39,7 @@ function SignalTable({ rows }: { rows: ExpiryLevel1Signal[] }) {
         <tbody>
           {rows.map((r) => (
             <tr key={`${r.symbol}-${r.signal_date}`} className="row-highlight">
-              <td>{r.symbol}</td>
+              <td>{r.symbol}<InstrumentBadge type={r.fno_type} /></td>
               <td>{r.instrument_type}</td>
               <td>{new Date(r.signal_date).toLocaleString()}</td>
               <td>{fmt(r.rsi_15m)}</td>
@@ -58,24 +60,11 @@ function SignalTable({ rows }: { rows: ExpiryLevel1Signal[] }) {
 }
 
 export function ExpiryLevel1() {
-  const [result, setResult] = useState<ExpiryLevel1Result | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { result, running, error, cache, run, runFresh } = useScanJob<ExpiryLevel1Result>("expiry_level_1");
   const [section, setSection] = useState<Section>("index");
   const [angelOneConfigured, setAngelOneConfigured] = useState(false);
 
-  async function handleRun() {
-    setLoading(true);
-    setError(null);
-    try {
-      const r = await api.runExpiryScan();
-      setResult(r);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoading(false);
-    }
-  }
+  const cacheAgeSeconds = cache ? (Date.now() - new Date(cache.completed_at).getTime()) / 1000 : null;
 
   return (
     <div className="page">
@@ -87,12 +76,25 @@ export function ExpiryLevel1() {
             only — you choose the option contract on TradingView/your broker separately.
           </p>
         </div>
-        <button className="primary-button" onClick={handleRun} disabled={loading || !angelOneConfigured}>
-          {loading ? "Scanning…" : "Run Expiry Scan"}
-        </button>
+        <div style={{ display: "flex", gap: 10 }}>
+          <button className="primary-button" onClick={run} disabled={running || !angelOneConfigured}>
+            {running ? "Scanning…" : "Run Expiry Scan"}
+          </button>
+          {!running && (
+            <button className="secondary-button" onClick={runFresh} disabled={!angelOneConfigured} title="Ignore cache, fetch fresh data">
+              Fresh Scan
+            </button>
+          )}
+        </div>
       </div>
 
       <AngelOneStatusBanner onConnectedChange={setAngelOneConfigured} />
+
+      {!running && cacheAgeSeconds !== null && (
+        <p style={{ fontSize: 12, opacity: 0.7 }}>
+          Cached data — age {Math.floor(cacheAgeSeconds / 3600)}h {Math.floor((cacheAgeSeconds % 3600) / 60)}m
+        </p>
+      )}
 
       {error && <div className="error-banner">Scan failed: {error}</div>}
 

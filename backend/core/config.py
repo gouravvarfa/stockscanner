@@ -29,5 +29,18 @@ class Settings(BaseSettings):
     tradingview_enabled: bool = False
     tradingview_webhook_secret: str = ""
 
+    # OneDrive Excel sync (Microsoft Graph). Secrets come ONLY from the
+    # environment / .env — never source code. Sync is inert unless all of
+    # workbook URL, client id and refresh token are set.
+    onedrive_workbook_url: str = ""
+    ms_graph_client_id: str = ""
+    ms_graph_tenant: str = "consumers"  # personal Microsoft account; use a tenant id for work/school
+    ms_graph_client_secret: str = ""  # optional (public-client flow needs none)
+    ms_graph_refresh_token: str = ""
+
+    @property
+    def excel_sync_configured(self) -> bool:
+        return bool(self.onedrive_workbook_url and self.ms_graph_client_id and self.ms_graph_refresh_token)
+
 
 settings = Settings()

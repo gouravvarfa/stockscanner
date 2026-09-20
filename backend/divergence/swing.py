@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+import numpy as np
 import pandas as pd
 
 
@@ -22,16 +23,29 @@ def find_swing_points(
     This is real fractal/pivot swing detection, not a plain peak-to-peak
     comparison of the raw series.
     """
+    # Vectorized (numpy sliding windows) but semantically identical to the
+    # original per-bar pandas loop: a bar is a pivot iff its value equals the
+    # window extreme AND no other bar in the window shares that value.
     points: list[SwingPoint] = []
     n = len(high)
-    for i in range(lookback, n - lookback):
-        window_high = high.iloc[i - lookback : i + lookback + 1]
-        if high.iloc[i] == window_high.max() and (window_high == high.iloc[i]).sum() == 1:
-            points.append(SwingPoint(index=i, date=high.index[i], price=float(high.iloc[i]), kind="high"))
-
-        window_low = low.iloc[i - lookback : i + lookback + 1]
-        if low.iloc[i] == window_low.min() and (window_low == low.iloc[i]).sum() == 1:
-            points.append(SwingPoint(index=i, date=low.index[i], price=float(low.iloc[i]), kind="low"))
+    if n < 2 * lookback + 1:
+        return points
+    size = 2 * lookback + 1
+    h = high.to_numpy(dtype=float)
+    lo = low.to_numpy(dtype=float)
+    wh = np.lib.stride_tricks.sliding_window_view(h, size)
+    wl = np.lib.stride_tricks.sliding_window_view(lo, size)
+    ch, cl = wh[:, lookback], wl[:, lookback]
+    with np.errstate(all="ignore"):
+        is_high = (ch == np.nanmax(wh, axis=1)) & ((wh == ch[:, None]).sum(axis=1) == 1)
+        is_low = (cl == np.nanmin(wl, axis=1)) & ((wl == cl[:, None]).sum(axis=1) == 1)
+    index = high.index
+    for k in np.nonzero(is_high | is_low)[0]:
+        i = int(k) + lookback
+        if is_high[k]:
+            points.append(SwingPoint(index=i, date=index[i], price=float(h[i]), kind="high"))
+        if is_low[k]:
+            points.append(SwingPoint(index=i, date=index[i], price=float(lo[i]), kind="low"))
 
     points.sort(key=lambda p: p.index)
     return points

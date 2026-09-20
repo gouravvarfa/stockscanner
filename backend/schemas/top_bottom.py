@@ -4,6 +4,8 @@ import datetime as dt
 
 from pydantic import BaseModel, Field
 
+from backend.schemas.instrument import InstrumentTyped
+
 
 class FutureContractOut(BaseModel):
     underlying: str
@@ -107,7 +109,7 @@ class DataCoverageOut(BaseModel):
     is_complete: bool
 
 
-class BacktestResultOut(BaseModel):
+class BacktestResultOut(InstrumentTyped):
     backtest_id: str
     symbol: str
     trading_symbol: str

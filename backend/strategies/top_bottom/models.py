@@ -15,7 +15,6 @@ Direction = Literal["BUY", "SELL"]
 InstrumentClass = Literal["STOCK", "INDEX"]
 ExitReason = Literal["TRAILING_STOP_REVERSAL", "END_OF_BACKTEST"]
 
-
 @dataclass(frozen=True)
 class SwingPoint:
     """A CONFIRMED swing top or bottom on the close-price series — only
@@ -30,7 +29,6 @@ class SwingPoint:
     confirmed_index: int
     confirmed_date: dt.datetime
 
-
 @dataclass
 class Signal:
     """One entry event (either the first FLAT->BUY/SELL breakout, or a
@@ -41,7 +39,6 @@ class Signal:
     system_point: float  # the level that was crossed to trigger this entry
     entry_price: float
     reversal_event_id: str | None  # shared by the exit that caused this entry, if any
-
 
 @dataclass
 class Trade:

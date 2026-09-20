@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Route, Routes } from "react-router-dom";
 import { ChartDrawer } from "./chart/ChartDrawer";
 import { useChart } from "./chart/ChartContext";
+import { ActiveScansPanel } from "./components/ActiveScansPanel";
 import { Header } from "./components/Header";
 import { LogsPanel } from "./components/LogsPanel";
 import { Sidebar } from "./components/Sidebar";
@@ -48,6 +49,7 @@ export default function App() {
       </div>
       <LogsPanel open={logsOpen} onClose={() => setLogsOpen(false)} />
       <ChartDrawer state={chart.state} onToggleMaximize={chart.toggleMaximize} onClose={chart.closeChart} />
+      <ActiveScansPanel />
     </div>
   );
 }

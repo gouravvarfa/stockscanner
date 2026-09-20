@@ -153,3 +153,33 @@ async def test_universe_failure_does_not_block_index_signals(monkeypatch):
     assert len(outcome.index_signals) == 2
     assert outcome.stock_signals == []
     assert any("Stock universe unavailable" in e for e in outcome.errors)
+
+
+async def test_on_progress_fires_for_indices_and_stocks(monkeypatch):
+    _set_universe(monkeypatch, ["RELIANCE"])
+    angelone = FakeAngelOneProvider()
+
+    calls: list[tuple[str, bool, str | None]] = []
+    await run_expiry_level_1_scan(
+        MarketDataRouter(angelone), ExpiryLevel1Config(),
+        on_progress=lambda symbol, success, error: calls.append((symbol, success, error)),
+    )
+
+    symbols_called = {c[0] for c in calls}
+    assert symbols_called == {"NIFTY", "BANKNIFTY", "RELIANCE"}
+    assert all(c[1] is True for c in calls)
+
+
+async def test_on_progress_reports_failure_for_bad_symbol(monkeypatch):
+    _set_universe(monkeypatch, ["RELIANCE", "BADSTOCK"])
+    angelone = FakeAngelOneProvider(fail_symbols={"BADSTOCK"})
+
+    calls: list[tuple[str, bool, str | None]] = []
+    await run_expiry_level_1_scan(
+        MarketDataRouter(angelone), ExpiryLevel1Config(),
+        on_progress=lambda symbol, success, error: calls.append((symbol, success, error)),
+    )
+
+    by_symbol = {c[0]: c for c in calls}
+    assert by_symbol["BADSTOCK"][1] is False
+    assert by_symbol["BADSTOCK"][2] is not None

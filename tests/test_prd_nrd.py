@@ -5,6 +5,7 @@ from backend.divergence.detector import DivergenceSignal
 from backend.divergence.swing import SwingPoint
 from backend.strategies.nrd import evaluate_nrd
 from backend.strategies.prd import evaluate_prd
+from tests.prd_confirmed_helpers import confirmed_frame, install_rsi
 from tests.strategy_helpers import make_result
 
 LAST_BAR = 100  # "current completed bar" for all fixtures below
@@ -82,19 +83,11 @@ NOT_CONFIRMED_OHLCV = _ohlcv_with_last_two(red_first=False)
 # PRD
 # ---------------------------------------------------------------------------
 
-def test_prd_confirmed_zero_bars_ago_with_candle_confirmation():
-    sig = _positive_reversal_signal(65.0, 70.0, leg2_bar=LAST_BAR)  # bars_ago = 0
-    result = make_result(daily_divergences=[sig], daily_last_bar_index=LAST_BAR)
-    signal = evaluate_prd(result, CONFIRMED_OHLCV, PRDConfig())
+def test_prd_confirmed_uses_reference_rsi_bottom_definition(monkeypatch):
+    install_rsi(monkeypatch)
+    signal = evaluate_prd(make_result(), confirmed_frame(), PRDConfig())
     assert signal.qualifies
     assert signal.extra["status"] == "PRD_CONFIRMED"
-
-
-def test_prd_confirmed_seven_bars_ago_with_candle_confirmation():
-    sig = _positive_reversal_signal(65.0, 70.0, leg2_bar=LAST_BAR - 7)  # bars_ago = 7 (boundary, still valid)
-    result = make_result(daily_divergences=[sig], daily_last_bar_index=LAST_BAR)
-    signal = evaluate_prd(result, CONFIRMED_OHLCV, PRDConfig())
-    assert signal.qualifies
 
 
 def test_prd_rejects_eight_bars_ago():
@@ -125,14 +118,12 @@ def test_prd_rejects_regular_bullish_divergence_not_positive_reversal():
     assert not signal.qualifies
 
 
-def test_prd_reports_only_the_single_most_recent_setup_when_multiple_fresh_pivots_exist():
-    older = _positive_reversal_signal(62.0, 68.0, leg2_bar=LAST_BAR - 6)
-    newer = _positive_reversal_signal(65.0, 70.0, leg2_bar=LAST_BAR)
-    result = make_result(daily_divergences=[older, newer], daily_last_bar_index=LAST_BAR)
-    signal = evaluate_prd(result, CONFIRMED_OHLCV, PRDConfig())
+def test_prd_reports_a_single_confirmed_match_per_timeframe(monkeypatch):
+    install_rsi(monkeypatch)
+    signal = evaluate_prd(make_result(), confirmed_frame(), PRDConfig())
     assert signal.qualifies
-    assert len(signal.extra["divergences"]) == 1
-    assert signal.extra["divergences"][0]["bars_ago"] == 0
+    per_tf = [d["timeframe"] for d in signal.extra["divergences"]]
+    assert len(per_tf) == len(set(per_tf))
 
 
 def test_prd_forming_when_structure_valid_but_no_candle_confirmation_yet():
@@ -216,26 +207,28 @@ def test_nrd_reports_only_the_single_most_recent_setup_when_multiple_fresh_pivot
 # Separation: PRD and NRD must never satisfy each other.
 # ---------------------------------------------------------------------------
 
-def test_daily_prd_and_weekly_nrd_appear_separately():
+def test_daily_prd_and_weekly_nrd_appear_separately(monkeypatch):
     prd_sig = _positive_reversal_signal(65.0, 70.0, leg2_bar=LAST_BAR)
     nrd_sig = _negative_reversal_signal(25.0, 20.0, leg2_bar=LAST_BAR)
     result = make_result(
         daily_divergences=[prd_sig], weekly_divergences=[nrd_sig],
         daily_last_bar_index=LAST_BAR, weekly_last_bar_index=LAST_BAR,
     )
-    prd_signal = evaluate_prd(result, CONFIRMED_OHLCV, PRDConfig())
+    install_rsi(monkeypatch)
+    prd_signal = evaluate_prd(result, confirmed_frame(), PRDConfig())
     nrd_signal = evaluate_nrd(result, NRDConfig())
 
     assert prd_signal.qualifies
     assert nrd_signal.qualifies
-    assert prd_signal.extra["divergence_timeframes"] == ["DAILY"]
+    assert "DAILY" in prd_signal.extra["divergence_timeframes"]
     assert nrd_signal.extra["divergence_timeframes"] == ["WEEKLY"]
 
 
-def test_prd_never_satisfies_nrd():
+def test_prd_never_satisfies_nrd(monkeypatch):
     sig = _positive_reversal_signal(65.0, 70.0, leg2_bar=LAST_BAR)
     result = make_result(daily_divergences=[sig], daily_last_bar_index=LAST_BAR)
-    prd_signal = evaluate_prd(result, CONFIRMED_OHLCV, PRDConfig())
+    install_rsi(monkeypatch)
+    prd_signal = evaluate_prd(result, confirmed_frame(), PRDConfig())
     nrd_signal = evaluate_nrd(result, NRDConfig())
     assert prd_signal.qualifies
     assert not nrd_signal.qualifies

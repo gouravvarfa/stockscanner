@@ -141,3 +141,29 @@ async def test_no_fake_stocks_are_added_beyond_the_excel_list(monkeypatch):
 
     assert len(outcome.nifty200_universe) == 1
     assert outcome.nifty200_universe[0].symbol == "ONLYONE"
+
+
+async def test_on_progress_callback_fires_once_per_symbol(monkeypatch):
+    _set_universe(monkeypatch, ["GOODSTOCK", "BADSTOCK"])
+    provider = FakeAngelOneProvider(fail_symbols={"BADSTOCK"})
+
+    calls: list[tuple[str, bool, str | None]] = []
+    await run_full_scan(
+        provider, DEFAULT_STRATEGY_CONFIG, stock_history_days=70,
+        on_progress=lambda symbol, success, error: calls.append((symbol, success, error)),
+    )
+
+    assert len(calls) == 2
+    by_symbol = {c[0]: c for c in calls}
+    assert by_symbol["GOODSTOCK"][1] is True
+    assert by_symbol["GOODSTOCK"][2] is None
+    assert by_symbol["BADSTOCK"][1] is False
+    assert by_symbol["BADSTOCK"][2] is not None
+
+
+async def test_on_progress_is_optional_and_backward_compatible(monkeypatch):
+    # No on_progress passed at all — must behave exactly as before.
+    _set_universe(monkeypatch, ["ONLYONE"])
+    provider = FakeAngelOneProvider()
+    outcome = await run_full_scan(provider, DEFAULT_STRATEGY_CONFIG, stock_history_days=70)
+    assert outcome.stocks_scanned == 1

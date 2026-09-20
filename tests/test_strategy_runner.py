@@ -53,13 +53,15 @@ def test_all_six_strategies_are_returned():
     assert set(signals.keys()) == set(ALL_STRATEGY_NAMES)
 
 
-def test_stock_can_qualify_for_multiple_strategies_without_deduplication():
+def test_stock_can_qualify_for_multiple_strategies_without_deduplication(monkeypatch):
     # daily=62 sits inside Advanced GFS's 59-65 band AND clears PRD's ">60"
     # floor; weekly=70/monthly=75 clear both strategies' weekly/monthly gates
     # too (PRD's high-RSI floor is compatible with Advanced GFS's high-RSI
     # band, unlike NRD's low-RSI ceiling).
     result = make_result(daily_rsi=62.0, weekly_rsi=70.0, monthly_rsi=75.0, daily_divergences=[_bullish_signal()])
-    signals = evaluate_all_strategies(result, _daily_ohlcv_with_prd_candle_confirmation(), DEFAULT_MULTI_STRATEGY_CONFIG)
+    from tests.prd_confirmed_helpers import confirmed_frame, install_rsi
+    install_rsi(monkeypatch)
+    signals = evaluate_all_strategies(result, confirmed_frame(), DEFAULT_MULTI_STRATEGY_CONFIG)
 
     assert signals["Advanced GFS"].qualifies
     assert signals["PRD"].qualifies

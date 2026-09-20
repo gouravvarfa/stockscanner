@@ -111,6 +111,7 @@ export interface DataCoverage {
 }
 
 export interface BacktestResult {
+  instrument_type?: "FUTURE" | "EQUITY";
   backtest_id: string;
   symbol: string;
   trading_symbol: string;

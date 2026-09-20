@@ -50,6 +50,7 @@ export interface TradeSetupOut {
 export interface StockResult {
   rank: number;
   symbol: string;
+  instrument_type?: "FUTURE" | "EQUITY";
   current_price: number;
   data_as_of: string;
   score: number;
@@ -78,6 +79,7 @@ export interface StockResult {
 
 export interface NiftyUniverseStock {
   symbol: string;
+  instrument_type?: "FUTURE" | "EQUITY";
   current_price: number | null;
   daily_rsi: number | null;
   weekly_rsi: number | null;
@@ -90,6 +92,7 @@ export interface NiftyUniverseStock {
 export interface StrategySignal {
   strategy: string;
   symbol: string;
+  instrument_type?: "FUTURE" | "EQUITY";
   qualifies: boolean;
   signal_date: string | null;
   daily_rsi: number | null;
@@ -201,6 +204,7 @@ export interface StrategyConfig {
 
 export interface ExpiryLevel1Signal {
   symbol: string;
+  fno_type?: "FUTURE" | "EQUITY";
   instrument_type: "INDEX" | "STOCK";
   name: string;
   sector: string | null;
@@ -264,6 +268,7 @@ export interface ExpiryLevel5Signal {
   strategy: string;
   signal: string;
   symbol: string;
+  fno_type?: "FUTURE" | "EQUITY";
   instrument_type: string;
   signal_date: string;
   swing_high: number;

@@ -4,6 +4,8 @@ import datetime as dt
 
 from pydantic import BaseModel
 
+from backend.schemas.instrument import FnoTyped
+
 
 class CandleOut(BaseModel):
     open: float
@@ -12,7 +14,7 @@ class CandleOut(BaseModel):
     close: float
 
 
-class ExpiryLevel5SignalOut(BaseModel):
+class ExpiryLevel5SignalOut(FnoTyped):
     strategy: str = "EXPIRY_LEVEL_5"
     signal: str = "BUY_CE"
     symbol: str

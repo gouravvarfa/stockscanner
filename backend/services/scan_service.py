@@ -4,13 +4,14 @@ import asyncio
 import datetime as dt
 import logging
 from dataclasses import dataclass, field
+from typing import Callable
 
 import pandas as pd
 
 from backend.config.multi_strategy_config import DEFAULT_MULTI_STRATEGY_CONFIG, MultiStrategyConfig
 from backend.config.strategy_config import StrategyConfig
 from backend.providers.angelone_provider import AngelOneProvider
-from backend.providers.market_data_router import fetch_daily_ohlcv
+from backend.providers.market_data_router import MONTHLY_RSI_LOOKBACK_DAYS, fetch_daily_ohlcv
 from backend.screeners.stock_analysis import StockAnalysisResult, analyze_stock
 from backend.services import universe_loader
 from backend.strategies.advanced_gfs import evaluate_advanced_gfs
@@ -24,11 +25,15 @@ from backend.strategies.value_buy import evaluate_value_buy
 logger = logging.getLogger("scanner.scan_service")
 
 # Angel One's historical-candle endpoint has no daily-call cap (unlike the
-# Tapetide free tier this replaced), so this is generous enough for a
-# reliable monthly RSI(14) after weekly/monthly resampling, without being so
-# large it wastes bandwidth on data older than needed.
-STOCK_HISTORY_DAYS = 800
+# Tapetide free tier this replaced). This is the SAME depth chart_service.py
+# requests for its "1M" timeframe (MONTHLY_RSI_LOOKBACK_DAYS) — the scan's
+# single daily-OHLCV fetch already covers daily/weekly/monthly, so reusing
+# that shared constant here (rather than a separately-tuned number) means
+# the scanner's monthly RSI can never drift from what the chart shows for
+# the same stock, with no extra Angel One call.
+STOCK_HISTORY_DAYS = MONTHLY_RSI_LOOKBACK_DAYS
 
+PRD_FORMING_KEY = "PRD Forming"
 ALL_SIGNAL_STRATEGY_NAMES = ["Strategy One", "GFS", "Advanced GFS", "PRD", "NRD", "Value Buy"]
 
 
@@ -83,6 +88,14 @@ class ScanOutcome:
     errors: list[str] = field(default_factory=list)
 
 
+# A slow/hung stock must be isolated, not stall the whole scan: bounds one
+# stock's whole Angel One fetch (resolve + candle call incl. its own retries).
+PER_STOCK_FETCH_TIMEOUT_SECONDS = 75.0
+# Angel One's candle endpoint throttles bursts (HTTP 403 non-JSON) — 4 in
+# flight is the tested-safe level. CPU analysis runs OUTSIDE this limit.
+DEFAULT_MAX_CONCURRENT_FETCHES = 4
+
+
 async def _fetch_and_analyze(
     angelone_provider: AngelOneProvider,
     symbol: str,
@@ -91,14 +104,50 @@ async def _fetch_and_analyze(
 ) -> tuple[StockAnalysisResult | None, pd.DataFrame | None, str | None]:
     """Returns (analysis_result_or_None, daily_ohlcv, error_reason_or_None)."""
     try:
-        ohlcv = await fetch_daily_ohlcv(angelone_provider, symbol, stock_history_days)
+        ohlcv = await asyncio.wait_for(
+            fetch_daily_ohlcv(angelone_provider, symbol, stock_history_days),
+            timeout=PER_STOCK_FETCH_TIMEOUT_SECONDS,
+        )
+    except asyncio.TimeoutError:
+        return None, None, f"Timed out after {PER_STOCK_FETCH_TIMEOUT_SECONDS:.0f}s fetching market data"
     except Exception as exc:  # noqa: BLE001 — one bad symbol must never crash the whole scan
         return None, None, str(exc)
 
-    result = analyze_stock(symbol, ohlcv, config)
+    # CPU-bound (indicators + divergence detection): run in a worker thread
+    # so the event loop keeps serving API polls and other stocks' fetches.
+    result = await asyncio.to_thread(analyze_stock, symbol, ohlcv, config)
     if result is None:
         return None, ohlcv, "Insufficient historical data (fewer than 60 daily bars)"
     return result, ohlcv, None
+
+
+def _evaluate_all_strategies(
+    result: StockAnalysisResult, ohlcv: pd.DataFrame, multi_strategy_config: MultiStrategyConfig, include_value_buy: bool
+) -> list[tuple[str, StrategySignal]]:
+    """All strategy evaluations for one stock, from the SAME already-fetched
+    data (fetch once -> every strategy reuses it). Runs in a worker thread."""
+    evaluated = [
+        ("Strategy One", evaluate_strategy_one(result)),
+        ("GFS", evaluate_gfs(result, multi_strategy_config.gfs)),
+        ("Advanced GFS", evaluate_advanced_gfs(result, multi_strategy_config.advanced_gfs)),
+        ("PRD", evaluate_prd(result, ohlcv, multi_strategy_config.prd)),
+        ("NRD", evaluate_nrd(result, multi_strategy_config.nrd)),
+    ]
+    if include_value_buy:
+        evaluated.append(("Value Buy", evaluate_value_buy(result, ohlcv, multi_strategy_config.value_buy)))
+    qualifying = []
+    for name, signal in evaluated:
+        if name == "PRD" and not signal.qualifies and signal.extra.get("status") == "PRD_FORMING":
+            # Developing (not confirmed) Positive Reversal: reported under its
+            # OWN key so it is visible but never counted as a confirmed PRD.
+            signal.extra["current_price"] = result.current_price
+            signal.extra["data_source"] = "ANGEL_ONE"
+            qualifying.append((PRD_FORMING_KEY, signal))
+        if signal.qualifies:
+            signal.extra["current_price"] = result.current_price
+            signal.extra["data_source"] = "ANGEL_ONE"
+            qualifying.append((name, signal))
+    return qualifying
 
 
 async def run_full_scan(
@@ -109,9 +158,24 @@ async def run_full_scan(
     # rate limit (see the Expiry Level 1 pacing fix) — a large burst of
     # concurrent requests risks intermittent "HTTP 403 non-JSON response"
     # throttling, not a real data problem.
-    max_concurrent_stock_calls: int = 4,
+    max_concurrent_stock_calls: int = DEFAULT_MAX_CONCURRENT_FETCHES,
     multi_strategy_config: MultiStrategyConfig | None = None,
+    on_progress: Callable[[str, bool, str | None], None] | None = None,
+    on_result: Callable[[str, list[tuple[str, StrategySignal]]], None] | None = None,
 ) -> ScanOutcome:
+    """
+    `on_progress(symbol, success, error)` — optional, called once per symbol
+    as it finishes (the A Group / "process_nifty200" pass, where the real
+    Angel One work happens; the Value Buy pass below reuses that same data
+    via analyzed_cache for every symbol in this project's real universe, so
+    it does no additional work worth reporting). Defaults to None so every
+    existing direct caller/test is unaffected.
+
+    `on_result(symbol, qualifying_signals)` — optional, called the moment a
+    stock finishes (all six strategies already evaluated from its single
+    fetch), so callers can surface results progressively instead of waiting
+    for the whole universe.
+    """
     multi_strategy_config = multi_strategy_config or DEFAULT_MULTI_STRATEGY_CONFIG
     started_at = dt.datetime.utcnow()
     errors: list[str] = []
@@ -132,66 +196,74 @@ async def run_full_scan(
 
     semaphore = asyncio.Semaphore(max_concurrent_stock_calls)
     all_results: list[StockAnalysisResult] = []
-    strategy_signals: dict[str, list[StrategySignal]] = {name: [] for name in ALL_SIGNAL_STRATEGY_NAMES}
+    strategy_signals: dict[str, list[StrategySignal]] = {name: [] for name in [*ALL_SIGNAL_STRATEGY_NAMES, PRD_FORMING_KEY]}
     # Reuse across universes: every NIFTY 200 symbol is also in NIFTY 500 in
     # this project's real lists, so fetching it once for the 5-strategy pass
     # and reusing that same result/OHLCV for Value Buy avoids a second Angel
     # One call per overlapping symbol (spec: optimize API calls via reuse).
     analyzed_cache: dict[str, tuple[StockAnalysisResult, pd.DataFrame]] = {}
 
+    value_buy_set = set(nifty500_symbols)
+
+    value_buy_done: set[str] = set()
+
+    async def _fetch_and_analyze_unlimited(symbol: str):
+        return await _fetch_and_analyze(angelone_provider, symbol, config, stock_history_days)
+
     async def process_nifty200(symbol: str) -> None:
         entry = universe_by_symbol[symbol]
-        async with semaphore:
-            result, ohlcv, error_reason = await _fetch_and_analyze(angelone_provider, symbol, config, stock_history_days)
-            if result is not None and ohlcv is not None:
-                analyzed_cache[symbol] = (result, ohlcv)
-                all_results.append(result)
-                entry.current_price = result.current_price
-                entry.daily_rsi = result.daily.rsi
-                entry.weekly_rsi = result.weekly.rsi
-                entry.monthly_rsi = result.monthly.rsi
-                entry.data_source = "ANGEL_ONE"
-                entry.status = "OK"
-                data_source_summary["ANGEL_ONE"] = data_source_summary.get("ANGEL_ONE", 0) + 1
+        async with semaphore:  # limits only the Angel One fetch, not the CPU work
+            result, ohlcv, error_reason = await _fetch_and_analyze_unlimited(symbol)
+        if result is not None and ohlcv is not None:
+            analyzed_cache[symbol] = (result, ohlcv)
+            all_results.append(result)
+            entry.current_price = result.current_price
+            entry.daily_rsi = result.daily.rsi
+            entry.weekly_rsi = result.weekly.rsi
+            entry.monthly_rsi = result.monthly.rsi
+            entry.data_source = "ANGEL_ONE"
+            entry.status = "OK"
+            data_source_summary["ANGEL_ONE"] = data_source_summary.get("ANGEL_ONE", 0) + 1
 
-                for name, signal in (
-                    ("Strategy One", evaluate_strategy_one(result)),
-                    ("GFS", evaluate_gfs(result, multi_strategy_config.gfs)),
-                    ("Advanced GFS", evaluate_advanced_gfs(result, multi_strategy_config.advanced_gfs)),
-                    ("PRD", evaluate_prd(result, ohlcv, multi_strategy_config.prd)),
-                    ("NRD", evaluate_nrd(result, multi_strategy_config.nrd)),
-                ):
-                    if signal.qualifies:
-                        signal.extra["current_price"] = result.current_price
-                        signal.extra["data_source"] = "ANGEL_ONE"
-                        strategy_signals[name].append(signal)
-            else:
-                failed_symbols.append(symbol)
-                errors.append(f"{symbol}: {error_reason}")
-                entry.status = "DATA_UNAVAILABLE"
-                entry.status_reason = error_reason
+            qualifying = await asyncio.to_thread(
+                _evaluate_all_strategies, result, ohlcv, multi_strategy_config, symbol in value_buy_set
+            )
+            for name, signal in qualifying:
+                strategy_signals[name].append(signal)
+            if symbol in value_buy_set:
+                value_buy_done.add(symbol)
+            if on_result is not None:
+                on_result(symbol, qualifying)
+            if on_progress is not None:
+                on_progress(symbol, True, None)
+        else:
+            failed_symbols.append(symbol)
+            errors.append(f"{symbol}: {error_reason}")
+            entry.status = "DATA_UNAVAILABLE"
+            entry.status_reason = error_reason
+            if on_progress is not None:
+                on_progress(symbol, False, error_reason)
 
     async def process_value_buy(symbol: str) -> None:
+        # Only symbols that were NOT part of the main pass. A symbol that
+        # failed in the main pass is never re-fetched (that duplicate fetch
+        # + its retry/backoff was what made the scan crawl after "615/615").
+        if symbol in value_buy_done or symbol in nifty200_set:
+            return
         async with semaphore:
-            if symbol in analyzed_cache:
-                result, ohlcv = analyzed_cache[symbol]
-            else:
-                result, ohlcv, error_reason = await _fetch_and_analyze(angelone_provider, symbol, config, stock_history_days)
-                if result is None or ohlcv is None:
-                    if symbol not in nifty200_set:
-                        # Only count/report failures for symbols exclusive to
-                        # the NIFTY 500 Value-Buy-only universe — NIFTY 200
-                        # overlap failures are already recorded once above.
-                        failed_symbols.append(symbol)
-                        errors.append(f"{symbol}: {error_reason}")
-                    return
-                data_source_summary["ANGEL_ONE"] = data_source_summary.get("ANGEL_ONE", 0) + 1
-
-            signal = evaluate_value_buy(result, ohlcv, multi_strategy_config.value_buy)
-            if signal.qualifies:
-                signal.extra["current_price"] = result.current_price
-                signal.extra["data_source"] = "ANGEL_ONE"
-                strategy_signals["Value Buy"].append(signal)
+            result, ohlcv, error_reason = await _fetch_and_analyze(angelone_provider, symbol, config, stock_history_days)
+        if result is None or ohlcv is None:
+            failed_symbols.append(symbol)
+            errors.append(f"{symbol}: {error_reason}")
+            return
+        data_source_summary["ANGEL_ONE"] = data_source_summary.get("ANGEL_ONE", 0) + 1
+        signal = await asyncio.to_thread(evaluate_value_buy, result, ohlcv, multi_strategy_config.value_buy)
+        if signal.qualifies:
+            signal.extra["current_price"] = result.current_price
+            signal.extra["data_source"] = "ANGEL_ONE"
+            strategy_signals["Value Buy"].append(signal)
+            if on_result is not None:
+                on_result(symbol, [("Value Buy", signal)])
 
     await asyncio.gather(*(process_nifty200(s) for s in nifty200_symbols))
     await asyncio.gather(*(process_value_buy(s) for s in nifty500_symbols))

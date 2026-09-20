@@ -4,6 +4,8 @@ import datetime as dt
 
 from pydantic import BaseModel
 
+from backend.schemas.instrument import InstrumentTyped
+
 
 class TimeframeReadingOut(BaseModel):
     rsi: float | None
@@ -34,7 +36,7 @@ class TradeSetupOut(BaseModel):
     methodology: str
 
 
-class StockResultOut(BaseModel):
+class StockResultOut(InstrumentTyped):
     rank: int
     symbol: str
     current_price: float
@@ -63,7 +65,7 @@ class StockResultOut(BaseModel):
     data_source: str | None = None  # always "ANGEL_ONE" — the only provider in this project
 
 
-class NiftyUniverseStockOut(BaseModel):
+class NiftyUniverseStockOut(InstrumentTyped):
     """
     One row of the NIFTY 200 master universe (from NIFTY_200_Sector_List.xlsx)
     — one entry per symbol in that file, present regardless of whether that
@@ -80,7 +82,7 @@ class NiftyUniverseStockOut(BaseModel):
     status_reason: str | None = None
 
 
-class StrategySignalOut(BaseModel):
+class StrategySignalOut(InstrumentTyped):
     strategy: str
     symbol: str
     qualifies: bool

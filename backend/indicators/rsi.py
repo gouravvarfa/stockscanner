@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import numpy as np
 import pandas as pd
 
 
@@ -24,9 +25,20 @@ def rsi(close: pd.Series, period: int = 14) -> pd.Series:
     avg_gain.iloc[first_valid] = gain.iloc[1 : first_valid + 1].mean()
     avg_loss.iloc[first_valid] = loss.iloc[1 : first_valid + 1].mean()
 
+    # Same recursion, same operation order, on plain float64 arrays (the
+    # per-element pandas .iloc reads/writes were the hot spot).
+    g = gain.to_numpy(dtype=float)
+    l = loss.to_numpy(dtype=float)
+    ag = np.full(len(close), np.nan)
+    al = np.full(len(close), np.nan)
+    ag[first_valid] = avg_gain.iloc[first_valid]
+    al[first_valid] = avg_loss.iloc[first_valid]
+    pm1 = period - 1
     for i in range(first_valid + 1, len(close)):
-        avg_gain.iloc[i] = (avg_gain.iloc[i - 1] * (period - 1) + gain.iloc[i]) / period
-        avg_loss.iloc[i] = (avg_loss.iloc[i - 1] * (period - 1) + loss.iloc[i]) / period
+        ag[i] = (ag[i - 1] * pm1 + g[i]) / period
+        al[i] = (al[i - 1] * pm1 + l[i]) / period
+    avg_gain = pd.Series(ag, index=close.index)
+    avg_loss = pd.Series(al, index=close.index)
 
     rs = avg_gain / avg_loss.replace(0.0, pd.NA)
     result = 100.0 - (100.0 / (1.0 + rs))

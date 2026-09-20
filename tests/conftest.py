@@ -18,3 +18,11 @@ def _isolate_call_metrics(tmp_path, monkeypatch):
     call_metrics.reset_for_tests()
     yield
     call_metrics.reset_for_tests()
+
+
+@pytest.fixture(autouse=True)
+def _isolate_scan_disk_cache(tmp_path, monkeypatch):
+    """Scan-result cache is also persisted to data/scan_cache — keep tests
+    from reading, overwriting or deleting the user's real cached scan."""
+    from backend.services import scan_job_manager
+    monkeypatch.setattr(scan_job_manager, "_DISK_CACHE_DIR", tmp_path / "scan_cache")
