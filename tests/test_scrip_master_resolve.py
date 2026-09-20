@@ -71,3 +71,21 @@ async def test_unknown_symbol_returns_none_rather_than_guessing(fake_master):
     fake_master([_row("RELIANCE", "EQ", "2885")])
 
     assert await sm.resolve_equity("NOSUCHSTOCK") is None
+
+
+async def test_concurrent_first_calls_share_one_scrip_master_download(monkeypatch):
+    import asyncio
+
+    calls = {"n": 0}
+
+    async def slow_download():
+        calls["n"] += 1
+        await asyncio.sleep(0.1)
+        return [{"exch_seg": "NSE", "instrumenttype": "", "symbol": "X-EQ", "name": "X", "token": "1"}]
+
+    monkeypatch.setattr(sm, "_download_and_filter", slow_download)
+    monkeypatch.setattr(sm.cache, "get", lambda key: None)
+    sm._inflight.clear()
+    results = await asyncio.gather(*(sm._fetch_scrip_master() for _ in range(6)))
+    assert calls["n"] == 1  # six concurrent callers -> ONE download/parse
+    assert all(r == results[0] for r in results)

@@ -6,6 +6,7 @@ published SmartAPI docs.
 """
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 
 import httpx
@@ -30,15 +31,21 @@ class ScripMatch:
     exch_seg: str
 
 
-async def _fetch_scrip_master() -> list[dict]:
-    cached = cache.get(CACHE_KEY)
-    if cached is not None:
-        return cached
+# The raw scrip master is ~35 MB of JSON (~150k rows) and parsing it peaks at
+# roughly 200+ MB of Python objects. A scan runs several stocks concurrently and
+# they all resolve their symbol on the very first call, before anything is
+# cached — without single-flight every one of them would download + parse its
+# own copy at the same moment (4x the peak), which exhausts a small (512 MB)
+# host. So concurrent callers share ONE in-flight download.
+_inflight: dict[int, "asyncio.Future[list[dict]]"] = {}
 
-    async with httpx.AsyncClient(timeout=30.0) as client:
+
+async def _download_and_filter() -> list[dict]:
+    async with httpx.AsyncClient(timeout=60.0) as client:
         response = await client.get(SCRIP_MASTER_URL)
     response.raise_for_status()
     rows = response.json()
+    del response  # drop the 35 MB raw body before building the filtered list
 
     filtered = [
         row
@@ -46,8 +53,23 @@ async def _fetch_scrip_master() -> list[dict]:
         if (row.get("exch_seg") == "NSE" and row.get("instrumenttype") in RELEVANT_NSE_TYPES)
         or (row.get("exch_seg") == "NFO" and row.get("instrumenttype") in RELEVANT_NFO_TYPES)
     ]
+    del rows  # the full ~150k-row list is no longer needed
     cache.set(CACHE_KEY, filtered, CACHE_TTL_SECONDS)
     return filtered
+
+
+async def _fetch_scrip_master() -> list[dict]:
+    cached = cache.get(CACHE_KEY)
+    if cached is not None:
+        return cached
+
+    loop = asyncio.get_running_loop()
+    key = id(loop)
+    task = _inflight.get(key)
+    if task is None or task.done():
+        task = loop.create_task(_download_and_filter())
+        _inflight[key] = task
+    return await task
 
 
 async def resolve_index(name: str) -> ScripMatch | None:
