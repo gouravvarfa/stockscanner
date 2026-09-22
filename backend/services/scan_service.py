@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import concurrent.futures
 import datetime as dt
 import logging
 from dataclasses import dataclass, field
@@ -166,10 +167,10 @@ async def run_full_scan(
     """
     `on_progress(symbol, success, error)` — optional, called once per symbol
     as it finishes (the A Group / "process_nifty200" pass, where the real
-    Angel One work happens; the Value Buy pass below reuses that same data
-    via analyzed_cache for every symbol in this project's real universe, so
-    it does no additional work worth reporting). Defaults to None so every
-    existing direct caller/test is unaffected.
+    Angel One work happens; Value Buy is evaluated inline in that same pass
+    — see `_evaluate_all_strategies` — so the Value Buy pass below does no
+    additional work for any symbol in this project's real universe).
+    Defaults to None so every existing direct caller/test is unaffected.
 
     `on_result(symbol, qualifying_signals)` — optional, called the moment a
     stock finishes (all six strategies already evaluated from its single
@@ -185,8 +186,8 @@ async def run_full_scan(
     # Every strategy — Value Buy included — now runs over the single BSE
     # "A Group" universe. Value Buy keeps its own symbol list variable (and
     # its own pass) so the two can diverge again without reshaping the scan,
-    # but today they are the same list, so its pass is served entirely from
-    # analyzed_cache and costs no extra Angel One calls.
+    # but today they are the same list, so Value Buy is evaluated inline in
+    # process_nifty200 for every symbol and this second pass does no work.
     nifty200_symbols = universe_loader.load_a_group_universe()
     nifty500_symbols = nifty200_symbols
     logger.info("A Group universe: %d symbols (all strategies)", len(nifty200_symbols))
@@ -195,13 +196,16 @@ async def run_full_scan(
     nifty200_set = set(nifty200_symbols)
 
     semaphore = asyncio.Semaphore(max_concurrent_stock_calls)
+    # Bounds CPU-heavy work (analysis + strategy evaluation) to the SAME
+    # concurrency as the Angel One fetch above. asyncio.to_thread's default
+    # executor allows far more concurrent workers (min(32, cpu_count+4)) —
+    # on a low-memory host, many stocks' full OHLCV frames + indicator
+    # arrays alive in memory at once (independent of the fetch-side limit)
+    # is what was exhausting memory and crashing the process mid-scan.
+    cpu_pool = concurrent.futures.ThreadPoolExecutor(max_workers=max_concurrent_stock_calls)
+    loop = asyncio.get_running_loop()
     all_results: list[StockAnalysisResult] = []
     strategy_signals: dict[str, list[StrategySignal]] = {name: [] for name in [*ALL_SIGNAL_STRATEGY_NAMES, PRD_FORMING_KEY]}
-    # Reuse across universes: every NIFTY 200 symbol is also in NIFTY 500 in
-    # this project's real lists, so fetching it once for the 5-strategy pass
-    # and reusing that same result/OHLCV for Value Buy avoids a second Angel
-    # One call per overlapping symbol (spec: optimize API calls via reuse).
-    analyzed_cache: dict[str, tuple[StockAnalysisResult, pd.DataFrame]] = {}
 
     value_buy_set = set(nifty500_symbols)
 
@@ -215,7 +219,6 @@ async def run_full_scan(
         async with semaphore:  # limits only the Angel One fetch, not the CPU work
             result, ohlcv, error_reason = await _fetch_and_analyze_unlimited(symbol)
         if result is not None and ohlcv is not None:
-            analyzed_cache[symbol] = (result, ohlcv)
             all_results.append(result)
             entry.current_price = result.current_price
             entry.daily_rsi = result.daily.rsi
@@ -225,8 +228,8 @@ async def run_full_scan(
             entry.status = "OK"
             data_source_summary["ANGEL_ONE"] = data_source_summary.get("ANGEL_ONE", 0) + 1
 
-            qualifying = await asyncio.to_thread(
-                _evaluate_all_strategies, result, ohlcv, multi_strategy_config, symbol in value_buy_set
+            qualifying = await loop.run_in_executor(
+                cpu_pool, _evaluate_all_strategies, result, ohlcv, multi_strategy_config, symbol in value_buy_set
             )
             for name, signal in qualifying:
                 strategy_signals[name].append(signal)
@@ -257,7 +260,7 @@ async def run_full_scan(
             errors.append(f"{symbol}: {error_reason}")
             return
         data_source_summary["ANGEL_ONE"] = data_source_summary.get("ANGEL_ONE", 0) + 1
-        signal = await asyncio.to_thread(evaluate_value_buy, result, ohlcv, multi_strategy_config.value_buy)
+        signal = await loop.run_in_executor(cpu_pool, evaluate_value_buy, result, ohlcv, multi_strategy_config.value_buy)
         if signal.qualifies:
             signal.extra["current_price"] = result.current_price
             signal.extra["data_source"] = "ANGEL_ONE"
@@ -265,8 +268,11 @@ async def run_full_scan(
             if on_result is not None:
                 on_result(symbol, [("Value Buy", signal)])
 
-    await asyncio.gather(*(process_nifty200(s) for s in nifty200_symbols))
-    await asyncio.gather(*(process_value_buy(s) for s in nifty500_symbols))
+    try:
+        await asyncio.gather(*(process_nifty200(s) for s in nifty200_symbols))
+        await asyncio.gather(*(process_value_buy(s) for s in nifty500_symbols))
+    finally:
+        cpu_pool.shutdown(wait=False, cancel_futures=True)
 
     qualifying_results = [
         r for r in all_results
