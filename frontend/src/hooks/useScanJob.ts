@@ -8,6 +8,27 @@ const POLL_INTERVAL_MS = 1500;
 // giving up, instead of dying on the first one.
 const MAX_CONSECUTIVE_POLL_FAILURES = 20; // ~30s of retries at POLL_INTERVAL_MS
 
+// Render's free instance can take 30-60s to wake from sleep — the very
+// first request (Run Scan/Fresh Scan itself, before any job/poll exists
+// to retry) can hit that cold start too. Retries a plain network-level
+// failure (not a real API error like 400/404/409) a few times before
+// surfacing it, so one click during a cold start doesn't require a
+// second manual click.
+const START_RETRY_ATTEMPTS = 4;
+const START_RETRY_DELAY_MS = 4000;
+
+async function withColdStartRetry<T>(fn: () => Promise<T>): Promise<T> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await fn();
+    } catch (e) {
+      const isNetworkFailure = !(e instanceof ScanApiError); // a real API error (4xx/5xx) reached the server — don't retry those
+      if (!isNetworkFailure || attempt >= START_RETRY_ATTEMPTS) throw e;
+      await new Promise((resolve) => setTimeout(resolve, START_RETRY_DELAY_MS));
+    }
+  }
+}
+
 interface UseScanJobResult<T> {
   result: T | null;
   partial: PartialResult[]; // stocks that already qualified, streamed while the job runs
@@ -115,7 +136,7 @@ export function useScanJob<T = unknown>(scanType: ScanType): UseScanJobResult<T>
   const run = useCallback(async () => {
     setError(null);
     try {
-      const res = await scanJobsApi.start<T>(scanType);
+      const res = await withColdStartRetry(() => scanJobsApi.start<T>(scanType));
       if (res.status === "cached") {
         setResult(res.cache.result);
         setCache(res.cache);
@@ -146,7 +167,7 @@ export function useScanJob<T = unknown>(scanType: ScanType): UseScanJobResult<T>
   const runFresh = useCallback(async () => {
     setError(null);
     try {
-      const res = await scanJobsApi.fresh<T>(scanType);
+      const res = await withColdStartRetry(() => scanJobsApi.fresh<T>(scanType));
       if (res.status === "started") {
         setJob(res.job);
         setRunning(true);
