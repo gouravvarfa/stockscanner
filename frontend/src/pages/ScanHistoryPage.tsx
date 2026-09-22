@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type MouseEvent } from "react";
 import { InstrumentBadge } from "../components/InstrumentBadge";
 import { exportSnapshotToCsv } from "../services/historyExport";
 import {
+  deleteSnapshot,
   getResultsForSnapshot,
   listSnapshots,
   type HistoryResultRow,
@@ -75,8 +76,8 @@ export function ScanHistoryPage() {
 
   const [symbolSearch, setSymbolSearch] = useState("");
   const [strategyFilter, setStrategyFilter] = useState("all");
-  const [statusFilter, setStatusFilter] = useState<"all" | HistorySnapshotMeta["status"]>("all");
-  const [typeFilter, setTypeFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all"); // row-level signal status (QUALIFIED, PRD_FORMING, …)
+  const [typeFilter, setTypeFilter] = useState("all"); // snapshot-level scan type (A Group Scanner, Value Buy, …)
   const [dateFilter, setDateFilter] = useState("");
 
   useEffect(() => {
@@ -114,15 +115,19 @@ export function ScanHistoryPage() {
   const filteredSnapshots = useMemo(() => {
     let list = snapshots ?? [];
     if (typeFilter !== "all") list = list.filter((s) => s.scanType === typeFilter);
-    if (statusFilter !== "all") list = list.filter((s) => s.status === statusFilter);
     if (dateFilter) list = list.filter((s) => s.scanDate === dateFilter);
     return list;
-  }, [snapshots, typeFilter, statusFilter, dateFilter]);
+  }, [snapshots, typeFilter, dateFilter]);
 
   const rows = expanded ? rowsByLocalId[expanded.localId] ?? null : null;
 
   const strategyOptions = useMemo(() => {
     const set = new Set((rows ?? []).map((r) => r.strategy).filter(Boolean));
+    return ["all", ...Array.from(set).sort()];
+  }, [rows]);
+
+  const statusOptions = useMemo(() => {
+    const set = new Set((rows ?? []).map((r) => r.status).filter(Boolean));
     return ["all", ...Array.from(set).sort()];
   }, [rows]);
 
@@ -133,8 +138,9 @@ export function ScanHistoryPage() {
       list = list.filter((r) => r.symbol.toUpperCase().includes(q));
     }
     if (strategyFilter !== "all") list = list.filter((r) => r.strategy === strategyFilter);
+    if (statusFilter !== "all") list = list.filter((r) => r.status === statusFilter);
     return list;
-  }, [rows, symbolSearch, strategyFilter]);
+  }, [rows, symbolSearch, strategyFilter, statusFilter]);
 
   const visibleRows =
     expanded && showAllRows[expanded.localId] ? filteredRows : filteredRows.slice(0, ROWS_PREVIEW);
@@ -158,6 +164,23 @@ export function ScanHistoryPage() {
     setExpandedId((cur) => (cur === s.localId ? null : s.localId));
   }
 
+  async function handleDelete(s: HistorySnapshotMeta, e: MouseEvent) {
+    e.stopPropagation();
+    const label = `${fmtDate(s.scanDate)} ${fmtTime(s.scanTime)} (${scanTypeLabel(s.scanType)})`;
+    if (!window.confirm(`Delete this entire scan — ${label}? This removes all ${s.signalCount} signal(s) saved for it. This cannot be undone.`)) {
+      return;
+    }
+    await deleteSnapshot(s.localId);
+    setSnapshots((prev) => (prev ? prev.filter((x) => x.localId !== s.localId) : prev));
+    setRowsByLocalId((prev) => {
+      const next = { ...prev };
+      delete next[s.localId];
+      return next;
+    });
+    if (expandedId === s.localId) setExpandedId(null);
+    if (compareWith?.localId === s.localId) setCompareWith(null);
+  }
+
   return (
     <div className="page">
       <div className="page-header">
@@ -177,12 +200,12 @@ export function ScanHistoryPage() {
                 </option>
               ))}
             </select>
-            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}>
-              <option value="all">All Status</option>
-              <option value="completed">Completed</option>
-              <option value="running">Running</option>
-              <option value="stopped">Stopped</option>
-              <option value="failed">Failed</option>
+            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+              {statusOptions.map((s) => (
+                <option key={s} value={s}>
+                  {s === "all" ? "All Status" : s}
+                </option>
+              ))}
             </select>
             <select value={strategyFilter} onChange={(e) => setStrategyFilter(e.target.value)}>
               {strategyOptions.map((s) => (
@@ -233,7 +256,13 @@ export function ScanHistoryPage() {
           const localRows = rowsByLocalId[s.localId];
           return (
             <div key={s.localId} className={isOpen ? "card history-scan-card open" : "card history-scan-card"}>
-              <button type="button" className="history-scan-header" onClick={() => toggle(s)}>
+              <div
+                role="button"
+                tabIndex={0}
+                className="history-scan-header"
+                onClick={() => toggle(s)}
+                onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && toggle(s)}
+              >
                 <span className={`history-chevron ${isOpen ? "open" : ""}`}>▸</span>
                 <span className="history-scan-datetime">
                   <span className="history-scan-date">{fmtDate(s.scanDate)}</span>
@@ -255,7 +284,16 @@ export function ScanHistoryPage() {
                   <span className="history-stat">{fmtDuration(s.durationSeconds)}</span>
                 </span>
                 <span className={statusChipClass(s.status)}>{s.status}</span>
-              </button>
+                <button
+                  type="button"
+                  className="history-delete-button"
+                  title="Delete this entire scan"
+                  aria-label="Delete this entire scan"
+                  onClick={(e) => handleDelete(s, e)}
+                >
+                  🗑
+                </button>
+              </div>
 
               {isOpen && (
                 <div className="history-scan-body">

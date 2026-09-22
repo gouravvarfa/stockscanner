@@ -1507,6 +1507,11 @@ td .symbol-cell { font-weight: 700; color: var(--text-primary); }
   border: none; cursor: pointer; color: inherit; font: inherit; padding: 14px 16px;
 }
 .history-scan-header:hover { background: var(--bg-hover); }
+.history-delete-button {
+  background: none; border: 1px solid transparent; border-radius: 8px; cursor: pointer; font-size: 0.95rem;
+  color: var(--text-muted); padding: 6px 8px; line-height: 1; flex-shrink: 0;
+}
+.history-delete-button:hover { color: var(--danger); background: var(--danger-soft); border-color: var(--danger); }
 .history-chevron { color: var(--text-muted); transition: transform 0.15s ease; font-size: 0.8rem; }
 .history-chevron.open { transform: rotate(90deg); color: var(--accent); }
 
