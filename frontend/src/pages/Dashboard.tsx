@@ -305,7 +305,7 @@ export function Dashboard() {
         </p>
       )}
 
-      {scanError && (
+      {scanError && !scanning && (
         <div className="error-banner">
           <div>
             <strong>Unable to load scanner data.</strong> {scanError}
@@ -314,6 +314,11 @@ export function Dashboard() {
             Retry
           </button>
         </div>
+      )}
+      {scanError && scanning && (
+        <p className="muted small" style={{ marginTop: -8, marginBottom: 12 }}>
+          {scanError}
+        </p>
       )}
 
       {latest && (

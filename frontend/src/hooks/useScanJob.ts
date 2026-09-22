@@ -2,6 +2,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { scanJobsApi, ScanApiError, type CacheEnvelope, type PartialResult, type ScanJobOut, type ScanType } from "../services/scanJobsApi";
 
 const POLL_INTERVAL_MS = 1500;
+// A single fetch failure (e.g. Render's free-tier instance still waking up
+// from sleep) must not permanently stop polling a job that is actually
+// still running server-side — retry transient failures for a while before
+// giving up, instead of dying on the first one.
+const MAX_CONSECUTIVE_POLL_FAILURES = 20; // ~30s of retries at POLL_INTERVAL_MS
 
 interface UseScanJobResult<T> {
   result: T | null;
@@ -34,6 +39,7 @@ export function useScanJob<T = unknown>(scanType: ScanType): UseScanJobResult<T>
 
   const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const activeJobId = useRef<string | null>(null);
+  const consecutiveFailures = useRef(0);
 
   const stopPolling = useCallback(() => {
     if (pollTimer.current) {
@@ -52,6 +58,8 @@ export function useScanJob<T = unknown>(scanType: ScanType): UseScanJobResult<T>
         try {
           const latest = await scanJobsApi.getJob(jobId);
           if (activeJobId.current !== jobId) return;
+          consecutiveFailures.current = 0;
+          setError(null); // a prior transient failure recovered — clear the stale banner
           setJob(latest);
           // Incremental results: only what is newer than the cursor is fetched/appended.
           if (latest.signals_found > 0 || partialCursor.current > 0) {
@@ -86,6 +94,15 @@ export function useScanJob<T = unknown>(scanType: ScanType): UseScanJobResult<T>
           }
         } catch (e) {
           if (activeJobId.current !== jobId) return;
+          consecutiveFailures.current += 1;
+          if (consecutiveFailures.current < MAX_CONSECUTIVE_POLL_FAILURES) {
+            // Likely transient (e.g. the backend waking up from sleep) — keep
+            // showing "running" and keep polling instead of giving up on the
+            // first hiccup; only surface the error as a soft, still-retrying note.
+            setError(`${e instanceof Error ? e.message : String(e)} — retrying…`);
+            pollTimer.current = setTimeout(tick, POLL_INTERVAL_MS);
+            return;
+          }
           setRunning(false);
           setError(e instanceof Error ? e.message : String(e));
         }
