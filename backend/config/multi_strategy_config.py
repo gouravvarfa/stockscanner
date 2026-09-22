@@ -57,7 +57,7 @@ class NRDConfig(BaseModel):
     `lookback_bars` completed bars of now. Per explicit user direction
     (2026-09-13): strict thresholds, no substitution.
     """
-    leg_rsi_max: float = 30.0
+    leg_rsi_max: float = 40.0
     lookback_bars: int = 7
 
 

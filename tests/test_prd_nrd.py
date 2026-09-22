@@ -170,14 +170,14 @@ def test_nrd_rejects_eight_bars_ago():
 
 
 def test_nrd_rejects_leg_rsi_exactly_at_threshold():
-    sig = _negative_reversal_signal(30.0, 20.0, leg2_bar=LAST_BAR)  # leg1 == 30, strict < required
+    sig = _negative_reversal_signal(40.0, 20.0, leg2_bar=LAST_BAR)  # leg1 == 40, strict < required
     result = make_result(daily_divergences=[sig], daily_last_bar_index=LAST_BAR)
     signal = evaluate_nrd(result, NRDConfig())
     assert not signal.qualifies
 
 
 def test_nrd_rejects_leg_rsi_above_threshold():
-    sig = _negative_reversal_signal(32.0, 20.0, leg2_bar=LAST_BAR)  # leg1 > 30
+    sig = _negative_reversal_signal(42.0, 20.0, leg2_bar=LAST_BAR)  # leg1 > 40
     result = make_result(daily_divergences=[sig], daily_last_bar_index=LAST_BAR)
     signal = evaluate_nrd(result, NRDConfig())
     assert not signal.qualifies
