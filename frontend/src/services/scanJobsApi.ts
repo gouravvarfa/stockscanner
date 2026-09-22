@@ -63,15 +63,48 @@ export interface ScanJobOut {
   failed_symbols: FailedSymbolOut[];
 }
 
+/** Full detail for one qualifying strategy signal on a stock — a straight
+ *  reformat of what the backend already computed (see
+ *  backend/services/scan_job_manager.py::record_result). Same fields as
+ *  StrategySignal (services/api.ts), minus `conditions`. */
+export interface PartialSignal {
+  strategy: string;
+  symbol: string;
+  instrument_type: "FUTURE" | "EQUITY" | null;
+  qualifies: boolean;
+  daily_rsi: number | null;
+  weekly_rsi: number | null;
+  monthly_rsi: number | null;
+  explanation: string;
+  extra: Record<string, unknown>;
+}
+
 export interface PartialResult {
   seq: number;
   symbol: string;
   instrument_type: "FUTURE" | "EQUITY";
   strategies: string[];
+  signals: PartialSignal[];
 }
 
 export interface PartialOut {
   items: PartialResult[];
+  next: number;
+  status: JobStatus;
+}
+
+/** One processed stock (success or fail) — every stock, not just qualifying
+ *  ones. See GET /jobs/{id}/progress. */
+export interface ProgressLogItem {
+  seq: number;
+  symbol: string;
+  instrument_type: "FUTURE" | "EQUITY";
+  success: boolean;
+  error: string | null;
+}
+
+export interface ProgressLogOut {
+  items: ProgressLogItem[];
   next: number;
   status: JobStatus;
 }
@@ -111,6 +144,9 @@ export const scanJobsApi = {
   getJobResults: <T = unknown>(jobId: string) => request<T>(`/api/scan/jobs/${jobId}/results`),
 
   getPartial: (jobId: string, after: number) => request<PartialOut>(`/api/scan/jobs/${jobId}/partial?after=${after}`),
+
+  getProgressLog: (jobId: string, after: number) =>
+    request<ProgressLogOut>(`/api/scan/jobs/${jobId}/progress?after=${after}`),
 
   cancelJob: (jobId: string) =>
     request<{ status: string }>(`/api/scan/jobs/${jobId}/cancel?device_id=${encodeURIComponent(getDeviceId())}`, {

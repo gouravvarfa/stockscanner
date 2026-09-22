@@ -264,11 +264,22 @@ async def get_job(job_id: str, device_id: str | None = None) -> dict:
 
 @router.get("/jobs/{job_id}/partial")
 async def get_job_partial(job_id: str, after: int = 0) -> dict:
-    """Incremental results: only entries newer than the `after` cursor."""
+    """Incremental QUALIFYING results (full signal detail), newer than `after`."""
     job = job_manager.get(job_id)
     if job is None:
         raise HTTPException(status_code=404, detail=f"No such job '{job_id}'.")
     return job.partial_after(max(after, 0))
+
+
+@router.get("/jobs/{job_id}/progress")
+async def get_job_progress(job_id: str, after: int = 0) -> dict:
+    """Incremental log of EVERY processed stock (success or fail) — lets the
+    browser persist a complete, gap-free local history entry per stock as
+    the scan runs, independent of whether it qualified for any strategy."""
+    job = job_manager.get(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail=f"No such job '{job_id}'.")
+    return job.progress_after(max(after, 0))
 
 
 @router.get("/jobs/{job_id}/results")

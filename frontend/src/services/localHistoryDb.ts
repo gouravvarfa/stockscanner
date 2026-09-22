@@ -20,9 +20,28 @@
  */
 
 const DB_NAME = "scanner_local_history";
-const DB_VERSION = 1;
+// v2: RESULTS_STORE moved from an autoIncrement numeric id to a
+// deterministic string key (see resultRowKey below) so a re-processed
+// stock (page refresh re-fetching the same partial/progress items, a
+// retried poll, etc.) overwrites its own row instead of creating a
+// duplicate — required for "reconnect/retry cannot create duplicates".
+const DB_VERSION = 2;
 const SNAPSHOTS_STORE = "snapshots"; // one row per scan (metadata)
-const RESULTS_STORE = "results"; // many rows per scan (one per qualifying stock/strategy/timeframe row)
+const RESULTS_STORE = "results"; // many rows per scan (one per stock/strategy/timeframe row)
+
+/** Deterministic per-row key: same (scan, symbol, strategy, timeframe, A
+ *  date) always maps to the same IndexedDB row, so `putResults` is a true
+ *  upsert — re-writing it (e.g. after a refresh replays the same partial
+ *  items) updates that one row instead of adding a duplicate. */
+export function resultRowKey(row: {
+  localId: string;
+  symbol: string;
+  strategy: string;
+  timeframe: string | null;
+  aDate: string | null;
+}): string {
+  return [row.localId, row.symbol, row.strategy, row.timeframe ?? "", row.aDate ?? ""].join("::");
+}
 
 export type SnapshotStatus = "running" | "completed" | "stopped" | "failed";
 
@@ -45,7 +64,7 @@ export interface HistorySnapshotMeta {
 }
 
 export interface HistoryResultRow {
-  id?: number; // IndexedDB autoIncrement key
+  id: string; // deterministic key — see resultRowKey()
   localId: string; // FK -> HistorySnapshotMeta.localId
   symbol: string;
   instrumentType: "FUTURE" | "EQUITY" | null;
@@ -70,18 +89,28 @@ export interface HistoryResultRow {
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
-    req.onupgradeneeded = () => {
+    req.onupgradeneeded = (event) => {
       const db = req.result;
-      // Versioned schema migration: only create what's missing, so an
-      // existing local database from an earlier version is never wiped.
+      // Versioned schema migration: snapshot metadata (scan list) is never
+      // touched. RESULTS_STORE's key scheme changed in v2 (see DB_VERSION
+      // comment) — an existing v1 store (autoIncrement ids, no natural
+      // upsert key) is recreated rather than migrated row-by-row, since
+      // every row it held is also re-derivable from a completed scan's
+      // cached result; only mid-scan rows from a scan that was never
+      // finished before the upgrade are not recoverable, which is the same
+      // outcome as that scan being interrupted.
       if (!db.objectStoreNames.contains(SNAPSHOTS_STORE)) {
         const snap = db.createObjectStore(SNAPSHOTS_STORE, { keyPath: "localId" });
         snap.createIndex("byDate", "scanDate");
         snap.createIndex("byScanType", "scanType");
         snap.createIndex("byStartedAt", "startedAt");
       }
+      const oldVersion = event.oldVersion;
+      if (oldVersion > 0 && oldVersion < 2 && db.objectStoreNames.contains(RESULTS_STORE)) {
+        db.deleteObjectStore(RESULTS_STORE);
+      }
       if (!db.objectStoreNames.contains(RESULTS_STORE)) {
-        const res = db.createObjectStore(RESULTS_STORE, { keyPath: "id", autoIncrement: true });
+        const res = db.createObjectStore(RESULTS_STORE, { keyPath: "id" });
         res.createIndex("byLocalId", "localId");
         res.createIndex("bySymbol", "symbol");
       }

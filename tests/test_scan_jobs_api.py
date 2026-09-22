@@ -226,3 +226,22 @@ def test_cache_endpoints(client):
 
     assert client.delete("/api/scan/cache/expiry_level_1").status_code == 200
     assert client.get("/api/scan/cache/expiry_level_1").status_code == 404
+
+
+def test_progress_endpoint_returns_every_processed_stock(client, monkeypatch):
+    async def fake_l1(*a, **kw):
+        return _fake_expiry_l1_outcome()
+
+    monkeypatch.setattr(scan_jobs_module, "run_expiry_level_1_scan", fake_l1)
+    resp = client.post("/api/scan/start", json={"scan_type": "expiry_level_1"})
+    job_id = resp.json()["job"]["job_id"]
+    _wait_for_completion(client, job_id)
+
+    prog = client.get(f"/api/scan/jobs/{job_id}/progress")
+    assert prog.status_code == 200
+    assert prog.json()["status"] == "completed"
+
+
+def test_progress_endpoint_404_for_unknown_job(client):
+    resp = client.get("/api/scan/jobs/does-not-exist/progress")
+    assert resp.status_code == 404

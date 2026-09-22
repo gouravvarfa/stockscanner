@@ -10,6 +10,7 @@ from backend.services import scan_service, universe_loader
 from backend.services.instrument_classifier import get_instrument_type, normalize_symbol
 from backend.services.scan_job_manager import ScanJob
 from backend.services.scan_service import run_full_scan
+from backend.strategies.types import StrategySignal
 from tests.test_scan_service_value_buy_scope import FakeAngelOneProvider, _set_universe
 
 
@@ -101,15 +102,23 @@ async def test_fetch_concurrency_is_capped(monkeypatch):
     assert 1 < live["max"] <= scan_service.DEFAULT_MAX_CONCURRENT_FETCHES
 
 
+def _fake_signal(strategy, symbol):
+    return StrategySignal(
+        strategy=strategy, symbol=symbol, qualifies=True, signal_date=None,
+        daily_rsi=None, weekly_rsi=None, monthly_rsi=None, conditions={}, explanation="", extra={},
+    )
+
+
 async def test_on_result_and_job_partial_cursor(monkeypatch):
     job = ScanJob(job_id="j", scan_type="a_group")
-    job.record_result("RELIANCE", [("PRD", object())])
+    job.record_result("RELIANCE", [("PRD", _fake_signal("PRD", "RELIANCE"))])
     job.record_result("NILKAMAL", [])  # no qualifying signal -> nothing to show
-    job.record_result("ABB", [("GFS", object()), ("NRD", object())])
+    job.record_result("ABB", [("GFS", _fake_signal("GFS", "ABB")), ("NRD", _fake_signal("NRD", "ABB"))])
     assert job.signals_found == 3
     first = job.partial_after(0)
     assert [i["symbol"] for i in first["items"]] == ["RELIANCE", "ABB"]
     assert first["items"][0]["instrument_type"] == "FUTURE"
+    assert [s["strategy"] for s in first["items"][0]["signals"]] == ["PRD"]
     assert job.partial_after(first["next"])["items"] == []
 
 

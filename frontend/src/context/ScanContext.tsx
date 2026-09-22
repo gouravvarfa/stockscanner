@@ -1,8 +1,12 @@
-import { createContext, useContext, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import type { ScanResult } from "../services/api";
 import { useScanJob, type ScanIssueKind } from "../hooks/useScanJob";
 import { useLocalHistoryWriter } from "../hooks/useLocalHistoryWriter";
+import { localIdForJob } from "../services/historyRowMapping";
+import { getResultsForSnapshot, listSnapshots, type HistoryResultRow } from "../services/localHistoryDb";
 import type { PartialResult } from "../services/scanJobsApi";
+
+const SCAN_TYPE = "a_group";
 
 interface ScanContextValue {
   latest: ScanResult | null;
@@ -37,17 +41,63 @@ interface ScanContextValue {
   } | null;
   partial: PartialResult[];
   cacheAgeSeconds: number | null;
+  // The device's own permanent local record of the current/most-recent scan
+  // (IndexedDB — see services/localHistoryDb.ts). Loaded immediately on
+  // mount/refresh, before the backend has even responded, and kept in sync
+  // as new stocks are persisted — so a page refresh (or a Render restart
+  // that leaves the job unrecoverable) never blanks out results that were
+  // already saved to this device.
+  localRows: HistoryResultRow[];
 }
 
 const ScanContext = createContext<ScanContextValue | undefined>(undefined);
 
 export function ScanProvider({ children }: { children: ReactNode }) {
-  const { result, partial, job, running, error, issueKind, cache, run, runFresh, cancel } = useScanJob<ScanResult>("a_group");
+  const { result, partial, progressLog, job, running, error, issueKind, cache, run, runFresh, cancel } =
+    useScanJob<ScanResult>(SCAN_TYPE);
 
   // Permanent, device-local Scan History (IndexedDB) — writes progressively
   // as results arrive, independent of Render's own storage. See
   // hooks/useLocalHistoryWriter.ts.
-  useLocalHistoryWriter("a_group", job, partial, result);
+  useLocalHistoryWriter(SCAN_TYPE, job, partial, progressLog, result);
+
+  const [localRows, setLocalRows] = useState<HistoryResultRow[]>([]);
+  const localIdRef = useRef<string | null>(null);
+  const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Immediate local view on mount/refresh — reads whatever this device
+  // already has saved, before waiting on any backend response.
+  useEffect(() => {
+    let cancelled = false;
+    listSnapshots().then((snapshots) => {
+      const mostRecent = snapshots.find((s) => s.scanType === SCAN_TYPE);
+      if (!mostRecent || cancelled) return;
+      localIdRef.current = mostRecent.localId;
+      getResultsForSnapshot(mostRecent.localId).then((rows) => {
+        if (!cancelled) setLocalRows(rows);
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Keep the local view in sync as the live job writes new rows — reads
+  // IndexedDB back (rather than mirroring `partial`/`progressLog` in memory)
+  // so what's shown always matches what's actually durably saved, deduped
+  // by the store's own deterministic keys.
+  useEffect(() => {
+    if (!job) return;
+    const localId = localIdForJob(SCAN_TYPE, job.job_id);
+    localIdRef.current = localId;
+    if (refreshTimer.current) clearTimeout(refreshTimer.current);
+    refreshTimer.current = setTimeout(() => {
+      getResultsForSnapshot(localId).then(setLocalRows).catch(() => undefined);
+    }, 400); // debounced — avoid re-reading IndexedDB on every single stock
+    return () => {
+      if (refreshTimer.current) clearTimeout(refreshTimer.current);
+    };
+  }, [job, partial, progressLog]);
 
   const progress =
     job && job.status === "running"
@@ -82,6 +132,7 @@ export function ScanProvider({ children }: { children: ReactNode }) {
         progress,
         partial,
         cacheAgeSeconds,
+        localRows,
       }}
     >
       {children}

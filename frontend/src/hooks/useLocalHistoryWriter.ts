@@ -1,12 +1,12 @@
 import { useEffect, useRef } from "react";
 import type { ScanResult } from "../services/api";
-import type { PartialResult } from "../services/scanJobsApi";
-import type { ScanJobOut } from "../services/scanJobsApi";
+import type { PartialResult, ProgressLogItem, ScanJobOut } from "../services/scanJobsApi";
 import {
   localIdForJob,
+  mapPartialSignalsToRows,
+  mapProgressItemToRow,
   mapScanResultToHistoryRows,
   newSnapshotMeta,
-  partialToRow,
   summarizeStatus,
 } from "../services/historyRowMapping";
 import { getSnapshot, putResults, putSnapshot } from "../services/localHistoryDb";
@@ -15,15 +15,37 @@ const META_FLUSH_INTERVAL_MS = 1500; // matches useScanJob's own poll cadence �
 
 /**
  * Writes the running scan's progress into the browser's permanent local
- * IndexedDB history AS IT HAPPENS (see services/localHistoryDb.ts) — never
- * waits for the scan to finish, and never re-fetches Angel One or
- * recalculates a strategy: every write is the backend's own already-computed
- * data, just persisted client-side so it survives a refresh, a browser
- * restart, or the Render instance restarting/being replaced.
+ * IndexedDB history AS IT HAPPENS (see services/localHistoryDb.ts) — this
+ * is the primary, device-local source of truth for completed scan
+ * results/history (2026-09-22 architecture decision). Render/the scan job
+ * manager stays responsible only for running the scan and streaming
+ * results; it never accumulates the full 615-stock dataset for this
+ * purpose. Every write here is a straight reformat of data the backend
+ * already computed — never re-fetches Angel One, never recalculates a
+ * strategy.
+ *
+ * Two live streams feed this, both cursor-based (see useScanJob.ts):
+ *   - `partial`: full-detail rows for stocks that QUALIFIED for >=1 strategy
+ *     (A/B dates, RSI, PRD/PRD Forming status — everything, immediately).
+ *   - `progressLog`: EVERY processed stock, success or fail — so a stock
+ *     that scanned cleanly with no signal, or failed, is also recorded
+ *     (DATA_UNAVAILABLE / SCANNED_NO_SIGNAL) the moment it finishes, not
+ *     just the qualifying ones.
+ * Rows are written with a deterministic key (services/localHistoryDb.ts
+ * resultRowKey) — re-processing the same stream item again (e.g. after a
+ * refresh replays from a fresh cursor) upserts the same row instead of
+ * duplicating it.
  */
-export function useLocalHistoryWriter(scanType: string, job: ScanJobOut | null, partial: PartialResult[], result: ScanResult | null) {
+export function useLocalHistoryWriter(
+  scanType: string,
+  job: ScanJobOut | null,
+  partial: PartialResult[],
+  progressLog: ProgressLogItem[],
+  result: ScanResult | null,
+) {
   const localIdRef = useRef<string | null>(null);
   const seenPartialSeq = useRef(0);
+  const seenProgressSeq = useRef(0);
   const lastMetaFlush = useRef(0);
   const finalizedFor = useRef<string | null>(null);
 
@@ -34,6 +56,7 @@ export function useLocalHistoryWriter(scanType: string, job: ScanJobOut | null, 
     if (localIdRef.current === localId) return;
     localIdRef.current = localId;
     seenPartialSeq.current = 0;
+    seenProgressSeq.current = 0;
     finalizedFor.current = null;
     getSnapshot(localId).then((existing) => {
       if (existing) return; // resumed after a refresh — keep what's already there
@@ -41,19 +64,29 @@ export function useLocalHistoryWriter(scanType: string, job: ScanJobOut | null, 
     });
   }, [scanType, job]);
 
-  // Progressive rows: only the NEW entries in `partial` since last render,
-  // written immediately (each stock's chip = one write, not a re-render of
-  // the whole dataset) — this is what survives a mid-scan refresh.
+  // Full-detail rows for stocks that qualified — only the NEW entries in
+  // `partial` since last render, written immediately.
   useEffect(() => {
     const localId = localIdRef.current;
     if (!localId || partial.length === 0) return;
     const fresh = partial.filter((p) => p.seq > seenPartialSeq.current);
     if (fresh.length === 0) return;
     seenPartialSeq.current = Math.max(...fresh.map((p) => p.seq));
-    const now = new Date().toISOString();
-    const rows = fresh.flatMap((p) => p.strategies.map((strategy) => partialToRow(localId, p, strategy, now)));
+    const rows = fresh.flatMap((p) => mapPartialSignalsToRows(localId, p));
     putResults(rows).catch(() => undefined);
   }, [partial]);
+
+  // DATA_UNAVAILABLE / SCANNED_NO_SIGNAL rows for EVERY other processed
+  // stock — same idea, from the all-stocks progress stream.
+  useEffect(() => {
+    const localId = localIdRef.current;
+    if (!localId || progressLog.length === 0) return;
+    const fresh = progressLog.filter((p) => p.seq > seenProgressSeq.current);
+    if (fresh.length === 0) return;
+    seenProgressSeq.current = Math.max(...fresh.map((p) => p.seq));
+    const rows = fresh.map((p) => mapProgressItemToRow(localId, p));
+    putResults(rows).catch(() => undefined);
+  }, [progressLog]);
 
   // Snapshot metadata (processed/failed/signals counts), throttled — not on
   // every progress tick, so this never becomes its own render-time cost.
@@ -82,9 +115,10 @@ export function useLocalHistoryWriter(scanType: string, job: ScanJobOut | null, 
     }).catch(() => undefined);
   }, [scanType, job]);
 
-  // Scan finished with a full result -> replace the lightweight progressive
-  // rows with the exact, detailed final data (A/B dates, RSI, PRD status,
-  // etc.) — still purely a reformat of what the backend already computed.
+  // Scan finished with a full result -> fill in anything the live streams
+  // above might have missed (e.g. this tab wasn't open for part of the
+  // scan) with the exact, detailed final data — still purely a reformat,
+  // and idempotent (same deterministic keys) with what was already written.
   useEffect(() => {
     const localId = localIdRef.current;
     if (!localId || !job || job.status !== "completed" || !result) return;

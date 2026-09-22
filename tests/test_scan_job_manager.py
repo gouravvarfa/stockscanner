@@ -5,6 +5,7 @@ import pytest
 from backend.services.scan_job_manager import (
     JobManager,
     ScanAlreadyRunningError,
+    ScanJob,
     clear_cached_result,
     get_cached_result,
     set_cached_result,
@@ -173,3 +174,48 @@ def test_clearing_one_scan_types_cache_does_not_touch_another():
     clear_cached_result("a_group")
     assert get_cached_result("a_group") is None
     assert get_cached_result("expiry_level_1") is not None
+
+
+# ---- device-local persistence feed: progress log + full partial detail ----
+
+def _fake_signal(strategy, symbol, extra=None):
+    from backend.strategies.types import StrategySignal
+    return StrategySignal(
+        strategy=strategy, symbol=symbol, qualifies=True, signal_date=None,
+        daily_rsi=55.0, weekly_rsi=62.0, monthly_rsi=58.0, conditions={},
+        explanation="qualified", extra=extra or {"current_price": 100.0},
+    )
+
+
+def test_progress_log_records_every_stock_success_or_fail():
+    job = ScanJob(job_id="j", scan_type="a_group")
+    job.record_progress("GOOD", True)
+    job.record_progress("BAD", False, error="timeout")
+    log = job.progress_after(0)
+    assert [i["symbol"] for i in log["items"]] == ["GOOD", "BAD"]
+    assert log["items"][0]["success"] is True
+    assert log["items"][1]["success"] is False and log["items"][1]["error"] == "timeout"
+    assert log["items"][0]["instrument_type"] in ("FUTURE", "EQUITY")
+
+
+def test_progress_log_cursor_only_returns_new_entries():
+    job = ScanJob(job_id="j", scan_type="a_group")
+    job.record_progress("A", True)
+    first = job.progress_after(0)
+    job.record_progress("B", True)
+    second = job.progress_after(first["next"])
+    assert [i["symbol"] for i in second["items"]] == ["B"]
+
+
+def test_partial_result_includes_full_signal_detail_not_just_names():
+    job = ScanJob(job_id="j", scan_type="a_group")
+    forming_signal = _fake_signal("PRD Forming", "NILKAMAL", extra={
+        "current_price": 1887.5,
+        "forming": [{"timeframe": "weekly", "a_date": "2026-08-07", "a_low": 1640.0, "a_rsi": 73.02,
+                     "b_date": "2026-09-18", "b_low": 1844.2, "b_rsi": 64.04, "ab_distance": 6}],
+    })
+    job.record_result("NILKAMAL", [("PRD Forming", forming_signal)])
+    item = job.partial_after(0)["items"][0]
+    assert item["signals"][0]["strategy"] == "PRD Forming"
+    assert item["signals"][0]["extra"]["forming"][0]["a_rsi"] == 73.02
+    assert item["signals"][0]["weekly_rsi"] == 62.0

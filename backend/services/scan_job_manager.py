@@ -86,7 +86,8 @@ class ScanJob:
     failed_symbols: list[FailedSymbol] = field(default_factory=list)
     error: str | None = None
     signals_found: int = 0
-    partial_results: list[dict] = field(default_factory=list)  # incremental, cursor = seq
+    partial_results: list[dict] = field(default_factory=list)  # incremental, cursor = seq — QUALIFYING stocks only, full signal detail
+    progress_log: list[dict] = field(default_factory=list)  # incremental, cursor = seq — EVERY processed stock (success or fail)
     _sync: Any = field(default=None, repr=False)  # optional OneDrive worksheet sync (never affects the scan)
     result: Any = None  # the scan's own Outcome/Result object, once completed
     _durations: deque[float] = field(default_factory=lambda: deque(maxlen=_ETA_WINDOW), repr=False)
@@ -121,6 +122,19 @@ class ScanJob:
         self.current_symbol = symbol
         if self._sync is not None:
             self._sync.on_progress(symbol, success, error)  # queues in memory only; never raises
+        # EVERY processed stock (success or fail), not just qualifying ones —
+        # lets the browser's local history persist a complete, gap-free
+        # record as each stock finishes (see frontend's useLocalHistoryWriter),
+        # independent of whether it produced any strategy signal.
+        from backend.services.instrument_classifier import get_instrument_type
+
+        self.progress_log.append({
+            "seq": len(self.progress_log) + 1,
+            "symbol": symbol,
+            "instrument_type": get_instrument_type(symbol),
+            "success": success,
+            "error": error,
+        })
         if success:
             self.successful += 1
         else:
@@ -131,12 +145,26 @@ class ScanJob:
     def record_result(self, symbol: str, qualifying: list[tuple[str, Any]]) -> None:
         """A stock finished and qualified for >=1 strategy: make it visible
         immediately (polled via the cursor-based /partial endpoint) instead
-        of only once the whole scan completes."""
+        of only once the whole scan completes.
+
+        Includes each signal's FULL detail (daily/weekly/monthly RSI,
+        explanation, and `extra` — which is where PRD/PRD Forming's A/B
+        date/price/RSI live) — a straight reformat of data the strategy
+        already computed, not a recalculation — so the browser's local
+        history (see frontend/src/services/historyRowMapping.ts, which
+        already knows how to parse this exact shape from the final result)
+        can persist a fully-detailed row for a stock immediately, instead of
+        only a bare symbol+strategy name that would need enriching later. If
+        the process dies before the scan completes, whatever was already
+        streamed here is what the browser already has — nothing waits for
+        job completion.
+        """
         if self._sync is not None:
             self._sync.on_result(symbol, qualifying)
         if not qualifying:
             return
         from backend.services.instrument_classifier import get_instrument_type
+        from backend.services.serializers import _json_safe
 
         self.signals_found += len(qualifying)
         self.partial_results.append({
@@ -144,10 +172,28 @@ class ScanJob:
             "symbol": symbol,
             "instrument_type": get_instrument_type(symbol),
             "strategies": [name for name, _ in qualifying],
+            "signals": [
+                {
+                    "strategy": name,
+                    "symbol": signal.symbol,
+                    "instrument_type": getattr(signal, "instrument_type", None) or get_instrument_type(symbol),
+                    "qualifies": signal.qualifies,
+                    "daily_rsi": signal.daily_rsi,
+                    "weekly_rsi": signal.weekly_rsi,
+                    "monthly_rsi": signal.monthly_rsi,
+                    "explanation": signal.explanation,
+                    "extra": _json_safe(signal.extra),
+                }
+                for name, signal in qualifying
+            ],
         })
 
     def partial_after(self, after: int) -> dict:
         items = self.partial_results[after:]
+        return {"items": items, "next": after + len(items), "status": self.status}
+
+    def progress_after(self, after: int) -> dict:
+        items = self.progress_log[after:]
         return {"items": items, "next": after + len(items), "status": self.status}
 
     def to_dict(self) -> dict:

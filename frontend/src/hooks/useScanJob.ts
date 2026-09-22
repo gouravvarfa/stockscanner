@@ -1,5 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { scanJobsApi, ScanApiError, type CacheEnvelope, type PartialResult, type ScanJobOut, type ScanType } from "../services/scanJobsApi";
+import {
+  scanJobsApi,
+  ScanApiError,
+  type CacheEnvelope,
+  type PartialResult,
+  type ProgressLogItem,
+  type ScanJobOut,
+  type ScanType,
+} from "../services/scanJobsApi";
 
 const POLL_INTERVAL_MS = 1500;
 
@@ -51,6 +59,7 @@ export type ScanIssueKind = "unavailable" | "interrupted" | "error" | null;
 interface UseScanJobResult<T> {
   result: T | null;
   partial: PartialResult[]; // stocks that already qualified, streamed while the job runs
+  progressLog: ProgressLogItem[]; // EVERY processed stock (success or fail), streamed while the job runs
   job: ScanJobOut | null; // live progress while a job is running/just finished
   running: boolean;
   error: string | null;
@@ -75,6 +84,8 @@ export function useScanJob<T = unknown>(scanType: ScanType): UseScanJobResult<T>
   const [running, setRunning] = useState(false);
   const [partial, setPartial] = useState<PartialResult[]>([]);
   const partialCursor = useRef(0);
+  const [progressLog, setProgressLog] = useState<ProgressLogItem[]>([]);
+  const progressCursor = useRef(0);
   const [error, setError] = useState<string | null>(null);
   const [issueKind, setIssueKind] = useState<ScanIssueKind>(null);
   const [cache, setCache] = useState<CacheEnvelope<T> | null>(null);
@@ -95,9 +106,11 @@ export function useScanJob<T = unknown>(scanType: ScanType): UseScanJobResult<T>
     (jobId: string) => {
       activeJobId.current = jobId;
       partialCursor.current = 0;
+      progressCursor.current = 0;
       consecutiveFailures.current = 0;
       firstFailureAt.current = null;
       setPartial([]);
+      setProgressLog([]);
       const tick = async () => {
         if (activeJobId.current !== jobId) return; // superseded by a newer job
         try {
@@ -119,6 +132,20 @@ export function useScanJob<T = unknown>(scanType: ScanType): UseScanJobResult<T>
               }
             } catch {
               // partial view is best-effort; the final result still arrives on completion
+            }
+          }
+          // EVERY processed stock (success or fail), for the local
+          // history writer to persist a gap-free record — best-effort,
+          // same as partial above.
+          if (latest.processed > 0 || progressCursor.current > 0) {
+            try {
+              const prog = await scanJobsApi.getProgressLog(jobId, progressCursor.current);
+              if (activeJobId.current === jobId && prog.items.length > 0) {
+                progressCursor.current = prog.next;
+                setProgressLog((prev) => prev.concat(prog.items));
+              }
+            } catch {
+              // best-effort — local history just won't have every non-qualifying stock this tick
             }
           }
           if (latest.status === "running") {
@@ -297,5 +324,5 @@ export function useScanJob<T = unknown>(scanType: ScanType): UseScanJobResult<T>
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scanType]);
 
-  return { result, partial, job, running, error, issueKind, cache, run, runFresh, cancel };
+  return { result, partial, progressLog, job, running, error, issueKind, cache, run, runFresh, cancel };
 }

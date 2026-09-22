@@ -15,6 +15,7 @@ vi.mock("../services/scanJobsApi", async () => {
       getJob: vi.fn(),
       getJobResults: vi.fn(),
       getPartial: vi.fn(),
+      getProgressLog: vi.fn(),
       cancelJob: vi.fn(),
       getCache: vi.fn(),
       deleteCache: vi.fn(),
@@ -65,6 +66,8 @@ beforeEach(() => {
   // was asked — individual tests override with mockResolvedValueOnce /
   // mockRejectedValueOnce for the specific tick(s) they care about.
   api.getJob.mockImplementation((jobId: string) => Promise.resolve(job({ job_id: jobId })));
+  api.getPartial.mockResolvedValue({ items: [], next: 0, status: "running" });
+  api.getProgressLog.mockResolvedValue({ items: [], next: 0, status: "running" });
 });
 
 afterEach(() => {

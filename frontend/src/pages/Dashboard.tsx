@@ -153,8 +153,19 @@ function SkeletonRows({ columns }: { columns: number }) {
 }
 
 export function Dashboard() {
-  const { latest, scanning, scanError, scanIssueKind, runScan, runFreshScan, stopScan, progress, partial, cacheAgeSeconds } =
-    useScan();
+  const {
+    latest,
+    scanning,
+    scanError,
+    scanIssueKind,
+    runScan,
+    runFreshScan,
+    stopScan,
+    progress,
+    partial,
+    cacheAgeSeconds,
+    localRows,
+  } = useScan();
   const { openChart } = useChart();
 
   const [activeStrategy, setActiveStrategy] = useState<TabName>("PRD");
@@ -311,6 +322,13 @@ export function Dashboard() {
           <div>
             <strong>Backend restarted — previous scan was interrupted.</strong> Nothing to retry for that scan; start
             a new one whenever you're ready.
+            {localRows.length > 0 && (
+              <>
+                {" "}
+                {localRows.length} stock{localRows.length === 1 ? "" : "s"} from that scan are still saved on this
+                device — see <a href="/history">Scan History</a>.
+              </>
+            )}
           </div>
         </div>
       )}
