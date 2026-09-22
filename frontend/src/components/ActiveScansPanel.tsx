@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { scanJobsApi, fmtDuration, scanTypeLabel, type ScanJobOut } from "../services/scanJobsApi";
 
 const POLL_MS = 2000;
+const POLL_BACKOFF_MAX_MS = 8000;
 
 /**
  * Mounted once at the App shell level (survives every route change) — polls
@@ -15,17 +16,26 @@ export function ActiveScansPanel() {
   const [collapsed, setCollapsed] = useState(false);
   const [dismissedCompleted, setDismissedCompleted] = useState<Set<string>>(new Set());
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const consecutiveFailures = useRef(0);
 
   useEffect(() => {
     let stopped = false;
     const tick = async () => {
+      let delay = POLL_MS;
       try {
         const all = await scanJobsApi.listJobs();
+        // Full replacement (not a merge) — a job that no longer comes back
+        // (e.g. a backend restart wiped it) disappears from this panel on
+        // the very next successful poll, with no separate cleanup needed.
         if (!stopped) setJobs(all);
+        consecutiveFailures.current = 0;
       } catch {
-        // Transient network hiccup — just try again on the next tick.
+        // Backend unreachable (e.g. mid-restart) — keep the last known
+        // state visible and back off instead of hammering it every 2s.
+        consecutiveFailures.current += 1;
+        delay = Math.min(POLL_MS * 1.6 ** consecutiveFailures.current, POLL_BACKOFF_MAX_MS);
       }
-      if (!stopped) timer.current = setTimeout(tick, POLL_MS);
+      if (!stopped) timer.current = setTimeout(tick, delay);
     };
     void tick();
     return () => {

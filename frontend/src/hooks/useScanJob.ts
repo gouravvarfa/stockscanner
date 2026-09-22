@@ -2,17 +2,26 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { scanJobsApi, ScanApiError, type CacheEnvelope, type PartialResult, type ScanJobOut, type ScanType } from "../services/scanJobsApi";
 
 const POLL_INTERVAL_MS = 1500;
-// A single fetch failure (e.g. Render's free-tier instance still waking up
-// from sleep) must not permanently stop polling a job that is actually
-// still running server-side — retry transient failures for a while before
-// giving up, instead of dying on the first one.
-const MAX_CONSECUTIVE_POLL_FAILURES = 20; // ~30s of retries at POLL_INTERVAL_MS
 
-// Render's free instance can take 30-60s to wake from sleep — the very
-// first request (Run Scan/Fresh Scan itself, before any job/poll exists
-// to retry) can hit that cold start too. Retries a plain network-level
-// failure (not a real API error like 400/404/409) a few times before
-// surfacing it, so one click during a cold start doesn't require a
+// A Render restart (deploy, OOM recovery, or the free instance waking from
+// sleep) can leave the backend unreachable for tens of seconds. A single
+// failed poll must not permanently stop polling a job that is actually
+// still running server-side — keep retrying, with backoff so a restarting
+// instance isn't hammered, for up to this long before giving up.
+const RECOVERY_WINDOW_MS = 60_000;
+const POLL_BACKOFF_START_MS = 1500;
+const POLL_BACKOFF_MAX_MS = 6000;
+const POLL_BACKOFF_FACTOR = 1.6;
+
+function nextBackoffDelay(consecutiveFailures: number): number {
+  const delay = POLL_BACKOFF_START_MS * Math.pow(POLL_BACKOFF_FACTOR, consecutiveFailures);
+  return Math.min(delay, POLL_BACKOFF_MAX_MS);
+}
+
+// The very first request (Run Scan/Fresh Scan itself, before any job/poll
+// exists to retry) can hit the same kind of outage. Retries a plain
+// network-level failure (not a real API error like 400/409) a few times
+// before surfacing it, so one click during an outage doesn't require a
 // second manual click.
 const START_RETRY_ATTEMPTS = 4;
 const START_RETRY_DELAY_MS = 4000;
@@ -29,12 +38,23 @@ async function withColdStartRetry<T>(fn: () => Promise<T>): Promise<T> {
   }
 }
 
+/** Distinguishes WHY polling stopped, so the UI never shows a generic
+ *  "Failed to fetch" for something the user can act on differently:
+ *   - "unavailable": backend unreachable this whole window; may still recover.
+ *   - "interrupted": backend responded but confirmed the job is gone (a
+ *     restart wiped the in-memory job registry) — retrying can't help,
+ *     the scan is genuinely lost; the user just starts a new one.
+ *   - "error": a real scan/job failure reported by the backend.
+ */
+export type ScanIssueKind = "unavailable" | "interrupted" | "error" | null;
+
 interface UseScanJobResult<T> {
   result: T | null;
   partial: PartialResult[]; // stocks that already qualified, streamed while the job runs
   job: ScanJobOut | null; // live progress while a job is running/just finished
   running: boolean;
   error: string | null;
+  issueKind: ScanIssueKind;
   cache: CacheEnvelope<T> | null; // metadata of the cached result currently shown, if any
   run: () => Promise<void>; // Normal Scan: serves cache if valid, else starts a job
   runFresh: () => Promise<void>; // Fresh Scan: always starts a new job
@@ -56,11 +76,13 @@ export function useScanJob<T = unknown>(scanType: ScanType): UseScanJobResult<T>
   const [partial, setPartial] = useState<PartialResult[]>([]);
   const partialCursor = useRef(0);
   const [error, setError] = useState<string | null>(null);
+  const [issueKind, setIssueKind] = useState<ScanIssueKind>(null);
   const [cache, setCache] = useState<CacheEnvelope<T> | null>(null);
 
   const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const activeJobId = useRef<string | null>(null);
   const consecutiveFailures = useRef(0);
+  const firstFailureAt = useRef<number | null>(null);
 
   const stopPolling = useCallback(() => {
     if (pollTimer.current) {
@@ -73,14 +95,19 @@ export function useScanJob<T = unknown>(scanType: ScanType): UseScanJobResult<T>
     (jobId: string) => {
       activeJobId.current = jobId;
       partialCursor.current = 0;
+      consecutiveFailures.current = 0;
+      firstFailureAt.current = null;
       setPartial([]);
       const tick = async () => {
         if (activeJobId.current !== jobId) return; // superseded by a newer job
         try {
           const latest = await scanJobsApi.getJob(jobId);
           if (activeJobId.current !== jobId) return;
+          // Recovered from any prior outage — clear it and keep going normally.
           consecutiveFailures.current = 0;
-          setError(null); // a prior transient failure recovered — clear the stale banner
+          firstFailureAt.current = null;
+          setError(null);
+          setIssueKind(null);
           setJob(latest);
           // Incremental results: only what is newer than the cursor is fetched/appended.
           if (latest.signals_found > 0 || partialCursor.current > 0) {
@@ -108,33 +135,57 @@ export function useScanJob<T = unknown>(scanType: ScanType): UseScanJobResult<T>
                 setCache(null); // freshly computed, not from the pre-existing cache envelope
               }
             } catch (e) {
+              setIssueKind("error");
               setError(e instanceof Error ? e.message : String(e));
             }
           } else if (latest.status === "failed") {
+            setIssueKind("error");
             setError(latest.error ?? "Scan failed.");
           }
         } catch (e) {
           if (activeJobId.current !== jobId) return;
-          consecutiveFailures.current += 1;
-          if (consecutiveFailures.current < MAX_CONSECUTIVE_POLL_FAILURES) {
-            // Likely transient (e.g. the backend waking up from sleep) — keep
-            // showing "running" and keep polling instead of giving up on the
-            // first hiccup; only surface the error as a soft, still-retrying note.
-            setError(`${e instanceof Error ? e.message : String(e)} — retrying…`);
-            pollTimer.current = setTimeout(tick, POLL_INTERVAL_MS);
+
+          // A definitive "the job is gone" answer (backend is back up and
+          // says so) — a restart wiped the in-memory registry. This is NOT
+          // a transient outage: no amount of retrying will bring it back,
+          // so stop immediately instead of burning the recovery window.
+          if (e instanceof ScanApiError && e.status === 404) {
+            activeJobId.current = null;
+            stopPolling();
+            setRunning(false);
+            setJob(null);
+            setIssueKind("interrupted");
+            setError("Backend restarted — previous scan was interrupted.");
             return;
           }
+
+          // Anything else (network failure, 5xx, etc.) is treated as a
+          // temporary outage — keep the current progress UI up, keep
+          // retrying with backoff, for up to RECOVERY_WINDOW_MS.
+          if (firstFailureAt.current === null) firstFailureAt.current = Date.now();
+          consecutiveFailures.current += 1;
+          const elapsed = Date.now() - firstFailureAt.current;
+          if (elapsed < RECOVERY_WINDOW_MS) {
+            setIssueKind("unavailable");
+            setError(`${e instanceof Error ? e.message : String(e)} — retrying…`);
+            pollTimer.current = setTimeout(tick, nextBackoffDelay(consecutiveFailures.current));
+            return;
+          }
+
+          // Recovery window exhausted — stop polling; the user can retry manually.
           setRunning(false);
+          setIssueKind("unavailable");
           setError(e instanceof Error ? e.message : String(e));
         }
       };
       void tick();
     },
-    [],
+    [stopPolling],
   );
 
   const run = useCallback(async () => {
     setError(null);
+    setIssueKind(null);
     try {
       const res = await withColdStartRetry(() => scanJobsApi.start<T>(scanType));
       if (res.status === "cached") {
@@ -160,12 +211,14 @@ export function useScanJob<T = unknown>(scanType: ScanType): UseScanJobResult<T>
           return;
         }
       }
+      setIssueKind("error");
       setError(e instanceof Error ? e.message : String(e));
     }
   }, [scanType, pollJob]);
 
   const runFresh = useCallback(async () => {
     setError(null);
+    setIssueKind(null);
     try {
       const res = await withColdStartRetry(() => scanJobsApi.fresh<T>(scanType));
       if (res.status === "started") {
@@ -175,6 +228,7 @@ export function useScanJob<T = unknown>(scanType: ScanType): UseScanJobResult<T>
         pollJob(res.job.job_id);
       }
     } catch (e) {
+      setIssueKind("error");
       setError(e instanceof Error ? e.message : String(e));
     }
   }, [scanType, pollJob]);
@@ -243,5 +297,5 @@ export function useScanJob<T = unknown>(scanType: ScanType): UseScanJobResult<T>
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scanType]);
 
-  return { result, partial, job, running, error, cache, run, runFresh, cancel };
+  return { result, partial, job, running, error, issueKind, cache, run, runFresh, cancel };
 }

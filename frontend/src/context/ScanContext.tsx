@@ -1,6 +1,6 @@
 import { createContext, useContext, type ReactNode } from "react";
 import type { ScanResult } from "../services/api";
-import { useScanJob } from "../hooks/useScanJob";
+import { useScanJob, type ScanIssueKind } from "../hooks/useScanJob";
 import { useLocalHistoryWriter } from "../hooks/useLocalHistoryWriter";
 import type { PartialResult } from "../services/scanJobsApi";
 
@@ -16,6 +16,10 @@ interface ScanContextValue {
   // exposes real per-stock progress instead of a bare boolean.
   scanning: boolean;
   scanError: string | null;
+  // Distinguishes a temporary outage (may still recover) from a confirmed
+  // "the backend restarted and the job is gone" from a plain scan/job
+  // error — see hooks/useScanJob.ts.
+  scanIssueKind: ScanIssueKind;
   runScan: () => Promise<void>;
   // Fresh Scan (Part 9): ignores the 24h cache and always re-fetches from
   // Angel One, replacing the cache only on success.
@@ -38,7 +42,7 @@ interface ScanContextValue {
 const ScanContext = createContext<ScanContextValue | undefined>(undefined);
 
 export function ScanProvider({ children }: { children: ReactNode }) {
-  const { result, partial, job, running, error, cache, run, runFresh, cancel } = useScanJob<ScanResult>("a_group");
+  const { result, partial, job, running, error, issueKind, cache, run, runFresh, cancel } = useScanJob<ScanResult>("a_group");
 
   // Permanent, device-local Scan History (IndexedDB) — writes progressively
   // as results arrive, independent of Render's own storage. See
@@ -71,6 +75,7 @@ export function ScanProvider({ children }: { children: ReactNode }) {
         setLatest: () => {},
         scanning: running,
         scanError: error,
+        scanIssueKind: issueKind,
         runScan: run,
         runFreshScan: runFresh,
         stopScan: cancel,

@@ -153,7 +153,8 @@ function SkeletonRows({ columns }: { columns: number }) {
 }
 
 export function Dashboard() {
-  const { latest, scanning, scanError, runScan, runFreshScan, stopScan, progress, partial, cacheAgeSeconds } = useScan();
+  const { latest, scanning, scanError, scanIssueKind, runScan, runFreshScan, stopScan, progress, partial, cacheAgeSeconds } =
+    useScan();
   const { openChart } = useChart();
 
   const [activeStrategy, setActiveStrategy] = useState<TabName>("PRD");
@@ -305,7 +306,15 @@ export function Dashboard() {
         </p>
       )}
 
-      {scanError && !scanning && (
+      {scanError && !scanning && scanIssueKind === "interrupted" && (
+        <div className="notice-banner">
+          <div>
+            <strong>Backend restarted — previous scan was interrupted.</strong> Nothing to retry for that scan; start
+            a new one whenever you're ready.
+          </div>
+        </div>
+      )}
+      {scanError && !scanning && scanIssueKind !== "interrupted" && (
         <div className="error-banner">
           <div>
             <strong>Unable to load scanner data.</strong> {scanError}

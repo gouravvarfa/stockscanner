@@ -316,6 +316,16 @@ h4 { font-size: 0.78rem; margin: 16px 0 8px; color: var(--text-muted); text-tran
 }
 .error-banner.small { padding: 8px 12px; font-size: 0.8rem; }
 
+.notice-banner {
+  background: var(--accent-soft);
+  border: 1px solid var(--accent);
+  color: var(--accent-soft-text);
+  padding: 12px 16px;
+  border-radius: var(--radius-sm);
+  margin-bottom: 16px;
+  font-size: 0.86rem;
+}
+
 .scan-meta { display: flex; flex-wrap: wrap; gap: 20px; align-items: center; font-size: 0.85rem; color: var(--text-secondary); }
 
 /* ---------- Badges (classification / bias) ---------- */
