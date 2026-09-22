@@ -1368,6 +1368,7 @@ td .symbol-cell { font-weight: 700; color: var(--text-primary); }
 
 .hamburger-button { display: none; }
 .header-brand-mobile { display: none; font-weight: 700; font-size: 0.95rem; color: var(--text-primary); }
+.header-brand-logo { display: none; border-radius: 6px; flex-shrink: 0; }
 .sidebar-backdrop { display: none; }
 
 .bottom-nav { display: none; }
@@ -1375,6 +1376,7 @@ td .symbol-cell { font-weight: 700; color: var(--text-primary); }
 @media (max-width: 960px) {
   .hamburger-button { display: flex; }
   .header-brand-mobile { display: inline; }
+  .header-brand-logo { display: inline-block; }
   .sidebar-backdrop {
     display: block;
     position: fixed;
