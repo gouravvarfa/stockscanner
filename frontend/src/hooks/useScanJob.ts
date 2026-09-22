@@ -227,15 +227,23 @@ export function useScanJob<T = unknown>(scanType: ScanType): UseScanJobResult<T>
       }
     } catch (e) {
       if (e instanceof ScanApiError && e.status === 409) {
-        // Already running (e.g. from another tab/page) — just start
-        // polling whatever job is in flight instead of erroring out.
-        const jobs = await scanJobsApi.listJobs();
-        const inFlight = jobs.find((j) => j.scan_type === scanType && j.status === "running");
-        if (inFlight) {
-          setJob(inFlight);
-          setRunning(true);
-          pollJob(inFlight.job_id);
-          return;
+        // Already running (e.g. from another tab/page, or this same device
+        // clicking Run Scan again) — the backend tells us exactly which
+        // job_id that is; just adopt/poll it directly instead of erroring
+        // out (no separate list-and-guess lookup, which could race and
+        // miss it if the job had just changed state).
+        if (e.jobId) {
+          try {
+            const existing = await scanJobsApi.getJob(e.jobId);
+            setJob(existing);
+            setRunning(existing.status === "running");
+            if (existing.status === "running") {
+              pollJob(existing.job_id);
+            }
+            return;
+          } catch {
+            // fall through to the generic error below
+          }
         }
       }
       setIssueKind("error");

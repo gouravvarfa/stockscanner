@@ -238,7 +238,11 @@ def _result_count(result: Any) -> int | None:
 
 
 class ScanAlreadyRunningError(RuntimeError):
-    pass
+    def __init__(self, message: str, job_id: str):
+        super().__init__(message)
+        # The already-running job's id — lets the caller adopt/poll it
+        # directly instead of racing a separate list-and-guess lookup.
+        self.job_id = job_id
 
 
 class TooManyConcurrentScansError(RuntimeError):
@@ -299,7 +303,8 @@ class JobManager:
             same_device = next((j for j in running_same_type if j.device_id == device_id), None)
             if same_device is not None:
                 raise ScanAlreadyRunningError(
-                    f"A {scan_type} scan is already running for this device (job {same_device.job_id})."
+                    f"A {scan_type} scan is already running for this device (job {same_device.job_id}).",
+                    job_id=same_device.job_id,
                 )
         if len(running_same_type) >= MAX_CONCURRENT_JOBS_PER_SCAN_TYPE:
             raise TooManyConcurrentScansError(

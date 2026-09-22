@@ -238,3 +238,15 @@ def test_third_device_is_rejected_once_the_concurrency_cap_is_reached(client, mo
             assert "Too many" in resp.json()["detail"]
     for job_id, device in zip(started, devices):
         client.post(f"/api/scan/jobs/{job_id}/cancel", params={"device_id": device})
+
+
+def test_409_body_includes_the_existing_jobs_id_for_direct_adoption(client, monkeypatch):
+    _slow_l1(monkeypatch, delay=2.0)
+    resp1 = client.post("/api/scan/start", json={"scan_type": "expiry_level_1", "device_id": DEVICE_A})
+    job_id = resp1.json()["job"]["job_id"]
+
+    resp2 = client.post("/api/scan/start", json={"scan_type": "expiry_level_1", "device_id": DEVICE_A})
+    assert resp2.status_code == 409
+    detail = resp2.json()["detail"]
+    assert isinstance(detail, dict) and detail["job_id"] == job_id
+    client.post(f"/api/scan/jobs/{job_id}/cancel", params={"device_id": DEVICE_A})  # cleanup

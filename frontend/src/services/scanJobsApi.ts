@@ -8,28 +8,35 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     ...options,
   });
   if (!res.ok) {
-    let detail: string | undefined;
+    let detail: string | Record<string, unknown> | undefined;
     try {
       detail = (await res.json()).detail;
     } catch {
       // not JSON
     }
+    // A 409 "already running" detail is a structured {message, job_id} (see
+    // backend/api/scan_jobs.py) — carry job_id through so a caller can
+    // adopt/poll that exact job directly, no separate list-and-guess needed.
+    const message = typeof detail === "string" ? detail : (detail?.message as string | undefined);
+    const jobId = typeof detail === "object" ? (detail?.job_id as string | undefined) : undefined;
     if (res.status === 404 || res.status === 409 || res.status === 202) {
       // Callers of getJob/getCache/etc. treat these as expected states, not
       // hard errors — still throw so callers can branch on res.status via
       // ScanApiError, but keep the message informative.
-      throw new ScanApiError(detail ?? `${path} -> ${res.status}`, res.status);
+      throw new ScanApiError(message ?? `${path} -> ${res.status}`, res.status, jobId);
     }
-    throw new ScanApiError(detail ?? `API ${path} failed: ${res.status}`, res.status);
+    throw new ScanApiError(message ?? `API ${path} failed: ${res.status}`, res.status, jobId);
   }
   return res.json() as Promise<T>;
 }
 
 export class ScanApiError extends Error {
   status: number;
-  constructor(message: string, status: number) {
+  jobId?: string;
+  constructor(message: string, status: number, jobId?: string) {
     super(message);
     this.status = status;
+    this.jobId = jobId;
   }
 }
 

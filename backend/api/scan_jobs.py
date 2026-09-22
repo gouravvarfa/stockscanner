@@ -220,7 +220,9 @@ async def _start_job(scan_type: ScanType, device_id: str | None = None) -> ScanJ
     try:
         job = job_manager.start_job(scan_type, runner, device_id=device_id)
     except ScanAlreadyRunningError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
+        # Structured detail — lets the frontend adopt/poll the existing job
+        # directly (its job_id) instead of a separate, racy list-and-guess.
+        raise HTTPException(status_code=409, detail={"message": str(exc), "job_id": exc.job_id}) from exc
     except TooManyConcurrentScansError as exc:
         raise HTTPException(status_code=429, detail=str(exc)) from exc
     job.total = _estimate_total(scan_type)
