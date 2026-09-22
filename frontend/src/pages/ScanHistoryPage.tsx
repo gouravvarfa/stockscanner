@@ -57,7 +57,7 @@ function scanTypeLabel(scanType: string): string {
 function resultStatusChipClass(status: string): string {
   if (status === "DATA_UNAVAILABLE" || status === "FAILED") return "chip chip-fail";
   if (status === "PRD_FORMING") return "chip chip-warn";
-  if (status === "PRD_CONFIRMED" || status === "QUALIFIED") return "chip chip-pass";
+  if (status === "PRD_CONFIRMED" || status === "NRD_CONFIRMED" || status === "QUALIFIED") return "chip chip-pass";
   return "chip";
 }
 
