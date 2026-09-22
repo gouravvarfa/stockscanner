@@ -1,6 +1,7 @@
 import { createContext, useContext, type ReactNode } from "react";
 import type { ScanResult } from "../services/api";
 import { useScanJob } from "../hooks/useScanJob";
+import { useLocalHistoryWriter } from "../hooks/useLocalHistoryWriter";
 import type { PartialResult } from "../services/scanJobsApi";
 
 interface ScanContextValue {
@@ -38,6 +39,11 @@ const ScanContext = createContext<ScanContextValue | undefined>(undefined);
 
 export function ScanProvider({ children }: { children: ReactNode }) {
   const { result, partial, job, running, error, cache, run, runFresh, cancel } = useScanJob<ScanResult>("a_group");
+
+  // Permanent, device-local Scan History (IndexedDB) — writes progressively
+  // as results arrive, independent of Render's own storage. See
+  // hooks/useLocalHistoryWriter.ts.
+  useLocalHistoryWriter("a_group", job, partial, result);
 
   const progress =
     job && job.status === "running"

@@ -1469,3 +1469,25 @@ td .symbol-cell { font-weight: 700; color: var(--text-primary); }
   /* The floating Active Scans panel would otherwise sit under the bottom nav */
   .active-scans-panel { bottom: calc(64px + env(safe-area-inset-bottom, 0px)); }
 }
+
+/* ---------- Local Scan History (IndexedDB) ---------- */
+.history-layout { display: grid; grid-template-columns: 300px 1fr; gap: 16px; align-items: start; }
+@media (max-width: 900px) { .history-layout { grid-template-columns: 1fr; } }
+.history-date-list { display: flex; flex-direction: column; gap: 12px; max-height: 80vh; overflow-y: auto; }
+.history-date-card { padding: 12px; }
+.history-date-heading { margin: 0 0 8px; font-size: 0.95rem; }
+.history-scan-row {
+  display: block; width: 100%; text-align: left; background: transparent; border: 1px solid var(--border);
+  border-radius: 10px; padding: 8px 10px; margin-bottom: 6px; cursor: pointer; color: inherit; font: inherit;
+}
+.history-scan-row:last-child { margin-bottom: 0; }
+.history-scan-row:hover { background: var(--bg-hover); }
+.history-scan-row.active { border-color: var(--accent); background: var(--accent-soft); }
+.history-scan-row-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px; }
+.history-scan-time { font-weight: 700; font-size: 0.85rem; }
+.history-compare-link { display: inline-block; margin-top: 4px; font-size: 0.72rem; color: var(--accent); text-decoration: underline; }
+.history-detail { display: flex; flex-direction: column; gap: 12px; }
+.history-detail-header { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px; }
+
+.local-history-stats { display: flex; gap: 20px; flex-wrap: wrap; font-size: 0.85rem; margin: 8px 0 14px; }
+.local-history-stats b { display: block; font-size: 1.1rem; }
