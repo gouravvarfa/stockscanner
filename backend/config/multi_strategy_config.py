@@ -59,6 +59,9 @@ class NRDConfig(BaseModel):
     """
     leg_rsi_max: float = 40.0
     lookback_bars: int = 7
+    forming_min_ab_bars: int = 3
+    forming_max_ab_bars: int = 15
+    forming_a_pivot_bars: int = 1
 
 
 class ValueBuyConfig(BaseModel):

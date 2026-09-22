@@ -63,6 +63,18 @@ def signal_rows(ctx: RowContext, symbol: str, strategy: str, signal: Any) -> lis
             out.append(((symbol, "PRD", tf.upper(), "PRD_FORMING", _d(f.get("a_date"))), r))
         return out
 
+    if strategy == "NRD Forming":
+        for f in extra.get("forming", []):
+            r = ctx.base(symbol)
+            tf = str(f.get("timeframe", ""))
+            r[6], r[7], r[8], r[9], r[10] = "NRD", tf.upper(), "NRD_FORMING", _num(price), _num(_rsi_for(signal, tf))
+            r[11] = "NRD_FORMING"
+            r[12], r[13], r[14], r[15] = _d(f.get("a_date")), _d(f.get("b_date")), _num(f.get("a_high")), _num(f.get("b_high"))
+            r[16], r[17], r[18] = _num(f.get("a_rsi")), _num(f.get("b_rsi")), f.get("ab_distance", "")
+            r[19] = (signal.explanation or "")[:400]
+            out.append(((symbol, "NRD", tf.upper(), "NRD_FORMING", _d(f.get("a_date"))), r))
+        return out
+
     status = extra.get("status") if strategy in ("PRD", "NRD") else None
     divs = extra.get("divergences") or []
     if strategy in ("PRD", "NRD") and divs:

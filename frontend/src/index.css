@@ -1546,6 +1546,7 @@ td .symbol-cell { font-weight: 700; color: var(--text-primary); }
 .strategy-badge-prd { background: var(--success-soft); color: var(--success); }
 .strategy-badge-prd-forming { background: var(--warning-soft); color: var(--warning); }
 .strategy-badge-nrd { background: var(--danger-soft); color: var(--danger); }
+.strategy-badge-nrd-forming { background: var(--warning-soft); color: var(--warning); }
 .strategy-badge-gfs,
 .strategy-badge-advanced-gfs { background: var(--accent-soft); color: var(--accent-soft-text); }
 .strategy-badge-value-buy { background: var(--purple-soft); color: var(--purple); }

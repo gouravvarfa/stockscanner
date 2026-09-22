@@ -49,7 +49,7 @@ def _load_signals_from_cache() -> tuple[dict[str, list[StrategySignal]], dict]:
     signals = {
         name: [StrategySignal(**{k: v for k, v in sig.items() if k in StrategySignal.__dataclass_fields__}) for sig in sigs]
         for name, sigs in raw_strategies.items()
-        if name != "PRD Forming"  # developing setups are not confirmed signals — never ranked
+        if name not in ("PRD Forming", "NRD Forming")  # developing setups are not confirmed signals — never ranked
     }
     return signals, cached
 

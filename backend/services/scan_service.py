@@ -35,6 +35,7 @@ logger = logging.getLogger("scanner.scan_service")
 STOCK_HISTORY_DAYS = MONTHLY_RSI_LOOKBACK_DAYS
 
 PRD_FORMING_KEY = "PRD Forming"
+NRD_FORMING_KEY = "NRD Forming"
 ALL_SIGNAL_STRATEGY_NAMES = ["Strategy One", "GFS", "Advanced GFS", "PRD", "NRD", "Value Buy"]
 
 
@@ -161,7 +162,7 @@ def _evaluate_all_strategies(
         ("GFS", evaluate_gfs(result, multi_strategy_config.gfs)),
         ("Advanced GFS", evaluate_advanced_gfs(result, multi_strategy_config.advanced_gfs)),
         ("PRD", evaluate_prd(result, ohlcv, multi_strategy_config.prd)),
-        ("NRD", evaluate_nrd(result, multi_strategy_config.nrd)),
+        ("NRD", evaluate_nrd(result, ohlcv, multi_strategy_config.nrd)),
     ]
     if include_value_buy:
         evaluated.append(("Value Buy", evaluate_value_buy(result, ohlcv, multi_strategy_config.value_buy)))
@@ -173,6 +174,12 @@ def _evaluate_all_strategies(
             signal.extra["current_price"] = result.current_price
             signal.extra["data_source"] = "ANGEL_ONE"
             qualifying.append((PRD_FORMING_KEY, signal))
+        if name == "NRD" and not signal.qualifies and signal.extra.get("status") == "NRD_FORMING":
+            # Developing (not confirmed) Negative Reversal: reported under its
+            # OWN key so it is visible but never counted as a confirmed NRD.
+            signal.extra["current_price"] = result.current_price
+            signal.extra["data_source"] = "ANGEL_ONE"
+            qualifying.append((NRD_FORMING_KEY, signal))
         if signal.qualifies:
             signal.extra["current_price"] = result.current_price
             signal.extra["data_source"] = "ANGEL_ONE"
@@ -234,7 +241,9 @@ async def run_full_scan(
     cpu_pool = _get_shared_cpu_pool(DEFAULT_MAX_CONCURRENT_FETCHES)
     loop = asyncio.get_running_loop()
     all_results: list[StockAnalysisResult] = []
-    strategy_signals: dict[str, list[StrategySignal]] = {name: [] for name in [*ALL_SIGNAL_STRATEGY_NAMES, PRD_FORMING_KEY]}
+    strategy_signals: dict[str, list[StrategySignal]] = {
+        name: [] for name in [*ALL_SIGNAL_STRATEGY_NAMES, PRD_FORMING_KEY, NRD_FORMING_KEY]
+    }
 
     value_buy_set = set(nifty500_symbols)
 

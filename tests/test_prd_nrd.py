@@ -150,7 +150,7 @@ def test_prd_never_shows_confirmed_before_green_candle_closes():
 def test_nrd_confirmed_zero_bars_ago():
     sig = _negative_reversal_signal(25.0, 20.0, leg2_bar=LAST_BAR)
     result = make_result(daily_divergences=[sig], daily_last_bar_index=LAST_BAR)
-    signal = evaluate_nrd(result, NRDConfig())
+    signal = evaluate_nrd(result, confirmed_frame(), NRDConfig())
     assert signal.qualifies
     assert signal.extra["status"] == "NRD_CONFIRMED"
 
@@ -158,35 +158,35 @@ def test_nrd_confirmed_zero_bars_ago():
 def test_nrd_confirmed_seven_bars_ago():
     sig = _negative_reversal_signal(25.0, 20.0, leg2_bar=LAST_BAR - 7)
     result = make_result(daily_divergences=[sig], daily_last_bar_index=LAST_BAR)
-    signal = evaluate_nrd(result, NRDConfig())
+    signal = evaluate_nrd(result, confirmed_frame(), NRDConfig())
     assert signal.qualifies
 
 
 def test_nrd_rejects_eight_bars_ago():
     sig = _negative_reversal_signal(25.0, 20.0, leg2_bar=LAST_BAR - 8)
     result = make_result(daily_divergences=[sig], daily_last_bar_index=LAST_BAR)
-    signal = evaluate_nrd(result, NRDConfig())
+    signal = evaluate_nrd(result, confirmed_frame(), NRDConfig())
     assert not signal.qualifies
 
 
 def test_nrd_rejects_leg_rsi_exactly_at_threshold():
     sig = _negative_reversal_signal(40.0, 20.0, leg2_bar=LAST_BAR)  # leg1 == 40, strict < required
     result = make_result(daily_divergences=[sig], daily_last_bar_index=LAST_BAR)
-    signal = evaluate_nrd(result, NRDConfig())
+    signal = evaluate_nrd(result, confirmed_frame(), NRDConfig())
     assert not signal.qualifies
 
 
 def test_nrd_rejects_leg_rsi_above_threshold():
     sig = _negative_reversal_signal(42.0, 20.0, leg2_bar=LAST_BAR)  # leg1 > 40
     result = make_result(daily_divergences=[sig], daily_last_bar_index=LAST_BAR)
-    signal = evaluate_nrd(result, NRDConfig())
+    signal = evaluate_nrd(result, confirmed_frame(), NRDConfig())
     assert not signal.qualifies
 
 
 def test_nrd_rejects_regular_bearish_divergence_not_negative_reversal():
     sig = _regular_bearish_signal(leg2_bar=LAST_BAR)
     result = make_result(daily_divergences=[sig], daily_last_bar_index=LAST_BAR)
-    signal = evaluate_nrd(result, NRDConfig())
+    signal = evaluate_nrd(result, confirmed_frame(), NRDConfig())
     assert not signal.qualifies
 
 
@@ -197,7 +197,7 @@ def test_nrd_reports_only_the_single_most_recent_setup_when_multiple_fresh_pivot
     older = _negative_reversal_signal(25.0, 20.0, leg2_bar=LAST_BAR - 5)
     newer = _negative_reversal_signal(28.0, 22.0, leg2_bar=LAST_BAR - 1)
     result = make_result(daily_divergences=[older, newer], daily_last_bar_index=LAST_BAR)
-    signal = evaluate_nrd(result, NRDConfig())
+    signal = evaluate_nrd(result, confirmed_frame(), NRDConfig())
     assert signal.qualifies
     assert len(signal.extra["divergences"]) == 1
     assert signal.extra["divergences"][0]["bars_ago"] == 1
@@ -216,7 +216,7 @@ def test_daily_prd_and_weekly_nrd_appear_separately(monkeypatch):
     )
     install_rsi(monkeypatch)
     prd_signal = evaluate_prd(result, confirmed_frame(), PRDConfig())
-    nrd_signal = evaluate_nrd(result, NRDConfig())
+    nrd_signal = evaluate_nrd(result, confirmed_frame(), NRDConfig())
 
     assert prd_signal.qualifies
     assert nrd_signal.qualifies
@@ -229,7 +229,7 @@ def test_prd_never_satisfies_nrd(monkeypatch):
     result = make_result(daily_divergences=[sig], daily_last_bar_index=LAST_BAR)
     install_rsi(monkeypatch)
     prd_signal = evaluate_prd(result, confirmed_frame(), PRDConfig())
-    nrd_signal = evaluate_nrd(result, NRDConfig())
+    nrd_signal = evaluate_nrd(result, confirmed_frame(), NRDConfig())
     assert prd_signal.qualifies
     assert not nrd_signal.qualifies
 
@@ -238,6 +238,6 @@ def test_nrd_never_satisfies_prd():
     sig = _negative_reversal_signal(25.0, 20.0, leg2_bar=LAST_BAR)
     result = make_result(daily_divergences=[sig], daily_last_bar_index=LAST_BAR)
     prd_signal = evaluate_prd(result, CONFIRMED_OHLCV, PRDConfig())
-    nrd_signal = evaluate_nrd(result, NRDConfig())
+    nrd_signal = evaluate_nrd(result, confirmed_frame(), NRDConfig())
     assert not prd_signal.qualifies
     assert nrd_signal.qualifies

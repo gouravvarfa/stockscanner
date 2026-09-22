@@ -31,6 +31,6 @@ def evaluate_all_strategies(
         "GFS": evaluate_gfs(result, config.gfs),
         "Advanced GFS": evaluate_advanced_gfs(result, config.advanced_gfs),
         "PRD": evaluate_prd(result, daily_ohlcv, config.prd),
-        "NRD": evaluate_nrd(result, config.nrd),
+        "NRD": evaluate_nrd(result, daily_ohlcv, config.nrd),
         "Value Buy": evaluate_value_buy(result, daily_ohlcv, config.value_buy),
     }

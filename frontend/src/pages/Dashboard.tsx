@@ -10,10 +10,13 @@ import { SourceBadge } from "../components/SourceBadge";
 import { InstrumentBadge } from "../components/InstrumentBadge";
 import { FilterIcon } from "../components/icons";
 
-// PRD Forming is its own tab (placed right after PRD) but is deliberately NOT one
-// of the six strategies in STRATEGY_NAMES, so summary cards / totals stay exactly as before.
-type TabName = StrategyName | "PRD Forming";
-const TAB_NAMES: TabName[] = ["Strategy One", "GFS", "Advanced GFS", "PRD", "PRD Forming", "NRD", "Value Buy"];
+// PRD Forming / NRD Forming are their own tabs (placed right after PRD / NRD)
+// but are deliberately NOT among the six strategies in STRATEGY_NAMES, so
+// summary cards / totals stay exactly as before.
+type TabName = StrategyName | "PRD Forming" | "NRD Forming";
+const TAB_NAMES: TabName[] = [
+  "Strategy One", "GFS", "Advanced GFS", "PRD", "PRD Forming", "NRD", "NRD Forming", "Value Buy",
+];
 
 type SortKey = "symbol" | "daily_rsi" | "weekly_rsi" | "monthly_rsi" | "score" | "price";
 
@@ -26,18 +29,21 @@ function fmt(value: number | null | undefined, digits = 1): string {
 interface FormingSetup {
   timeframe: string;
   a_date: string;
-  a_low: number;
+  a_low?: number; // PRD Forming (price higher low)
+  a_high?: number; // NRD Forming (price lower high)
   a_rsi: number;
   b_date: string;
-  b_low: number;
+  b_low?: number;
+  b_high?: number;
   b_rsi: number;
   ab_distance: number;
 }
 
-// A PRD Forming signal is a PRD-strategy signal that has not qualified yet
-// (qualifies === false) but carries its developing A/B setups in extra.forming.
-function isPrdForming(signal: StrategySignal): boolean {
-  return signal.strategy === "PRD" && !signal.qualifies;
+// A PRD/NRD Forming signal is a PRD/NRD-strategy signal that has not
+// qualified yet (qualifies === false) but carries its developing A/B setups
+// in extra.forming.
+function isFormingSignal(signal: StrategySignal): boolean {
+  return (signal.strategy === "PRD" || signal.strategy === "NRD") && !signal.qualifies;
 }
 
 function formingOf(signal: StrategySignal): FormingSetup[] {
@@ -46,13 +52,13 @@ function formingOf(signal: StrategySignal): FormingSetup[] {
 }
 
 function timeframesOf(signal: StrategySignal): string[] {
-  if (isPrdForming(signal)) return Array.from(new Set(formingOf(signal).map((f) => String(f.timeframe).toUpperCase())));
+  if (isFormingSignal(signal)) return Array.from(new Set(formingOf(signal).map((f) => String(f.timeframe).toUpperCase())));
   const tf = signal.extra.divergence_timeframes;
   return Array.isArray(tf) ? (tf as string[]) : [];
 }
 
-interface PrdDetail {
-  status: "PRD_CONFIRMED" | "PRD_FORMING";
+interface DivergenceDetail {
+  status: "PRD_CONFIRMED" | "PRD_FORMING" | "NRD_CONFIRMED" | "NRD_FORMING";
   a_date: string | null;
   a_price: number | null;
   b_date: string | null;
@@ -60,13 +66,21 @@ interface PrdDetail {
   distance: number | null;
 }
 
-// Same A/B facts for both states, read from whichever structure the backend
-// attached (extra.forming for developing setups, extra.divergences for confirmed).
-function prdDetail(signal: StrategySignal): PrdDetail | null {
-  if (isPrdForming(signal)) {
+// Same A/B facts for both states and both strategies, read from whichever
+// structure the backend attached (extra.forming for developing setups,
+// extra.divergences for confirmed). PRD legs are price lows (a_low/b_low),
+// NRD legs are price highs (a_high/b_high) — both read here generically.
+function divergenceDetail(signal: StrategySignal): DivergenceDetail | null {
+  const isNrd = signal.strategy === "NRD";
+  if (isFormingSignal(signal)) {
     const f = formingOf(signal)[0];
     if (!f) return null;
-    return { status: "PRD_FORMING", a_date: f.a_date, a_price: f.a_low, b_date: f.b_date, b_price: f.b_low, distance: f.ab_distance };
+    return {
+      status: isNrd ? "NRD_FORMING" : "PRD_FORMING",
+      a_date: f.a_date, a_price: f.a_low ?? f.a_high ?? null,
+      b_date: f.b_date, b_price: f.b_low ?? f.b_high ?? null,
+      distance: f.ab_distance,
+    };
   }
   const d = (Array.isArray(signal.extra.divergences) ? signal.extra.divergences[0] : null) as Record<string, unknown> | null;
   if (!d) return null;
@@ -75,11 +89,11 @@ function prdDetail(signal: StrategySignal): PrdDetail | null {
   const a = num(d.swing1_bar);
   const b = num(d.swing2_bar);
   return {
-    status: "PRD_CONFIRMED",
+    status: isNrd ? "NRD_CONFIRMED" : "PRD_CONFIRMED",
     a_date: str(d.a_date ?? d.swing1_date),
-    a_price: num(d.a_low ?? d.swing1_price),
+    a_price: num(d.a_low ?? d.a_high ?? d.swing1_price),
     b_date: str(d.b_date ?? d.swing2_date),
-    b_price: num(d.b_low ?? d.swing2_price),
+    b_price: num(d.b_low ?? d.b_high ?? d.swing2_price),
     distance: a !== null && b !== null ? b - a : null,
   };
 }
@@ -100,7 +114,7 @@ interface DivergenceLeg {
 // leg-RSI + 7-bar freshness + (PRD only) candle-confirmation checks — so
 // the first entry is always the one that qualified this signal.
 function bestDivergenceLeg(signal: StrategySignal): DivergenceLeg | null {
-  if (isPrdForming(signal)) {
+  if (isFormingSignal(signal)) {
     const f = formingOf(signal)[0];
     return f ? { rsi1: f.a_rsi, rsi2: f.b_rsi, bars_ago: 0, fresh: false } : null;
   }
@@ -179,8 +193,12 @@ export function Dashboard() {
 
   useEffect(() => setPage(1), [activeStrategy, sourceFilter, timeframeFilter, symbolSearch]);
 
-  const isPrdTab = activeStrategy === "PRD" || activeStrategy === "PRD Forming";
-  const isDivergenceTab = isPrdTab || activeStrategy === "NRD";
+  // A/B + Status columns: PRD's confirmed/forming tabs, and NRD Forming (NRD's
+  // confirmed tab keeps its original simpler RSI-leg/bars-ago columns).
+  const isAbTab = activeStrategy === "PRD" || activeStrategy === "PRD Forming" || activeStrategy === "NRD Forming";
+  const abBadgeLabel = activeStrategy === "NRD Forming" ? "NRD" : "PRD";
+  const abPriceLabel = activeStrategy === "NRD Forming" ? "high" : "low";
+  const isDivergenceTab = isAbTab || activeStrategy === "NRD";
   const signalsForActive: StrategySignal[] = latest?.strategies?.[activeStrategy] ?? [];
 
   const richBySymbol = useMemo(() => {
@@ -253,7 +271,7 @@ export function Dashboard() {
     }
   }
 
-  const columnCount = isDivergenceTab ? (isPrdTab ? 13 : 10) : activeStrategy === "Strategy One" ? 8 : activeStrategy === "Value Buy" ? 7 : 7;
+  const columnCount = isDivergenceTab ? (isAbTab ? 13 : 10) : activeStrategy === "Strategy One" ? 8 : activeStrategy === "Value Buy" ? 7 : 7;
 
   return (
     <div className="page">
@@ -434,8 +452,8 @@ export function Dashboard() {
               >
                 {name === "PRD" || name === "NRD"
                   ? `${name} Signals`
-                  : name === "PRD Forming"
-                    ? "PRD Forming"
+                  : name === "PRD Forming" || name === "NRD Forming"
+                    ? name
                     : strategyDisplayName(name)}
                 <span className="tab-count">{latest.strategies?.[name]?.length ?? 0}</span>
               </button>
@@ -492,15 +510,15 @@ export function Dashboard() {
                     <th onClick={() => sortBy("symbol")}>Symbol</th>
                     {isDivergenceTab && <th>Divergence Type</th>}
                     {isDivergenceTab && <th>Timeframe</th>}
-                    {isPrdTab && <th>Status</th>}
-                    {isPrdTab && <th>A (date · low)</th>}
-                    {isPrdTab && <th>B / Current (date · price)</th>}
+                    {isAbTab && <th>Status</th>}
+                    {isAbTab && <th>A (date · {abPriceLabel})</th>}
+                    {isAbTab && <th>B / Current (date · price)</th>}
                     <th>Signal Date</th>
                     {isDivergenceTab ? (
                       <>
-                        <th>{isPrdTab ? "A RSI" : "RSI Leg 1"}</th>
-                        <th>{isPrdTab ? "B / Current RSI" : "RSI Leg 2"}</th>
-                        <th>{isPrdTab ? "Candle Distance" : "Bars Ago"}</th>
+                        <th>{isAbTab ? "A RSI" : "RSI Leg 1"}</th>
+                        <th>{isAbTab ? "B / Current RSI" : "RSI Leg 2"}</th>
+                        <th>{isAbTab ? "Candle Distance" : "Bars Ago"}</th>
                       </>
                     ) : (
                       <>
@@ -521,18 +539,19 @@ export function Dashboard() {
                     <SkeletonRows columns={columnCount} />
                   ) : (
                     pageRows.map((s, rowIndex) => {
-                      const detail = isPrdTab ? prdDetail(s) : null;
+                      const detail = isAbTab ? divergenceDetail(s) : null;
                       const tfs = timeframesOf(s);
                       const leg = bestDivergenceLeg(s);
                       const price = s.extra.current_price as number | undefined;
                       const source = s.extra.data_source as string | undefined;
+                      const isForming = Boolean(detail?.status.endsWith("_FORMING"));
                       return (
                         <tr key={`${s.strategy}-${s.qualifies ? "c" : "f"}-${s.symbol}-${rowIndex}`} onClick={() => setSelected(s)} className="clickable-row">
                           <td className="symbol-cell">{s.symbol}<InstrumentBadge type={s.instrument_type} /></td>
                           {isDivergenceTab && (
                             <td>
-                              <span className={`divergence-badge divergence-badge-${(isPrdTab ? "prd" : activeStrategy).toLowerCase()}`}>
-                                {isPrdTab ? "PRD" : activeStrategy}
+                              <span className={`divergence-badge divergence-badge-${(isAbTab ? abBadgeLabel : activeStrategy).toLowerCase()}`}>
+                                {isAbTab ? abBadgeLabel : activeStrategy}
                               </span>
                             </td>
                           )}
@@ -545,11 +564,11 @@ export function Dashboard() {
                               )}
                             </td>
                           )}
-                          {isPrdTab && (
+                          {isAbTab && (
                             <>
                               <td>
-                                <span className={detail?.status === "PRD_FORMING" ? "chip" : "chip chip-pass"}>
-                                  {detail?.status === "PRD_FORMING" ? "PRD FORMING" : "PRD CONFIRMED"}
+                                <span className={isForming ? "chip" : "chip chip-pass"}>
+                                  {isForming ? `${abBadgeLabel} FORMING` : `${abBadgeLabel} CONFIRMED`}
                                 </span>
                               </td>
                               <td>{detail ? `${fmtDay(detail.a_date)} · ${fmt(detail.a_price, 2)}` : "—"}</td>
@@ -562,7 +581,7 @@ export function Dashboard() {
                               <td className="num-cell">{fmt(leg?.rsi1 ?? null)}</td>
                               <td className="num-cell">{fmt(leg?.rsi2 ?? null)}</td>
                               <td>
-                                {isPrdTab && detail?.distance != null ? (
+                                {isAbTab && detail?.distance != null ? (
                                   <span className="muted small">{detail.distance} candles</span>
                                 ) : (
                                   <FreshnessBadge leg={leg} />

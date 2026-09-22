@@ -145,19 +145,20 @@ export function signalToRows(
   };
   const withId = (row: HistoryResultRow): HistoryResultRow => ({ ...row, id: resultRowKey(row) });
 
-  if (strategyName === "PRD Forming") {
+  if (strategyName === "PRD Forming" || strategyName === "NRD Forming") {
+    const status = strategyName === "NRD Forming" ? "NRD_FORMING" : "PRD_FORMING";
     const forming = Array.isArray(extra.forming) ? (extra.forming as Record<string, unknown>[]) : [];
     return forming.map((f) =>
       withId({
         ...base(),
         timeframe: str(f.timeframe)?.toUpperCase() ?? null,
-        status: "PRD_FORMING",
-        signal: "PRD_FORMING",
+        status,
+        signal: status,
         rsi: num(f.b_rsi),
         aDate: str(f.a_date),
         bDate: str(f.b_date),
-        aPrice: num(f.a_low),
-        bPrice: num(f.b_low),
+        aPrice: num(f.a_low ?? f.a_high),
+        bPrice: num(f.b_low ?? f.b_high),
         aRsi: num(f.a_rsi),
         bRsi: num(f.b_rsi),
         abDistance: typeof f.ab_distance === "number" ? f.ab_distance : null,
