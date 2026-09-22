@@ -66,6 +66,12 @@ router = APIRouter(prefix="/api/scan", tags=["scan-jobs"])
 
 class StartScanRequest(BaseModel):
     scan_type: ScanType
+    # Client-generated UUID (frontend: services/deviceId.ts), persisted in
+    # that browser's localStorage. Purely scopes which device SEES/controls
+    # this job afterwards — the scan itself still runs once, server-side,
+    # regardless of who started it. Optional so older/other clients that
+    # don't send it keep working exactly as before.
+    device_id: str | None = None
 
 
 def _estimate_total(scan_type: ScanType) -> int:
@@ -182,7 +188,7 @@ def _add_signal_rows(sync, job: ScanJob, payload) -> None:
     sync.add_rows(rows)
 
 
-async def _start_job(scan_type: ScanType) -> ScanJob:
+async def _start_job(scan_type: ScanType, device_id: str | None = None) -> ScanJob:
     if scan_type == "a_group":
         runner = _run_a_group_job
     elif scan_type == "expiry_level_1":
@@ -211,7 +217,7 @@ async def _start_job(scan_type: ScanType) -> ScanJob:
                 asyncio.get_running_loop().create_task(sync.finish())
 
     try:
-        job = job_manager.start_job(scan_type, runner)
+        job = job_manager.start_job(scan_type, runner, device_id=device_id)
     except ScanAlreadyRunningError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     job.total = _estimate_total(scan_type)
@@ -226,7 +232,7 @@ async def start_scan(request: StartScanRequest) -> dict:
     if cached is not None:
         return {"status": "cached", "cache": cached}
 
-    job = await _start_job(request.scan_type)
+    job = await _start_job(request.scan_type, request.device_id)
     return {"status": "started", "job": job.to_dict()}
 
 
@@ -236,18 +242,21 @@ async def fresh_scan(request: StartScanRequest) -> dict:
     new job; that scan type's cache is replaced only once the job actually
     succeeds (see the runner functions above) — a failed/cancelled fresh
     scan never destroys a still-valid previous cache."""
-    job = await _start_job(request.scan_type)
+    job = await _start_job(request.scan_type, request.device_id)
     return {"status": "started", "job": job.to_dict()}
 
 
 @router.get("/jobs")
-async def list_jobs() -> list[dict]:
-    return [j.to_dict() for j in job_manager.list_jobs()]
+async def list_jobs(device_id: str | None = None) -> list[dict]:
+    """With `device_id`, only that browser's own jobs are returned — this is
+    what makes the Active Scans panel/dashboard device-specific instead of
+    every device seeing every job the server knows about."""
+    return [j.to_dict() for j in job_manager.list_jobs(device_id=device_id)]
 
 
 @router.get("/jobs/{job_id}")
-async def get_job(job_id: str) -> dict:
-    job = job_manager.get(job_id)
+async def get_job(job_id: str, device_id: str | None = None) -> dict:
+    job = job_manager.get(job_id, device_id=device_id)
     if job is None:
         raise HTTPException(status_code=404, detail=f"No such job '{job_id}'.")
     return job.to_dict()
@@ -275,8 +284,11 @@ async def get_job_results(job_id: str) -> dict:
 
 
 @router.post("/jobs/{job_id}/cancel")
-async def cancel_job(job_id: str) -> dict:
-    if not job_manager.cancel(job_id):
+async def cancel_job(job_id: str, device_id: str | None = None) -> dict:
+    """A device can only cancel a job it owns — cancelling with a mismatched
+    (or missing, for a device-owned job) device_id fails exactly like the
+    job not existing, same as GET /jobs/{job_id}."""
+    if not job_manager.cancel(job_id, device_id=device_id):
         raise HTTPException(status_code=404, detail=f"No running job '{job_id}' to cancel.")
     return {"status": "cancelling"}
 

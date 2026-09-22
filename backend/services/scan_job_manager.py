@@ -67,6 +67,14 @@ class FailedSymbol:
 class ScanJob:
     job_id: str
     scan_type: ScanType
+    # Which browser/device started this job (a client-generated UUID the
+    # frontend keeps in localStorage — see frontend/src/services/deviceId.ts).
+    # Purely a VISIBILITY/ownership scope: the scan itself still runs once,
+    # server-side, on Render, regardless of device_id. None means an older
+    # client that didn't send one (or a legacy job from before this field
+    # existed) — such jobs are never returned by device-scoped listing/
+    # lookup, so they can't leak across devices either.
+    device_id: str | None = None
     status: JobStatus = "running"
     start_time: dt.datetime = field(default_factory=lambda: dt.datetime.now(dt.timezone.utc))
     completion_time: dt.datetime | None = None
@@ -146,6 +154,7 @@ class ScanJob:
         return {
             "signals_found": self.signals_found,
             "job_id": self.job_id,
+            "device_id": self.device_id,
             "scan_type": self.scan_type,
             "status": self.status,
             "start_time": self.start_time.isoformat(),
@@ -200,6 +209,7 @@ class JobManager:
         runner: Callable[[ScanJob], Awaitable[Any]],
         *,
         allow_concurrent_same_type: bool = False,
+        device_id: str | None = None,
     ) -> ScanJob:
         """
         `runner` is an async function that performs the actual scan and
@@ -209,7 +219,14 @@ class JobManager:
         unless allow_concurrent_same_type=True (Fresh Scan while one is
         already running still isn't allowed — Part 9 doesn't ask for that,
         and it would double the Angel One load for no benefit); different
-        scan TYPES are always independent (Part 2).
+        scan TYPES are always independent (Part 2). This concurrency limit
+        is deliberately GLOBAL, not per-device — Angel One allows only one
+        session per account, so two devices scanning the same type at once
+        would fight over it regardless of which device's UI shows what.
+
+        `device_id` only tags who may SEE/cancel this job afterwards (see
+        list_jobs/get/cancel below) — it never changes where or how the
+        scan itself runs.
         """
         if not allow_concurrent_same_type:
             existing_id = self._running_by_type.get(scan_type)
@@ -218,7 +235,7 @@ class JobManager:
                     f"A {scan_type} scan is already running (job {existing_id})."
                 )
 
-        job = ScanJob(job_id=f"scan_{uuid.uuid4().hex[:10]}", scan_type=scan_type)
+        job = ScanJob(job_id=f"scan_{uuid.uuid4().hex[:10]}", scan_type=scan_type, device_id=device_id)
         self._jobs[job.job_id] = job
         self._running_by_type[scan_type] = job.job_id
 
@@ -240,14 +257,30 @@ class JobManager:
         job._task = asyncio.create_task(_execute())
         return job
 
-    def get(self, job_id: str) -> ScanJob | None:
-        return self._jobs.get(job_id)
-
-    def list_jobs(self) -> list[ScanJob]:
-        return sorted(self._jobs.values(), key=lambda j: j.start_time, reverse=True)
-
-    def cancel(self, job_id: str) -> bool:
+    def get(self, job_id: str, *, device_id: str | None = None) -> ScanJob | None:
+        """With `device_id`, only returns the job if it belongs to that
+        device — a mismatch (or a legacy job with no device_id at all) is
+        treated exactly like "doesn't exist", so one device can never probe
+        for another device's live job by guessing/reusing a job id."""
         job = self._jobs.get(job_id)
+        if job is None:
+            return None
+        if device_id is not None and job.device_id != device_id:
+            return None
+        return job
+
+    def list_jobs(self, *, device_id: str | None = None) -> list[ScanJob]:
+        """With `device_id`, only that device's own jobs are returned —
+        legacy jobs started before this field existed (device_id is None)
+        are excluded from a device-scoped listing rather than shown to
+        everyone, per explicit backward-compatibility requirement."""
+        jobs = self._jobs.values()
+        if device_id is not None:
+            jobs = [j for j in jobs if j.device_id == device_id]
+        return sorted(jobs, key=lambda j: j.start_time, reverse=True)
+
+    def cancel(self, job_id: str, *, device_id: str | None = None) -> bool:
+        job = self.get(job_id, device_id=device_id)
         if job is None or job.status != "running" or job._task is None:
             return False
         job._task.cancel()

@@ -1491,3 +1491,5 @@ td .symbol-cell { font-weight: 700; color: var(--text-primary); }
 
 .local-history-stats { display: flex; gap: 20px; flex-wrap: wrap; font-size: 0.85rem; margin: 8px 0 14px; }
 .local-history-stats b { display: block; font-size: 1.1rem; }
+
+.sidebar-brand-logo { object-fit: cover; border-radius: var(--radius-sm); background: var(--accent-soft); }

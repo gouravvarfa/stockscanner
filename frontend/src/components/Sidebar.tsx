@@ -34,9 +34,7 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
       {open && <div className="sidebar-backdrop" onClick={onClose} aria-hidden="true" />}
       <aside className={open ? "app-sidebar open" : "app-sidebar"}>
         <div className="sidebar-brand">
-          <span className="sidebar-brand-icon">
-            <TrendIcon width={17} height={17} />
-          </span>
+          <img src="/apple-touch-icon.png" alt="" className="sidebar-brand-icon sidebar-brand-logo" width={30} height={30} />
           A Group Scanner
         </div>
         <nav className="sidebar-nav">

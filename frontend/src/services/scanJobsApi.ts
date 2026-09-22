@@ -1,3 +1,5 @@
+import { getDeviceId } from "./deviceId";
+
 const API_BASE = import.meta.env.VITE_API_BASE ?? "http://127.0.0.1:8000";
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
@@ -42,6 +44,7 @@ export interface FailedSymbolOut {
 
 export interface ScanJobOut {
   job_id: string;
+  device_id: string | null;
   scan_type: ScanType;
   status: JobStatus;
   start_time: string;
@@ -86,27 +89,33 @@ export type StartScanResponse<T = unknown> =
   | { status: "started"; job: ScanJobOut };
 
 export const scanJobsApi = {
+  // device_id scopes which browser SEES/controls a job afterwards — see
+  // services/deviceId.ts. The scan itself still runs once, server-side,
+  // regardless of which device started it.
   start: <T = unknown>(scanType: ScanType) =>
     request<StartScanResponse<T>>("/api/scan/start", {
       method: "POST",
-      body: JSON.stringify({ scan_type: scanType }),
+      body: JSON.stringify({ scan_type: scanType, device_id: getDeviceId() }),
     }),
 
   fresh: <T = unknown>(scanType: ScanType) =>
     request<StartScanResponse<T>>("/api/scan/fresh", {
       method: "POST",
-      body: JSON.stringify({ scan_type: scanType }),
+      body: JSON.stringify({ scan_type: scanType, device_id: getDeviceId() }),
     }),
 
-  listJobs: () => request<ScanJobOut[]>("/api/scan/jobs"),
+  listJobs: () => request<ScanJobOut[]>(`/api/scan/jobs?device_id=${encodeURIComponent(getDeviceId())}`),
 
-  getJob: (jobId: string) => request<ScanJobOut>(`/api/scan/jobs/${jobId}`),
+  getJob: (jobId: string) => request<ScanJobOut>(`/api/scan/jobs/${jobId}?device_id=${encodeURIComponent(getDeviceId())}`),
 
   getJobResults: <T = unknown>(jobId: string) => request<T>(`/api/scan/jobs/${jobId}/results`),
 
   getPartial: (jobId: string, after: number) => request<PartialOut>(`/api/scan/jobs/${jobId}/partial?after=${after}`),
 
-  cancelJob: (jobId: string) => request<{ status: string }>(`/api/scan/jobs/${jobId}/cancel`, { method: "POST" }),
+  cancelJob: (jobId: string) =>
+    request<{ status: string }>(`/api/scan/jobs/${jobId}/cancel?device_id=${encodeURIComponent(getDeviceId())}`, {
+      method: "POST",
+    }),
 
   getCache: <T = unknown>(scanType: ScanType) => request<CacheEnvelope<T>>(`/api/scan/cache/${scanType}`),
 
