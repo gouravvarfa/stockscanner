@@ -66,6 +66,26 @@ def test_each_condition_is_mandatory(monkeypatch, a_rsi, b_rsi, b_close, failing
     assert not ref["passed"] and ref["checks"][failing] is False
 
 
+def test_rsi_dip_below_min_between_legs_fails_even_with_valid_endpoints(monkeypatch):
+    """2026-09-22 UNOMINDA diagnostic: A RSI 70 and B RSI 65 both pass on
+    their own, but RSI dips to 50 between them — the path must stay above
+    leg_rsi_min for every candle, not just the two endpoints."""
+    a_from_end = 6
+
+    def _rsi(close, period=14):
+        n = len(close)
+        a_idx = n - 1 - a_from_end
+        vals = pd.Series(80.0, index=close.index)  # neighbors of A stay high so A is still a valid RSI pivot low
+        vals.iloc[a_idx] = 70.0
+        vals.iloc[a_idx + 2 : n - 1] = 50.0  # dip after A's immediate neighbor, so A stays a valid RSI pivot low
+        vals.iloc[-1] = 65.0
+        return vals
+
+    monkeypatch.setattr(prd_mod, "rsi", _rsi)
+    ref = _confirmed_reference(confirmed_frame(), PRDConfig())
+    assert not ref["passed"] and ref["checks"]["rsi_stays_above_min_between_legs"] is False
+
+
 def test_no_breakout_candle_freshness_distance_or_amplitude_required(monkeypatch):
     install_rsi(monkeypatch, a_from_end=20)  # A 20 candles back: >15 distance, >7 fresh
     frame = confirmed_frame(n=40, a_from_end=20)  # last two candles are NOT red->green

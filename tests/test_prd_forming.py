@@ -87,6 +87,24 @@ def test_price_lower_low_is_not_forming(fake_rsi):
     assert prd_mod._developing_structures(_frame(5, b_low=45.0), PRDConfig()) == []
 
 
+def test_rsi_dip_below_min_between_legs_is_not_forming(monkeypatch):
+    """2026-09-22 UNOMINDA diagnostic: A RSI 68.6, B RSI 61.6 (both endpoints
+    above leg_rsi_min=60), but RSI dips to 50.29 mid-way between them. Both
+    endpoints alone used to pass; the path must now also stay above 60."""
+    ohlc = _frame(6)
+
+    def _rsi(close, period=14):
+        vals = pd.Series(65.0, index=close.index)
+        vals[close == 91.0] = 75.0  # A
+        vals.iloc[-1] = 65.0  # B, still > 60
+        mid = len(vals) - 4
+        vals.iloc[mid] = 50.29  # dips below leg_rsi_min between A and B
+        return vals
+
+    monkeypatch.setattr(prd_mod, "rsi", _rsi)
+    assert prd_mod._developing_structures(ohlc, PRDConfig()) == []
+
+
 def test_nilkamal_weekly_is_prd_forming():
     data = json.loads((pathlib.Path(__file__).parent / "data" / "nilkamal_1d.json").read_text())
     df = pd.DataFrame(data)

@@ -75,6 +75,9 @@ def _developing_structures(ohlc: pd.DataFrame, config: PRDConfig, r: pd.Series |
             continue  # need price higher low AND RSI lower low
         if not (float(a_rsi) > config.leg_rsi_min and float(b_rsi) > config.leg_rsi_min):
             continue
+        path = r.iloc[a.index : b_idx + 1]
+        if not bool((path > config.leg_rsi_min).all()):
+            continue  # RSI must stay above leg_rsi_min for every candle between A and B, not just the endpoints
         out.append({
             "a_date": str(a.date), "a_low": a.price, "a_rsi": float(a_rsi), "a_bar": a.index,
             "b_date": str(ohlc.index[b_idx]), "b_low": b_low, "b_rsi": float(b_rsi), "b_bar": b_idx,
@@ -123,11 +126,13 @@ def _confirmed_reference(ohlc: pd.DataFrame, config: PRDConfig, r: pd.Series | N
     b_rsi = float(b_rsi)
     a_low = float(ohlc["low"].iloc[p_idx])
     b_close = float(ohlc["close"].iloc[b_idx])
+    path = r.iloc[a_idx : b_idx + 1]
     checks = {
         "a_rsi_above_min": a_rsi > config.leg_rsi_min,
         "b_rsi_above_min": b_rsi > config.leg_rsi_min,
         "rsi_lower_low": b_rsi < a_rsi,
         "price_above_reference_low": b_close > a_low,
+        "rsi_stays_above_min_between_legs": bool((path > config.leg_rsi_min).all()),
     }
     return {
         "passed": all(checks.values()),
