@@ -92,6 +92,7 @@ export function useScanJob<T = unknown>(scanType: ScanType): UseScanJobResult<T>
 
   const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const activeJobId = useRef<string | null>(null);
+  const pollGeneration = useRef(0); // bumped every pollJob() call, even for the same job id — see pollJob below
   const consecutiveFailures = useRef(0);
   const firstFailureAt = useRef<number | null>(null);
 
@@ -104,6 +105,14 @@ export function useScanJob<T = unknown>(scanType: ScanType): UseScanJobResult<T>
 
   const pollJob = useCallback(
     (jobId: string) => {
+      // A fresh generation for EVERY call, even a repeat call for the SAME
+      // job id (e.g. the mount-time restore already polling this job, and
+      // then a 409-adopt from a manual Run Scan click for that same job) —
+      // comparing only activeJobId.current would let two concurrent tick
+      // loops for the same job both run forever, each independently
+      // appending to `partial`/`progressLog` and duplicating every chip.
+      stopPolling();
+      const myGeneration = ++pollGeneration.current;
       activeJobId.current = jobId;
       partialCursor.current = 0;
       progressCursor.current = 0;
@@ -112,10 +121,10 @@ export function useScanJob<T = unknown>(scanType: ScanType): UseScanJobResult<T>
       setPartial([]);
       setProgressLog([]);
       const tick = async () => {
-        if (activeJobId.current !== jobId) return; // superseded by a newer job
+        if (activeJobId.current !== jobId || pollGeneration.current !== myGeneration) return; // superseded
         try {
           const latest = await scanJobsApi.getJob(jobId);
-          if (activeJobId.current !== jobId) return;
+          if (activeJobId.current !== jobId || pollGeneration.current !== myGeneration) return;
           // Recovered from any prior outage — clear it and keep going normally.
           consecutiveFailures.current = 0;
           firstFailureAt.current = null;
@@ -126,7 +135,7 @@ export function useScanJob<T = unknown>(scanType: ScanType): UseScanJobResult<T>
           if (latest.signals_found > 0 || partialCursor.current > 0) {
             try {
               const inc = await scanJobsApi.getPartial(jobId, partialCursor.current);
-              if (activeJobId.current === jobId && inc.items.length > 0) {
+              if (activeJobId.current === jobId && pollGeneration.current === myGeneration && inc.items.length > 0) {
                 partialCursor.current = inc.next;
                 setPartial((prev) => prev.concat(inc.items));
               }
@@ -140,7 +149,7 @@ export function useScanJob<T = unknown>(scanType: ScanType): UseScanJobResult<T>
           if (latest.processed > 0 || progressCursor.current > 0) {
             try {
               const prog = await scanJobsApi.getProgressLog(jobId, progressCursor.current);
-              if (activeJobId.current === jobId && prog.items.length > 0) {
+              if (activeJobId.current === jobId && pollGeneration.current === myGeneration && prog.items.length > 0) {
                 progressCursor.current = prog.next;
                 setProgressLog((prev) => prev.concat(prog.items));
               }
@@ -157,7 +166,7 @@ export function useScanJob<T = unknown>(scanType: ScanType): UseScanJobResult<T>
           if (latest.status === "completed") {
             try {
               const r = await scanJobsApi.getJobResults<T>(jobId);
-              if (activeJobId.current === jobId) {
+              if (activeJobId.current === jobId && pollGeneration.current === myGeneration) {
                 setResult(r);
                 setCache(null); // freshly computed, not from the pre-existing cache envelope
               }
@@ -170,7 +179,7 @@ export function useScanJob<T = unknown>(scanType: ScanType): UseScanJobResult<T>
             setError(latest.error ?? "Scan failed.");
           }
         } catch (e) {
-          if (activeJobId.current !== jobId) return;
+          if (activeJobId.current !== jobId || pollGeneration.current !== myGeneration) return;
 
           // A definitive "the job is gone" answer (backend is back up and
           // says so) — a restart wiped the in-memory registry. This is NOT

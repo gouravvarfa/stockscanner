@@ -200,4 +200,43 @@ describe("useScanJob — restart/outage handling", () => {
     });
     expect(api.getJob.mock.calls.length).toBe(callsAfterFirst); // no new call yet — still backing off
   });
+
+  it("polling the same already-running job twice never duplicates partial/progress chips", async () => {
+    // Simulates the exact real bug: the mount-time restore already started
+    // polling job scan_test1, and something else (e.g. a 409-adopt from a
+    // manual Run Scan click) calls run() again for the SAME job.
+    const view = await startScan();
+    // Cursor-aware, like the real backend's partial_after(after): the one
+    // item is only returned once, to whichever caller asks with after=0.
+    api.getPartial.mockImplementation((_jobId: string, after: number) =>
+      Promise.resolve(
+        after === 0
+          ? { items: [{ seq: 1, symbol: "AJANTPHARM", instrument_type: "EQUITY", strategies: ["PRD Forming"], signals: [] }], next: 1, status: "running" }
+          : { items: [], next: after, status: "running" },
+      ),
+    );
+    api.getJob.mockResolvedValue(job({ signals_found: 1 }));
+
+    // First tick appends the one item.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1500);
+    });
+    expect(view.result.current.partial).toHaveLength(1);
+
+    // Now start() gets a 409 with the SAME job_id and re-adopts it — this
+    // used to spin up a SECOND concurrent poll loop for the same job.
+    api.start.mockRejectedValueOnce(new ScanApiError("already running", 409, "scan_test1"));
+    await act(async () => {
+      await view.result.current.run();
+    });
+    await flush();
+
+    // Only the latest poll loop should still be feeding `partial` — advance
+    // enough ticks that a duplicate loop (if one existed) would have
+    // appended the same item again.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1500 * 3);
+    });
+    expect(view.result.current.partial.filter((p) => p.symbol === "AJANTPHARM")).toHaveLength(1);
+  });
 });
