@@ -83,20 +83,25 @@ export function Header({
           <span className="time">{timeLabel} (IST)</span>
         </div>
         <button
-          className={logsOpen ? "icon-button active" : "icon-button"}
+          className={logsOpen ? "icon-button active header-desktop-only" : "icon-button header-desktop-only"}
           onClick={onToggleLogs}
           title="Live logs"
           aria-label="Toggle live logs panel"
         >
           <ListIcon width={16} height={16} />
         </button>
-        <button className="icon-button" onClick={toggle} title="Toggle theme" aria-label="Toggle theme">
+        <button
+          className="icon-button header-desktop-only"
+          onClick={toggle}
+          title="Toggle theme"
+          aria-label="Toggle theme"
+        >
           {theme === "light" ? <MoonIcon width={16} height={16} /> : <SunIcon width={16} height={16} />}
         </button>
-        <button className="icon-button" title="Notifications" aria-label="Notifications">
+        <button className="icon-button header-desktop-only" title="Notifications" aria-label="Notifications">
           <BellIcon width={16} height={16} />
         </button>
-        <button className="icon-button" title="Account" aria-label="Account">
+        <button className="icon-button header-desktop-only" title="Account" aria-label="Account">
           <UserIcon width={16} height={16} />
         </button>
       </div>

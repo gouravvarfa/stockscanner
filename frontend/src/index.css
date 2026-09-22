@@ -1391,10 +1391,22 @@ td .symbol-cell { font-weight: 700; color: var(--text-primary); }
 
   .app-content { padding: 12px 14px 84px; } /* bottom padding clears the fixed bottom nav */
 
-  .app-header { padding: 0 12px; gap: 8px; }
-  .header-left { flex-direction: row; align-items: center; gap: 10px; }
-  .header-right { gap: 6px; }
-  .market-status { flex-direction: column; align-items: flex-end; gap: 0; font-size: 0.72rem; }
+  .app-header { padding: 0 10px; gap: 6px; }
+  .header-left { flex-direction: row; align-items: center; gap: 8px; min-width: 0; flex-shrink: 1; }
+  .header-brand-mobile { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 0.9rem; }
+  .header-right { gap: 6px; flex-shrink: 0; }
+  /* Only the hamburger + theme toggle stay on mobile — logs/notifications/account live in the sidebar/Settings instead of crowding a narrow header */
+  .header-desktop-only { display: none; }
+  .app-header { flex-wrap: nowrap; overflow: hidden; }
+  .market-status {
+    flex-direction: row;
+    align-items: baseline;
+    gap: 5px;
+    font-size: 0.66rem;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .market-status .time { font-size: 0.62rem; }
   .scanning-indicator { display: none; } /* the Dashboard's own scan button already shows this state */
 
   /* Page header: big title + subtitle, buttons stack full-width below it, touch-friendly */
