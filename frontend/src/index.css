@@ -1262,10 +1262,15 @@ td .symbol-cell { font-weight: 700; color: var(--text-primary); }
   padding: 10px 14px;
   font-weight: 600;
   font-size: 0.85rem;
-  cursor: pointer;
+  cursor: grab;
   color: var(--text-primary);
   border-bottom: 1px solid var(--border);
+  touch-action: none;
+  user-select: none;
 }
+.active-scans-panel.dragging { transition: none; box-shadow: var(--shadow-md, 0 12px 32px rgba(0, 0, 0, 0.22)); }
+.active-scans-panel.dragging .active-scans-header { cursor: grabbing; }
+.active-scans-drag-handle { opacity: 0.5; margin-right: 2px; }
 .active-scans-badge {
   display: inline-block;
   margin-left: 6px;

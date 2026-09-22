@@ -1,8 +1,33 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import { scanJobsApi, fmtDuration, scanTypeLabel, type ScanJobOut } from "../services/scanJobsApi";
 
 const POLL_MS = 2000;
 const POLL_BACKOFF_MAX_MS = 8000;
+const POSITION_STORAGE_KEY = "activeScansPanelPosition";
+const DRAG_MOVE_THRESHOLD_PX = 5; // below this, a pointerdown->pointerup is treated as a click (collapse toggle), not a drag
+
+interface PanelPosition {
+  top: number;
+  left: number;
+}
+
+function loadSavedPosition(): PanelPosition | null {
+  try {
+    const raw = localStorage.getItem(POSITION_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (typeof parsed?.top === "number" && typeof parsed?.left === "number") return parsed;
+  } catch {
+    // ignore — falls back to the default bottom-right corner
+  }
+  return null;
+}
+
+function clampToViewport(pos: PanelPosition, width: number, height: number): PanelPosition {
+  const maxLeft = Math.max(0, window.innerWidth - width);
+  const maxTop = Math.max(0, window.innerHeight - height);
+  return { left: Math.min(Math.max(0, pos.left), maxLeft), top: Math.min(Math.max(0, pos.top), maxTop) };
+}
 
 /**
  * Mounted once at the App shell level (survives every route change) — polls
@@ -17,6 +42,67 @@ export function ActiveScansPanel() {
   const [dismissedCompleted, setDismissedCompleted] = useState<Set<string>>(new Set());
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const consecutiveFailures = useRef(0);
+
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  const [position, setPosition] = useState<PanelPosition | null>(loadSavedPosition);
+  const dragState = useRef<{ pointerId: number; startX: number; startY: number; origTop: number; origLeft: number; moved: boolean } | null>(null);
+  const [dragging, setDragging] = useState(false);
+
+  function handleHeaderPointerDown(e: ReactPointerEvent) {
+    if (e.button !== undefined && e.button !== 0) return; // left click / primary touch only
+    const el = panelRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    dragState.current = { pointerId: e.pointerId, startX: e.clientX, startY: e.clientY, origTop: rect.top, origLeft: rect.left, moved: false };
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+  }
+
+  function handleHeaderPointerMove(e: ReactPointerEvent) {
+    const drag = dragState.current;
+    if (!drag || drag.pointerId !== e.pointerId) return;
+    const dx = e.clientX - drag.startX;
+    const dy = e.clientY - drag.startY;
+    if (!drag.moved && Math.hypot(dx, dy) < DRAG_MOVE_THRESHOLD_PX) return;
+    drag.moved = true;
+    setDragging(true);
+    const el = panelRef.current;
+    const width = el?.offsetWidth ?? 300;
+    const height = el?.offsetHeight ?? 100;
+    setPosition(clampToViewport({ top: drag.origTop + dy, left: drag.origLeft + dx }, width, height));
+  }
+
+  function handleHeaderPointerUp(e: ReactPointerEvent) {
+    const drag = dragState.current;
+    if (!drag || drag.pointerId !== e.pointerId) return;
+    const wasDrag = drag.moved;
+    dragState.current = null;
+    setDragging(false);
+    if (wasDrag) {
+      setPosition((p) => {
+        if (p) {
+          try {
+            localStorage.setItem(POSITION_STORAGE_KEY, JSON.stringify(p));
+          } catch {
+            // ignore — dragging still works for this session even if persistence fails
+          }
+        }
+        return p;
+      });
+    } else {
+      setCollapsed((v) => !v); // a real click (no drag movement) toggles collapse
+    }
+  }
+
+  // Keep a dragged-to position inside the viewport if the window is resized.
+  useEffect(() => {
+    function onResize() {
+      const el = panelRef.current;
+      if (!el) return;
+      setPosition((p) => (p ? clampToViewport(p, el.offsetWidth, el.offsetHeight) : p));
+    }
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
   useEffect(() => {
     let stopped = false;
@@ -52,11 +138,23 @@ export function ActiveScansPanel() {
 
   if (visible.length === 0) return null;
 
+  const style: CSSProperties = position
+    ? { top: position.top, left: position.left, right: "auto", bottom: "auto" }
+    : {};
+
   return (
-    <div className="active-scans-panel">
-      <div className="active-scans-header" onClick={() => setCollapsed((v) => !v)}>
+    <div ref={panelRef} className={dragging ? "active-scans-panel dragging" : "active-scans-panel"} style={style}>
+      <div
+        className="active-scans-header"
+        onPointerDown={handleHeaderPointerDown}
+        onPointerMove={handleHeaderPointerMove}
+        onPointerUp={handleHeaderPointerUp}
+        onPointerCancel={handleHeaderPointerUp}
+        title="Drag to move"
+      >
         <span>
-          Active Scans {running.length > 0 && <span className="active-scans-badge">{running.length}</span>}
+          <span className="active-scans-drag-handle">⠿</span> Active Scans{" "}
+          {running.length > 0 && <span className="active-scans-badge">{running.length}</span>}
         </span>
         <span className="active-scans-toggle">{collapsed ? "▲" : "▼"}</span>
       </div>
