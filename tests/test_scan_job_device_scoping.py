@@ -250,3 +250,4 @@ def test_409_body_includes_the_existing_jobs_id_for_direct_adoption(client, monk
     detail = resp2.json()["detail"]
     assert isinstance(detail, dict) and detail["job_id"] == job_id
     client.post(f"/api/scan/jobs/{job_id}/cancel", params={"device_id": DEVICE_A})  # cleanup
+

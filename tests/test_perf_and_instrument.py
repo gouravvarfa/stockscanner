@@ -99,7 +99,7 @@ async def test_fetch_concurrency_is_capped(monkeypatch):
             return await super().get_intraday_ohlc(exch_seg, symbol_token, interval, days_back)
 
     await run_full_scan(Track(), DEFAULT_STRATEGY_CONFIG, stock_history_days=70)
-    assert 1 < live["max"] <= scan_service.DEFAULT_MAX_CONCURRENT_FETCHES
+    assert 1 < live["max"] <= scan_service.DEFAULT_MAX_CONCURRENT_PER_JOB_FETCHES
 
 
 def _fake_signal(strategy, symbol):
@@ -146,25 +146,64 @@ def test_vectorized_swing_and_rsi_match_reference():
     assert rsi(c).iloc[-1] == pytest.approx(rsi(c).iloc[-1])
 
 
-async def test_concurrent_scan_calls_share_one_global_fetch_and_cpu_pool(monkeypatch):
-    """Two 'devices' running run_full_scan at the same time must share the
-    SAME fetch-concurrency limit and CPU pool (memory safety for many
-    concurrent devices), not get one each."""
+async def test_two_concurrent_scans_each_get_their_own_fetch_concurrency(monkeypatch):
+    """2026-09-22: a single SHARED fetch semaphore across jobs was live-
+    tested with two real concurrent devices and starved the second job at
+    0% for minutes — asyncio.Semaphore is a plain FIFO queue, so job 1's
+    ~615 already-queued waiters kept winning over job 2's later ones. Each
+    job now gets its OWN semaphore, so BOTH make real, overlapping progress
+    — this asserts that directly, not just a combined cap."""
     _set_universe(monkeypatch, [f"S{i}" for i in range(8)])
-    live = {"now": 0, "max": 0}
+    live_a = {"now": 0, "max": 0}
+    live_b = {"now": 0, "max": 0}
 
-    class Track(FakeAngelOneProvider):
-        async def get_intraday_ohlc(self, exch_seg, symbol_token, interval, days_back):
-            live["now"] += 1
-            live["max"] = max(live["max"], live["now"])
-            await asyncio.sleep(0.03)
-            live["now"] -= 1
-            return await super().get_intraday_ohlc(exch_seg, symbol_token, interval, days_back)
+    def make_tracker(counters):
+        class Track(FakeAngelOneProvider):
+            async def get_intraday_ohlc(self, exch_seg, symbol_token, interval, days_back):
+                counters["now"] += 1
+                counters["max"] = max(counters["max"], counters["now"])
+                await asyncio.sleep(0.05)
+                counters["now"] -= 1
+                return await super().get_intraday_ohlc(exch_seg, symbol_token, interval, days_back)
+
+        return Track()
 
     await asyncio.gather(
-        run_full_scan(Track(), DEFAULT_STRATEGY_CONFIG, stock_history_days=70),
-        run_full_scan(Track(), DEFAULT_STRATEGY_CONFIG, stock_history_days=70),
+        run_full_scan(make_tracker(live_a), DEFAULT_STRATEGY_CONFIG, stock_history_days=70),
+        run_full_scan(make_tracker(live_b), DEFAULT_STRATEGY_CONFIG, stock_history_days=70),
     )
-    # Two concurrent "devices" running a full scan still never exceed the
-    # ONE shared fetch-concurrency budget (4), not 2x it.
-    assert 1 < live["max"] <= scan_service.DEFAULT_MAX_CONCURRENT_FETCHES
+    # Neither job was starved — both independently reached real concurrency,
+    # each within (not sharing) its own per-job cap.
+    assert 1 < live_a["max"] <= scan_service.DEFAULT_MAX_CONCURRENT_PER_JOB_FETCHES
+    assert 1 < live_b["max"] <= scan_service.DEFAULT_MAX_CONCURRENT_PER_JOB_FETCHES
+
+
+async def test_second_scan_is_not_starved_by_a_first_scan_with_many_more_stocks(monkeypatch):
+    """The exact live bug: job 1 has hundreds of stocks already queued on a
+    shared semaphore; job 2 starts later with its own (smaller) universe and
+    must still make progress immediately, not wait behind job 1's backlog."""
+    processed_b: list[str] = []
+
+    class SlowProvider(FakeAngelOneProvider):
+        async def get_intraday_ohlc(self, exch_seg, symbol_token, interval, days_back):
+            await asyncio.sleep(0.05)
+            return await super().get_intraday_ohlc(exch_seg, symbol_token, interval, days_back)
+
+    def universe_for(symbols):
+        return lambda: list(symbols)
+
+    monkeypatch.setattr(universe_loader, "load_a_group_universe", universe_for([f"BIG{i}" for i in range(150)]))
+    job_a = asyncio.create_task(run_full_scan(SlowProvider(), DEFAULT_STRATEGY_CONFIG, stock_history_days=70))
+    await asyncio.sleep(0.1)  # let job A's ~150 fetches all queue up first
+
+    monkeypatch.setattr(universe_loader, "load_a_group_universe", universe_for(["SMALL1", "SMALL2"]))
+
+    class TrackingProvider(FakeAngelOneProvider):
+        async def get_intraday_ohlc(self, exch_seg, symbol_token, interval, days_back):
+            processed_b.append(symbol_token)
+            return await super().get_intraday_ohlc(exch_seg, symbol_token, interval, days_back)
+
+    job_b = asyncio.create_task(run_full_scan(TrackingProvider(), DEFAULT_STRATEGY_CONFIG, stock_history_days=70))
+    await asyncio.wait_for(job_b, timeout=3.0)  # would time out if starved behind job A's backlog
+    assert len(processed_b) == 2
+    job_a.cancel()

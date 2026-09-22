@@ -93,31 +93,30 @@ class ScanOutcome:
 # stock's whole Angel One fetch (resolve + candle call incl. its own retries).
 PER_STOCK_FETCH_TIMEOUT_SECONDS = 75.0
 # Angel One's candle endpoint throttles bursts (HTTP 403 non-JSON) — 4 in
-# flight is the tested-safe level. CPU analysis runs OUTSIDE this limit.
+# flight was the tested-safe level for a SINGLE job. CPU analysis runs
+# OUTSIDE this limit.
 DEFAULT_MAX_CONCURRENT_FETCHES = 4
+# Per-JOB fetch concurrency once multiple devices can each run their own
+# a_group job at the same time (2026-09-22). A single SHARED semaphore was
+# tried first and live-tested with two real concurrent scans — it starved
+# the second job at 0% for minutes, because asyncio.Semaphore is a plain
+# FIFO queue: the first job's ~615 waiters were already queued ahead of the
+# second job's, so released permits kept going back to job 1 almost
+# exclusively. Each job now gets its OWN dedicated semaphore at this
+# smaller size instead, so two concurrent jobs' combined worst case
+# (2 x DEFAULT_MAX_CONCURRENT_PER_JOB_FETCHES = 4) still matches the
+# originally tested-safe total for the common case of 1-2 devices scanning
+# at once, and — critically — neither job can ever fully block the other.
+DEFAULT_MAX_CONCURRENT_PER_JOB_FETCHES = 2
 
-# Shared ACROSS every concurrently running scan job (any scan type, any
-# device) — not one pool per job. Angel One allows one session; the 4-in-
-# flight limit above is a property of that ONE account, so two devices
-# scanning at the same time must still share it rather than each getting
-# their own 4 (which would double real Angel One concurrency and risk the
-# 403 throttling this limit exists to prevent). Same reasoning for the CPU
-# pool: several jobs each opening their own worker pool was exactly the
-# kind of unbounded-per-job memory growth that caused the OOM crashes this
-# project already fixed once — one shared, capped pool keeps a memory
-# ceiling regardless of how many devices are scanning.
-_shared_fetch_semaphores: dict[int, asyncio.Semaphore] = {}
+# The CPU thread pool IS still shared across every concurrently running job
+# — unlike the fetch semaphore, a stuck/starved CPU task isn't the failure
+# mode that was observed (CPU work is millisecond-scale per stock, not
+# network-latency-scale), so sharing it purely for its ORIGINAL purpose
+# (bounding total worker-thread/memory growth across concurrent jobs — the
+# kind of unbounded-per-job growth that caused this project's earlier OOM
+# crashes) is still safe.
 _shared_cpu_pool: concurrent.futures.ThreadPoolExecutor | None = None
-
-
-def _get_shared_fetch_semaphore(limit: int) -> asyncio.Semaphore:
-    loop = asyncio.get_running_loop()
-    key = id(loop)
-    sem = _shared_fetch_semaphores.get(key)
-    if sem is None:
-        sem = asyncio.Semaphore(limit)
-        _shared_fetch_semaphores[key] = sem
-    return sem
 
 
 def _get_shared_cpu_pool(limit: int) -> concurrent.futures.ThreadPoolExecutor:
@@ -188,8 +187,11 @@ async def run_full_scan(
     # Angel One's historical-candle endpoint enforces a strict per-second
     # rate limit (see the Expiry Level 1 pacing fix) — a large burst of
     # concurrent requests risks intermittent "HTTP 403 non-JSON response"
-    # throttling, not a real data problem.
-    max_concurrent_stock_calls: int = DEFAULT_MAX_CONCURRENT_FETCHES,
+    # throttling, not a real data problem. This is THIS JOB's own fetch
+    # concurrency (see DEFAULT_MAX_CONCURRENT_PER_JOB_FETCHES above) — every
+    # concurrently running job gets its own, so one job can never starve
+    # another's.
+    max_concurrent_stock_calls: int = DEFAULT_MAX_CONCURRENT_PER_JOB_FETCHES,
     multi_strategy_config: MultiStrategyConfig | None = None,
     on_progress: Callable[[str, bool, str | None], None] | None = None,
     on_result: Callable[[str, list[tuple[str, StrategySignal]]], None] | None = None,
@@ -225,11 +227,11 @@ async def run_full_scan(
     universe_by_symbol: dict[str, UniverseStockEntry] = {s: UniverseStockEntry(symbol=s) for s in nifty200_symbols}
     nifty200_set = set(nifty200_symbols)
 
-    # Shared across every concurrently running job (see _get_shared_* above)
-    # — multiple devices scanning at once still share one real Angel One
-    # fetch budget and one bounded CPU pool, not one each.
-    semaphore = _get_shared_fetch_semaphore(max_concurrent_stock_calls)
-    cpu_pool = _get_shared_cpu_pool(max_concurrent_stock_calls)
+    # This job's OWN fetch semaphore — see DEFAULT_MAX_CONCURRENT_PER_JOB_FETCHES
+    # above for why this isn't shared across jobs. The CPU pool IS still
+    # shared (bounded thread/memory growth across concurrent jobs).
+    semaphore = asyncio.Semaphore(max_concurrent_stock_calls)
+    cpu_pool = _get_shared_cpu_pool(DEFAULT_MAX_CONCURRENT_FETCHES)
     loop = asyncio.get_running_loop()
     all_results: list[StockAnalysisResult] = []
     strategy_signals: dict[str, list[StrategySignal]] = {name: [] for name in [*ALL_SIGNAL_STRATEGY_NAMES, PRD_FORMING_KEY]}
