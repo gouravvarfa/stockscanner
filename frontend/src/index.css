@@ -1360,3 +1360,6 @@ td .symbol-cell { font-weight: 700; color: var(--text-primary); }
 
 .stop-scan-button { border-color: rgba(220, 38, 38, 0.45); color: #dc2626; }
 .stop-scan-button:hover { background: rgba(220, 38, 38, 0.08); }
+
+.checkbox-row { display: flex; align-items: center; gap: 8px; font-size: 13px; margin: 10px 0; }
+.checkbox-row input { width: auto; margin: 0; }
