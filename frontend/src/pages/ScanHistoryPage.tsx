@@ -119,7 +119,12 @@ export function ScanHistoryPage() {
     return list;
   }, [snapshots, typeFilter, dateFilter]);
 
-  const rows = expanded ? rowsByLocalId[expanded.localId] ?? null : null;
+  // Local history stores one row per SCANNED stock, not just qualifying
+  // ones (needed so an interrupted scan still leaves a gap-free record) —
+  // but this page is "Scan Results", so only actual signal rows (a real
+  // strategy match) are shown here, matching the snapshot's own signalCount.
+  const allRows = expanded ? rowsByLocalId[expanded.localId] ?? null : null;
+  const rows = allRows ? allRows.filter((r) => r.strategy) : allRows;
 
   const strategyOptions = useMemo(() => {
     const set = new Set((rows ?? []).map((r) => r.strategy).filter(Boolean));
