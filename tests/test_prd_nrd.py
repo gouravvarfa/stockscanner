@@ -155,15 +155,15 @@ def test_nrd_confirmed_zero_bars_ago():
     assert signal.extra["status"] == "NRD_CONFIRMED"
 
 
-def test_nrd_confirmed_seven_bars_ago():
-    sig = _negative_reversal_signal(25.0, 20.0, leg2_bar=LAST_BAR - 7)
+def test_nrd_confirmed_fifteen_bars_ago():
+    sig = _negative_reversal_signal(25.0, 20.0, leg2_bar=LAST_BAR - 15)
     result = make_result(daily_divergences=[sig], daily_last_bar_index=LAST_BAR)
     signal = evaluate_nrd(result, confirmed_frame(), NRDConfig())
     assert signal.qualifies
 
 
-def test_nrd_rejects_eight_bars_ago():
-    sig = _negative_reversal_signal(25.0, 20.0, leg2_bar=LAST_BAR - 8)
+def test_nrd_rejects_sixteen_bars_ago():
+    sig = _negative_reversal_signal(25.0, 20.0, leg2_bar=LAST_BAR - 16)
     result = make_result(daily_divergences=[sig], daily_last_bar_index=LAST_BAR)
     signal = evaluate_nrd(result, confirmed_frame(), NRDConfig())
     assert not signal.qualifies
@@ -192,7 +192,7 @@ def test_nrd_rejects_regular_bearish_divergence_not_negative_reversal():
 
 def test_nrd_reports_only_the_single_most_recent_setup_when_multiple_fresh_pivots_exist():
     # Two separate valid Negative Reversal pivots both fall inside the
-    # 7-bar freshness window (bars_ago 5 and 1) — only the freshest (most
+    # 15-bar freshness window (bars_ago 5 and 1) — only the freshest (most
     # recent) one may ever be reported, never both.
     older = _negative_reversal_signal(25.0, 20.0, leg2_bar=LAST_BAR - 5)
     newer = _negative_reversal_signal(28.0, 22.0, leg2_bar=LAST_BAR - 1)
