@@ -1363,3 +1363,97 @@ td .symbol-cell { font-weight: 700; color: var(--text-primary); }
 
 .checkbox-row { display: flex; align-items: center; gap: 8px; font-size: 13px; margin: 10px 0; }
 .checkbox-row input { width: auto; margin: 0; }
+
+/* ---------- Mobile: hamburger, bottom nav, Google Finance-style Dashboard ---------- */
+
+.hamburger-button { display: none; }
+.header-brand-mobile { display: none; font-weight: 700; font-size: 0.95rem; color: var(--text-primary); }
+.sidebar-backdrop { display: none; }
+
+.bottom-nav { display: none; }
+
+@media (max-width: 960px) {
+  .hamburger-button { display: flex; }
+  .header-brand-mobile { display: inline; }
+  .sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.35);
+    z-index: 29;
+  }
+}
+
+@media (max-width: 720px) {
+  :root { --header-height: 56px; }
+
+  body { background: #f4f6f9; }
+
+  .app-content { padding: 12px 14px 84px; } /* bottom padding clears the fixed bottom nav */
+
+  .app-header { padding: 0 12px; gap: 8px; }
+  .header-left { flex-direction: row; align-items: center; gap: 10px; }
+  .header-right { gap: 6px; }
+  .market-status { flex-direction: column; align-items: flex-end; gap: 0; font-size: 0.72rem; }
+  .scanning-indicator { display: none; } /* the Dashboard's own scan button already shows this state */
+
+  /* Page header: big title + subtitle, buttons stack full-width below it, touch-friendly */
+  .page-header { flex-direction: column; align-items: stretch; margin-bottom: 16px; }
+  .page-header h1 { font-size: 1.4rem; }
+  .page-header > div:last-child { display: flex; gap: 10px; }
+  .page-header .primary-button,
+  .page-header .secondary-button { flex: 1; min-height: 46px; font-size: 0.9rem; justify-content: center; }
+
+  .card { border-radius: 14px; padding: 16px; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04); }
+
+  /* Live scan progress card: roomier bar + no cramped inline styles fighting mobile width */
+  .scan-meta { gap: 10px; }
+  .active-scan-bar { height: 8px; border-radius: 999px; }
+
+  .live-results { max-height: none; gap: 8px; }
+  .live-result-chip {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px;
+    font-size: 12.5px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    line-height: 1.3;
+  }
+
+  .instrument-badge { margin-left: 4px; }
+
+  /* Fixed bottom navigation — exactly 4 items; every other page stays in the hamburger menu */
+  .bottom-nav {
+    display: flex;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 31;
+    background: var(--bg-surface);
+    border-top: 1px solid var(--border);
+    padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px));
+    justify-content: space-around;
+  }
+  .bottom-nav-link {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    padding: 4px 10px;
+    font-size: 0.68rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    text-decoration: none;
+    border-top: 2px solid transparent;
+    min-width: 60px;
+  }
+  .bottom-nav-link svg { opacity: 0.8; }
+  .bottom-nav-link.active { color: var(--accent); border-top-color: var(--accent); }
+  .bottom-nav-link.active svg { opacity: 1; }
+
+  /* The floating Active Scans panel would otherwise sit under the bottom nav */
+  .active-scans-panel { bottom: calc(64px + env(safe-area-inset-bottom, 0px)); }
+}

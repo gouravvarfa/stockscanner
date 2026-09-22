@@ -7,6 +7,14 @@ function Base(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+export const MenuIcon = (p: SVGProps<SVGSVGElement>) => (
+  <Base {...p}>
+    <line x1="4" y1="7" x2="20" y2="7" />
+    <line x1="4" y1="12" x2="20" y2="12" />
+    <line x1="4" y1="17" x2="20" y2="17" />
+  </Base>
+);
+
 export const TrendIcon = (p: SVGProps<SVGSVGElement>) => (
   <Base {...p}><path d="M3 17l6-6 4 4 8-8" /><path d="M15 7h6v6" /></Base>
 );

@@ -3,6 +3,7 @@ import { Route, Routes } from "react-router-dom";
 import { ChartDrawer } from "./chart/ChartDrawer";
 import { useChart } from "./chart/ChartContext";
 import { ActiveScansPanel } from "./components/ActiveScansPanel";
+import { BottomNav } from "./components/BottomNav";
 import { Header } from "./components/Header";
 import { LogsPanel } from "./components/LogsPanel";
 import { Sidebar } from "./components/Sidebar";
@@ -19,13 +20,18 @@ import { TopBottomErrorBoundary } from "./pages/topBottom/TopBottomErrorBoundary
 
 export default function App() {
   const [logsOpen, setLogsOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const chart = useChart();
 
   return (
     <div className="app-shell">
-      <Sidebar />
+      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <div className="app-main">
-        <Header onToggleLogs={() => setLogsOpen((v) => !v)} logsOpen={logsOpen} />
+        <Header
+          onToggleLogs={() => setLogsOpen((v) => !v)}
+          logsOpen={logsOpen}
+          onToggleSidebar={() => setSidebarOpen((v) => !v)}
+        />
         <main className="app-content">
           <Routes>
             <Route path="/" element={<Dashboard />} />
@@ -50,6 +56,7 @@ export default function App() {
       <LogsPanel open={logsOpen} onClose={() => setLogsOpen(false)} />
       <ChartDrawer state={chart.state} onToggleMaximize={chart.toggleMaximize} onClose={chart.closeChart} />
       <ActiveScansPanel />
+      <BottomNav />
     </div>
   );
 }

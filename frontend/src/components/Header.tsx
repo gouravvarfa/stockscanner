@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useScan } from "../context/ScanContext";
-import { BellIcon, ListIcon, MoonIcon, SunIcon, UserIcon } from "./icons";
+import { BellIcon, ListIcon, MenuIcon, MoonIcon, SunIcon, UserIcon } from "./icons";
 
 const IST_OFFSET_MINUTES = 5.5 * 60;
 
@@ -41,7 +41,15 @@ function useTheme() {
   return { theme, toggle: () => setTheme((t) => (t === "light" ? "dark" : "light")) };
 }
 
-export function Header({ onToggleLogs, logsOpen }: { onToggleLogs: () => void; logsOpen: boolean }) {
+export function Header({
+  onToggleLogs,
+  logsOpen,
+  onToggleSidebar,
+}: {
+  onToggleLogs: () => void;
+  logsOpen: boolean;
+  onToggleSidebar: () => void;
+}) {
   const [ist, setIst] = useState(getIstNow());
   const { theme, toggle } = useTheme();
   const { scanning } = useScan();
@@ -57,6 +65,10 @@ export function Header({ onToggleLogs, logsOpen }: { onToggleLogs: () => void; l
   return (
     <header className="app-header">
       <div className="header-left">
+        <button className="icon-button hamburger-button" onClick={onToggleSidebar} title="Menu" aria-label="Open menu">
+          <MenuIcon width={18} height={18} />
+        </button>
+        <span className="header-brand-mobile">A Group Scanner</span>
         {scanning && (
           <span className="scanning-indicator">
             <span className="spinner" />

@@ -22,31 +22,41 @@ const NAV_ITEMS = [
   { to: "/settings", label: "Settings", icon: SettingsIcon },
 ];
 
-export function Sidebar() {
+/**
+ * On desktop this is the always-visible left rail (unchanged). On mobile
+ * (see the `.app-sidebar` responsive rules) it becomes an off-canvas panel
+ * toggled by the hamburger button in Header — `open`/`onClose` are only
+ * meaningful there; desktop ignores them.
+ */
+export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => void }) {
   return (
-    <aside className="app-sidebar">
-      <div className="sidebar-brand">
-        <span className="sidebar-brand-icon">
-          <TrendIcon width={17} height={17} />
-        </span>
-        A Group Scanner
-      </div>
-      <nav className="sidebar-nav">
-        {NAV_ITEMS.map((item) => {
-          const Icon = item.icon;
-          return (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.end}
-              className={({ isActive }) => (isActive ? "sidebar-link active" : "sidebar-link")}
-            >
-              <Icon />
-              {item.label}
-            </NavLink>
-          );
-        })}
-      </nav>
-    </aside>
+    <>
+      {open && <div className="sidebar-backdrop" onClick={onClose} aria-hidden="true" />}
+      <aside className={open ? "app-sidebar open" : "app-sidebar"}>
+        <div className="sidebar-brand">
+          <span className="sidebar-brand-icon">
+            <TrendIcon width={17} height={17} />
+          </span>
+          A Group Scanner
+        </div>
+        <nav className="sidebar-nav">
+          {NAV_ITEMS.map((item) => {
+            const Icon = item.icon;
+            return (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                end={item.end}
+                className={({ isActive }) => (isActive ? "sidebar-link active" : "sidebar-link")}
+                onClick={onClose}
+              >
+                <Icon />
+                {item.label}
+              </NavLink>
+            );
+          })}
+        </nav>
+      </aside>
+    </>
   );
 }
