@@ -1357,3 +1357,6 @@ td .symbol-cell { font-weight: 700; color: var(--text-primary); }
 .dash-side-by-side > .card { margin: 0; display: flex; flex-direction: column; min-width: 0; }
 .ranked-panel .ranked-list { max-height: 420px; overflow-y: auto; padding-right: 4px; }
 .prd-forming-list { max-height: 420px; }
+
+.stop-scan-button { border-color: rgba(220, 38, 38, 0.45); color: #dc2626; }
+.stop-scan-button:hover { background: rgba(220, 38, 38, 0.08); }

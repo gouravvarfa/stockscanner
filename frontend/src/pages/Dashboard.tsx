@@ -153,7 +153,7 @@ function SkeletonRows({ columns }: { columns: number }) {
 }
 
 export function Dashboard() {
-  const { latest, scanning, scanError, runScan, runFreshScan, progress, partial, cacheAgeSeconds } = useScan();
+  const { latest, scanning, scanError, runScan, runFreshScan, stopScan, progress, partial, cacheAgeSeconds } = useScan();
   const { openChart } = useChart();
 
   const [activeStrategy, setActiveStrategy] = useState<TabName>("PRD");
@@ -257,6 +257,11 @@ export function Dashboard() {
           {!scanning && (
             <button className="secondary-button" onClick={runFreshScan} title="Ignore cache, fetch fresh Angel One data">
               Fresh Scan
+            </button>
+          )}
+          {scanning && (
+            <button className="secondary-button stop-scan-button" onClick={stopScan} title="Stop the running scan">
+              Stop Scan
             </button>
           )}
         </div>

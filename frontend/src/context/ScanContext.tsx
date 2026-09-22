@@ -19,6 +19,7 @@ interface ScanContextValue {
   // Fresh Scan (Part 9): ignores the 24h cache and always re-fetches from
   // Angel One, replacing the cache only on success.
   runFreshScan: () => Promise<void>;
+  stopScan: () => Promise<void>;
   progress: {
     processed: number;
     total: number;
@@ -36,7 +37,7 @@ interface ScanContextValue {
 const ScanContext = createContext<ScanContextValue | undefined>(undefined);
 
 export function ScanProvider({ children }: { children: ReactNode }) {
-  const { result, partial, job, running, error, cache, run, runFresh } = useScanJob<ScanResult>("a_group");
+  const { result, partial, job, running, error, cache, run, runFresh, cancel } = useScanJob<ScanResult>("a_group");
 
   const progress =
     job && job.status === "running"
@@ -66,6 +67,7 @@ export function ScanProvider({ children }: { children: ReactNode }) {
         scanError: error,
         runScan: run,
         runFreshScan: runFresh,
+        stopScan: cancel,
         progress,
         partial,
         cacheAgeSeconds,

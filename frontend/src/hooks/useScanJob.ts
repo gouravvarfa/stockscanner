@@ -143,13 +143,20 @@ export function useScanJob<T = unknown>(scanType: ScanType): UseScanJobResult<T>
 
   const cancel = useCallback(async () => {
     if (job?.job_id) {
+      // Optimistic: stop polling and flip back to Run/Fresh Scan immediately,
+      // rather than waiting up to POLL_INTERVAL_MS for the next poll to see
+      // status "cancelled". Cancellation is a plain stop, so there is no
+      // result to lose by not waiting for the server's confirmation.
+      activeJobId.current = null;
+      stopPolling();
+      setRunning(false);
       try {
         await scanJobsApi.cancelJob(job.job_id);
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
       }
     }
-  }, [job]);
+  }, [job, stopPolling]);
 
   // Restore-on-mount (Part 6): a running job for this scan type takes
   // priority (resume polling it); otherwise fall back to a valid 24h
