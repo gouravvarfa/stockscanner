@@ -332,7 +332,11 @@ export function Dashboard() {
           </div>
         </div>
       )}
-      {scanError && !scanning && scanIssueKind !== "interrupted" && (
+      {/* Genuinely no usable data AND the backend is unreachable — the only
+          time this shows the hard red error, per the "local data first"
+          rule: if this device already has saved results, that's shown
+          instead (below), never blanked out just because Render is down. */}
+      {scanError && !scanning && scanIssueKind !== "interrupted" && localRows.length === 0 && (
         <div className="error-banner">
           <div>
             <strong>Unable to load scanner data.</strong> {scanError}
@@ -340,6 +344,15 @@ export function Dashboard() {
           <button className="secondary-button" onClick={runScan}>
             Retry
           </button>
+        </div>
+      )}
+      {scanError && !scanning && scanIssueKind !== "interrupted" && localRows.length > 0 && (
+        <div className="notice-banner">
+          <div>
+            <strong>Backend unavailable right now.</strong> Showing {localRows.length} stock
+            {localRows.length === 1 ? "" : "s"} already saved on this device —{" "}
+            <a href="/history">see Scan History</a>. Trying to reconnect automatically.
+          </div>
         </div>
       )}
       {scanError && scanning && (

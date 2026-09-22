@@ -241,13 +241,27 @@ class ScanAlreadyRunningError(RuntimeError):
     pass
 
 
+class TooManyConcurrentScansError(RuntimeError):
+    pass
+
+
+# Safety valve, not a business rule: each running a_group job keeps its own
+# `all_results` list (every StockAnalysisResult for the whole universe) in
+# memory until it finishes — genuinely unbounded concurrent devices would
+# multiply that without limit and reproduce the OOM crashes this project
+# already fixed once. The Angel One fetch/CPU work itself is already capped
+# by a single SHARED pool (see scan_service.py's _get_shared_fetch_semaphore
+# / _get_shared_cpu_pool) regardless of how many jobs are running, so this
+# cap exists only to bound that per-job memory, not to protect Angel One.
+MAX_CONCURRENT_JOBS_PER_SCAN_TYPE = 3
+
+
 class JobManager:
     """One instance lives for the app's lifetime (module-level singleton
     below) — the in-process job registry every API route reads/writes."""
 
     def __init__(self) -> None:
         self._jobs: dict[str, ScanJob] = {}
-        self._running_by_type: dict[ScanType, str] = {}
 
     def start_job(
         self,
@@ -261,29 +275,40 @@ class JobManager:
         `runner` is an async function that performs the actual scan and
         returns its Outcome object; it receives the ScanJob so it can call
         job.record_progress(...) as an on_progress callback and set
-        job.total up front. Each scan TYPE runs at most one job at a time
-        unless allow_concurrent_same_type=True (Fresh Scan while one is
-        already running still isn't allowed — Part 9 doesn't ask for that,
-        and it would double the Angel One load for no benefit); different
-        scan TYPES are always independent (Part 2). This concurrency limit
-        is deliberately GLOBAL, not per-device — Angel One allows only one
-        session per account, so two devices scanning the same type at once
-        would fight over it regardless of which device's UI shows what.
+        job.total up front.
 
-        `device_id` only tags who may SEE/cancel this job afterwards (see
-        list_jobs/get/cancel below) — it never changes where or how the
-        scan itself runs.
+        Concurrency is DEVICE-scoped, not global (2026-09-22 architecture:
+        multiple devices must be able to run the same scan type at the same
+        time, independently — see the device-scoping work earlier). The
+        same device starting the same type twice while one is already
+        running is still rejected by default, since that would just be a
+        redundant duplicate job for that one device, not a different
+        device's scan (`allow_concurrent_same_type=True` is available for a
+        caller that explicitly wants to bypass even that, same as before).
+        A process-wide MAX_CONCURRENT_JOBS_PER_SCAN_TYPE cap still applies
+        regardless of device, purely to bound this project's own per-job
+        memory footprint (see the class comment above) — real Angel One
+        request concurrency is protected separately and is unaffected by
+        how many jobs are running.
+
+        `device_id` also tags who may SEE/cancel this job afterwards (see
+        list_jobs/get/cancel below).
         """
+        running_same_type = [j for j in self._jobs.values() if j.scan_type == scan_type and j.status == "running"]
         if not allow_concurrent_same_type:
-            existing_id = self._running_by_type.get(scan_type)
-            if existing_id is not None and self._jobs[existing_id].status == "running":
+            same_device = next((j for j in running_same_type if j.device_id == device_id), None)
+            if same_device is not None:
                 raise ScanAlreadyRunningError(
-                    f"A {scan_type} scan is already running (job {existing_id})."
+                    f"A {scan_type} scan is already running for this device (job {same_device.job_id})."
                 )
+        if len(running_same_type) >= MAX_CONCURRENT_JOBS_PER_SCAN_TYPE:
+            raise TooManyConcurrentScansError(
+                f"Too many {scan_type} scans are already running right now "
+                f"({len(running_same_type)}/{MAX_CONCURRENT_JOBS_PER_SCAN_TYPE}). Please try again shortly."
+            )
 
         job = ScanJob(job_id=f"scan_{uuid.uuid4().hex[:10]}", scan_type=scan_type, device_id=device_id)
         self._jobs[job.job_id] = job
-        self._running_by_type[scan_type] = job.job_id
 
         async def _execute() -> None:
             try:

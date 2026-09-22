@@ -50,6 +50,7 @@ from backend.services.provider_factory import get_angelone_provider, get_market_
 from backend.services.excel_sync.scan_sync import start_scan_sync
 from backend.services.scan_job_manager import (
     ScanAlreadyRunningError,
+    TooManyConcurrentScansError,
     ScanJob,
     ScanType,
     clear_cached_result,
@@ -220,6 +221,8 @@ async def _start_job(scan_type: ScanType, device_id: str | None = None) -> ScanJ
         job = job_manager.start_job(scan_type, runner, device_id=device_id)
     except ScanAlreadyRunningError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except TooManyConcurrentScansError as exc:
+        raise HTTPException(status_code=429, detail=str(exc)) from exc
     job.total = _estimate_total(scan_type)
     return job
 

@@ -22,12 +22,10 @@ def clean_state():
     for t in ("a_group", "expiry_level_1", "expiry_level_5"):
         clear_cached_result(t)
     job_manager._jobs.clear()
-    job_manager._running_by_type.clear()
     yield
     for t in ("a_group", "expiry_level_1", "expiry_level_5"):
         clear_cached_result(t)
     job_manager._jobs.clear()
-    job_manager._running_by_type.clear()
 
 
 def _wait_for_completion(client, job_id, timeout=5.0):

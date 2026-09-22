@@ -31,12 +31,10 @@ def clean_state():
     for t in ("a_group", "expiry_level_1", "expiry_level_5"):
         clear_cached_result(t)
     job_manager._jobs.clear()
-    job_manager._running_by_type.clear()
     yield
     for t in ("a_group", "expiry_level_1", "expiry_level_5"):
         clear_cached_result(t)
     job_manager._jobs.clear()
-    job_manager._running_by_type.clear()
 
 
 def _fake_expiry_l1_outcome():
@@ -190,3 +188,53 @@ def test_existing_unscoped_behavior_is_unchanged(client, monkeypatch):
     assert job_manager.get(job_id) is not None
     assert any(j.job_id == job_id for j in job_manager.list_jobs())
     assert job_manager.cancel(job_id) is True
+
+
+def test_device_a_and_device_b_can_start_the_same_scan_type_simultaneously(client, monkeypatch):
+    """This is the core multi-device requirement (2026-09-22): the global
+    per-scan-type lock is gone — only a same-device duplicate is rejected."""
+    _slow_l1(monkeypatch, delay=0.3)
+    resp_a = client.post("/api/scan/start", json={"scan_type": "expiry_level_1", "device_id": DEVICE_A})
+    assert resp_a.status_code == 200 and resp_a.json()["status"] == "started"
+
+    resp_b = client.post("/api/scan/start", json={"scan_type": "expiry_level_1", "device_id": DEVICE_B})
+    assert resp_b.status_code == 200 and resp_b.json()["status"] == "started"
+
+    job_a, job_b = resp_a.json()["job"]["job_id"], resp_b.json()["job"]["job_id"]
+    assert job_a != job_b
+
+    jobs_a = client.get("/api/scan/jobs", params={"device_id": DEVICE_A}).json()
+    jobs_b = client.get("/api/scan/jobs", params={"device_id": DEVICE_B}).json()
+    assert any(j["job_id"] == job_a for j in jobs_a) and not any(j["job_id"] == job_a for j in jobs_b)
+    assert any(j["job_id"] == job_b for j in jobs_b) and not any(j["job_id"] == job_b for j in jobs_a)
+
+    _wait_for_completion(client, job_a, device_id=DEVICE_A)
+    _wait_for_completion(client, job_b, device_id=DEVICE_B)
+
+
+def test_same_device_cannot_double_start_the_same_scan_type(client, monkeypatch):
+    _slow_l1(monkeypatch, delay=0.3)
+    resp1 = client.post("/api/scan/start", json={"scan_type": "expiry_level_1", "device_id": DEVICE_A})
+    assert resp1.status_code == 200
+
+    resp2 = client.post("/api/scan/start", json={"scan_type": "expiry_level_1", "device_id": DEVICE_A})
+    assert resp2.status_code == 409
+    _wait_for_completion(client, resp1.json()["job"]["job_id"], device_id=DEVICE_A)
+
+
+def test_third_device_is_rejected_once_the_concurrency_cap_is_reached(client, monkeypatch):
+    from backend.services.scan_job_manager import MAX_CONCURRENT_JOBS_PER_SCAN_TYPE
+
+    _slow_l1(monkeypatch, delay=2.0)
+    devices = [f"device-cap-{i}" for i in range(MAX_CONCURRENT_JOBS_PER_SCAN_TYPE + 1)]
+    started = []
+    for i, device in enumerate(devices):
+        resp = client.post("/api/scan/start", json={"scan_type": "expiry_level_1", "device_id": device})
+        if i < MAX_CONCURRENT_JOBS_PER_SCAN_TYPE:
+            assert resp.status_code == 200, resp.json()
+            started.append(resp.json()["job"]["job_id"])
+        else:
+            assert resp.status_code == 429
+            assert "Too many" in resp.json()["detail"]
+    for job_id, device in zip(started, devices):
+        client.post(f"/api/scan/jobs/{job_id}/cancel", params={"device_id": device})

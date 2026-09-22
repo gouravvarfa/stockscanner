@@ -96,6 +96,36 @@ PER_STOCK_FETCH_TIMEOUT_SECONDS = 75.0
 # flight is the tested-safe level. CPU analysis runs OUTSIDE this limit.
 DEFAULT_MAX_CONCURRENT_FETCHES = 4
 
+# Shared ACROSS every concurrently running scan job (any scan type, any
+# device) — not one pool per job. Angel One allows one session; the 4-in-
+# flight limit above is a property of that ONE account, so two devices
+# scanning at the same time must still share it rather than each getting
+# their own 4 (which would double real Angel One concurrency and risk the
+# 403 throttling this limit exists to prevent). Same reasoning for the CPU
+# pool: several jobs each opening their own worker pool was exactly the
+# kind of unbounded-per-job memory growth that caused the OOM crashes this
+# project already fixed once — one shared, capped pool keeps a memory
+# ceiling regardless of how many devices are scanning.
+_shared_fetch_semaphores: dict[int, asyncio.Semaphore] = {}
+_shared_cpu_pool: concurrent.futures.ThreadPoolExecutor | None = None
+
+
+def _get_shared_fetch_semaphore(limit: int) -> asyncio.Semaphore:
+    loop = asyncio.get_running_loop()
+    key = id(loop)
+    sem = _shared_fetch_semaphores.get(key)
+    if sem is None:
+        sem = asyncio.Semaphore(limit)
+        _shared_fetch_semaphores[key] = sem
+    return sem
+
+
+def _get_shared_cpu_pool(limit: int) -> concurrent.futures.ThreadPoolExecutor:
+    global _shared_cpu_pool
+    if _shared_cpu_pool is None:
+        _shared_cpu_pool = concurrent.futures.ThreadPoolExecutor(max_workers=limit)
+    return _shared_cpu_pool
+
 
 async def _fetch_and_analyze(
     angelone_provider: AngelOneProvider,
@@ -195,14 +225,11 @@ async def run_full_scan(
     universe_by_symbol: dict[str, UniverseStockEntry] = {s: UniverseStockEntry(symbol=s) for s in nifty200_symbols}
     nifty200_set = set(nifty200_symbols)
 
-    semaphore = asyncio.Semaphore(max_concurrent_stock_calls)
-    # Bounds CPU-heavy work (analysis + strategy evaluation) to the SAME
-    # concurrency as the Angel One fetch above. asyncio.to_thread's default
-    # executor allows far more concurrent workers (min(32, cpu_count+4)) —
-    # on a low-memory host, many stocks' full OHLCV frames + indicator
-    # arrays alive in memory at once (independent of the fetch-side limit)
-    # is what was exhausting memory and crashing the process mid-scan.
-    cpu_pool = concurrent.futures.ThreadPoolExecutor(max_workers=max_concurrent_stock_calls)
+    # Shared across every concurrently running job (see _get_shared_* above)
+    # — multiple devices scanning at once still share one real Angel One
+    # fetch budget and one bounded CPU pool, not one each.
+    semaphore = _get_shared_fetch_semaphore(max_concurrent_stock_calls)
+    cpu_pool = _get_shared_cpu_pool(max_concurrent_stock_calls)
     loop = asyncio.get_running_loop()
     all_results: list[StockAnalysisResult] = []
     strategy_signals: dict[str, list[StrategySignal]] = {name: [] for name in [*ALL_SIGNAL_STRATEGY_NAMES, PRD_FORMING_KEY]}
@@ -268,11 +295,10 @@ async def run_full_scan(
             if on_result is not None:
                 on_result(symbol, [("Value Buy", signal)])
 
-    try:
-        await asyncio.gather(*(process_nifty200(s) for s in nifty200_symbols))
-        await asyncio.gather(*(process_value_buy(s) for s in nifty500_symbols))
-    finally:
-        cpu_pool.shutdown(wait=False, cancel_futures=True)
+    # cpu_pool is the SHARED pool (other concurrently running jobs may still
+    # be using it) — never shut it down here, only this job's own work waits.
+    await asyncio.gather(*(process_nifty200(s) for s in nifty200_symbols))
+    await asyncio.gather(*(process_value_buy(s) for s in nifty500_symbols))
 
     qualifying_results = [
         r for r in all_results
