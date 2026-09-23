@@ -5,6 +5,7 @@ import {
   DashboardIcon,
   HistoryIcon,
   ListIcon,
+  SectorIcon,
   SettingsIcon,
   TargetIcon,
   TrendIcon,
@@ -18,6 +19,7 @@ const NAV_ITEMS = [
   { to: "/stocks", label: "A Group Scanner", icon: ListIcon },
   { to: "/tradingview", label: "TradingView Signals", icon: BellIcon },
   { to: "/top-bottom", label: "Top Bottom Backtesting", icon: TrendIcon },
+  { to: "/cup-breakout", label: "Cup Breakout", icon: SectorIcon },
   { to: "/history", label: "Scan History", icon: HistoryIcon },
   { to: "/settings", label: "Settings", icon: SettingsIcon },
 ];

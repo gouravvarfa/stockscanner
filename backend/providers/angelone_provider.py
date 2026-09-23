@@ -106,6 +106,40 @@ class AngelOneProvider:
 
         return df[["open", "high", "low", "close", "volume"]].astype(float)
 
+    async def get_daily_ohlc_range(
+        self, exch_seg: str, symbol_token: str, from_dt: dt.datetime, to_dt: dt.datetime
+    ) -> pd.DataFrame:
+        """
+        Same session/retry-on-dead-session handling as get_intraday_ohlc,
+        but for an EXPLICIT date range instead of "the last N days from
+        now" — used only by the Cup Breakout scanner's chunked multi-year
+        history fetch (backend/providers/cup_history.py). Does not drop a
+        trailing incomplete bar (the caller is asking for a specific past
+        window, not "up to now"); Cup's own pipeline handles the current
+        in-progress month separately via to_monthly().
+        """
+        session = await self._ensure_session()
+        from_date = _format_angel_date(from_dt)
+        to_date = _format_angel_date(to_dt)
+        try:
+            rows = await get_candle_data(
+                session, exchange=exch_seg, symbol_token=symbol_token, interval="ONE_DAY",
+                from_date=from_date, to_date=to_date,
+            )
+        except AngelOneApiError:
+            self.reset_session()
+            session = await self._ensure_session()
+            rows = await get_candle_data(
+                session, exchange=exch_seg, symbol_token=symbol_token, interval="ONE_DAY",
+                from_date=from_date, to_date=to_date,
+            )
+        if not rows:
+            return pd.DataFrame(columns=["open", "high", "low", "close", "volume"])
+        df = pd.DataFrame(rows, columns=["date", "open", "high", "low", "close", "volume"])
+        df["date"] = pd.to_datetime(df["date"]).dt.tz_localize(None)
+        df = df.set_index("date").sort_index()
+        return df[["open", "high", "low", "close", "volume"]].astype(float)
+
     async def resolve_index(self, name: str) -> scrip_master.ScripMatch | None:
         return await scrip_master.resolve_index(name)
 

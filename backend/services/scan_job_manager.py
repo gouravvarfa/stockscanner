@@ -39,7 +39,7 @@ from backend.core.cache import cache
 
 logger = logging.getLogger("scanner.scan_job_manager")
 
-ScanType = Literal["a_group", "expiry_level_1", "expiry_level_5"]
+ScanType = Literal["a_group", "expiry_level_1", "expiry_level_5", "cup_breakout"]
 JobStatus = Literal["running", "completed", "failed", "cancelled"]
 
 # One 24-hour cached result per scan type — Part 8/9: a "Normal Scan" reads

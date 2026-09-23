@@ -19,11 +19,11 @@ def client(monkeypatch, tmp_path):
 
 @pytest.fixture(autouse=True)
 def clean_state():
-    for t in ("a_group", "expiry_level_1", "expiry_level_5"):
+    for t in ("a_group", "expiry_level_1", "expiry_level_5", "cup_breakout"):
         clear_cached_result(t)
     job_manager._jobs.clear()
     yield
-    for t in ("a_group", "expiry_level_1", "expiry_level_5"):
+    for t in ("a_group", "expiry_level_1", "expiry_level_5", "cup_breakout"):
         clear_cached_result(t)
     job_manager._jobs.clear()
 
@@ -75,6 +75,32 @@ def test_start_with_no_cache_starts_a_background_job(client, monkeypatch):
 
     final = _wait_for_completion(client, body["job"]["job_id"])
     assert final["status"] == "completed"
+
+
+def test_cup_breakout_scan_type_starts_a_background_job_and_completes(client, monkeypatch):
+    from backend.services.cup_scan_service import CupScanOutcome
+
+    async def fake_cup_scan(*a, **kw):
+        now = dt.datetime.utcnow()
+        return CupScanOutcome(
+            started_at=now, finished_at=now, execution_seconds=0.1,
+            stocks_scanned=0, stocks_failed=0, failed_symbols=[], results=[],
+        )
+
+    monkeypatch.setattr(scan_jobs_module, "run_cup_scan", fake_cup_scan)
+
+    resp = client.post("/api/scan/start", json={"scan_type": "cup_breakout"})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["status"] == "started"
+    assert body["job"]["scan_type"] == "cup_breakout"
+
+    final = _wait_for_completion(client, body["job"]["job_id"])
+    assert final["status"] == "completed"
+
+    cache_resp = client.get("/api/scan/cache/cup_breakout")
+    assert cache_resp.status_code == 200
+    assert cache_resp.json()["result"]["results"] == []
 
 
 def test_start_serves_valid_cache_without_starting_a_job(client, monkeypatch):

@@ -43,7 +43,9 @@ from backend.api.expiry_level_5 import _signal_out as _expiry_l5_signal_out
 from backend.core.database import SessionLocal
 from backend.schemas.expiry import ExpiryLevel1ResultOut
 from backend.schemas.expiry_level_5 import ExpiryLevel5ResultOut
+from backend.config.cup_config import DEFAULT_CUP_CONFIG
 from backend.services import config_store, history_service, serializers
+from backend.services.cup_scan_service import run_cup_scan
 from backend.services.expiry_level_5_scan_service import run_expiry_level_5_scan
 from backend.services.expiry_scan_service import run_expiry_level_1_scan
 from backend.services.provider_factory import get_angelone_provider, get_market_data_router
@@ -83,7 +85,7 @@ def _estimate_total(scan_type: ScanType) -> int:
         universe_size = len(load_a_group_universe())
     except Exception:  # noqa: BLE001
         return 0
-    if scan_type == "a_group":
+    if scan_type in ("a_group", "cup_breakout"):
         return universe_size
     # Expiry Level 1/5 both cap at max_stocks=40 by default, plus (for
     # Level 1) the 2 index symbols.
@@ -102,6 +104,25 @@ async def _run_a_group_job(job: ScanJob) -> dict:
     # them off the event loop so the last stock's results and every API
     # poll stay responsive while the final aggregate is written.
     return await asyncio.to_thread(_finalize_a_group, outcome)
+
+
+async def _run_cup_breakout_job(job: ScanJob) -> dict:
+    outcome = await run_cup_scan(
+        get_angelone_provider(), DEFAULT_CUP_CONFIG,
+        on_progress=lambda symbol, success, error: job.record_progress(symbol, success, error),
+        on_result=job.record_result,
+    )
+    payload = {
+        "started_at": outcome.started_at.isoformat(),
+        "finished_at": outcome.finished_at.isoformat(),
+        "execution_seconds": outcome.execution_seconds,
+        "stocks_scanned": outcome.stocks_scanned,
+        "stocks_failed": outcome.stocks_failed,
+        "failed_symbols": outcome.failed_symbols,
+        "results": outcome.results,
+    }
+    set_cached_result("cup_breakout", payload)
+    return payload
 
 
 def _finalize_a_group(outcome) -> dict:
@@ -176,7 +197,7 @@ def _add_signal_rows(sync, job: ScanJob, payload) -> None:
     """Expiry Level 1/5 report their signals only at the end (no per-stock
     callback carries them), so their signal rows are added from the final
     payload. A Group rows were already streamed per stock."""
-    if job.scan_type == "a_group" or not isinstance(payload, dict):
+    if job.scan_type in ("a_group", "cup_breakout") or not isinstance(payload, dict):
         return
     from backend.services.excel_sync.rows import status_row
 
@@ -196,6 +217,8 @@ async def _start_job(scan_type: ScanType, device_id: str | None = None) -> ScanJ
         runner = lambda job: _run_expiry_level_1_job(job, max_stocks=40)  # noqa: E731
     elif scan_type == "expiry_level_5":
         runner = lambda job: _run_expiry_level_5_job(job, max_stocks=40)  # noqa: E731
+    elif scan_type == "cup_breakout":
+        runner = _run_cup_breakout_job
     else:
         raise HTTPException(status_code=400, detail=f"Unknown scan_type '{scan_type}'.")
 
