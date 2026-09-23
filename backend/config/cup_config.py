@@ -38,6 +38,14 @@ class CupConfig(BaseModel):
     # ---- Breakout classification -----------------------------------------
     near_breakout_pct: float = 10.0
     recent_breakout_months: int = 3
+    # A valid-depth structure whose price is still farther than this from
+    # its own breakout level is NOT reported at all (NO_SIGNAL), not even
+    # as EARLY_CUP — per explicit user direction (2026-09-23, ACC example):
+    # a stock still 48% below its rim, with ~2% recovery, hasn't actually
+    # started forming a cup shape yet; it's still in the decline leg. Only
+    # a structure that has meaningfully turned and is within reach of its
+    # own resistance counts as an actionable (even if early) cup.
+    max_distance_to_breakout_pct: float = 25.0
 
     # ---- Handle (optional, informational only — see backend/strategies/cup.py)
     handle_max_months: int = 3

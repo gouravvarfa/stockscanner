@@ -38,6 +38,8 @@ def _cup_daily_series() -> pd.DataFrame:
         m += 1
         if m > 12:
             m, y = 1, y + 1
+    for _ in range(3):
+        add(400.0)
     add(1000.0)
     for i in range(36):
         add(1000.0 - (400.0 / 36) * (i + 1))

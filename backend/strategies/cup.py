@@ -30,6 +30,7 @@ from typing import Any
 import pandas as pd
 
 from backend.config.cup_config import CupConfig
+from backend.divergence.swing import find_swing_points
 from backend.indicators.resample import to_monthly
 
 STATUS_EARLY_CUP = "EARLY_CUP"
@@ -54,49 +55,55 @@ def _months_between(a: pd.Timestamp, b: pd.Timestamp) -> int:
 
 def _find_cup_structure(monthly: pd.DataFrame, config: CupConfig) -> dict[str, Any] | None:
     """
-    Picks the LEFT RIM as the highest monthly HIGH among candidates that
-    leave at least `min_cup_months` of room before the latest completed
-    bar (so a rim only days old, with no time for a decline+recovery, is
-    never selected — that would just be "new high", not a cup). The CUP
-    LOW is the lowest monthly LOW strictly after that rim. Returns None if
-    no candidate produces a depth inside [min_depth_pct, max_depth_pct].
-
-    Known simplification (documented, not a bug): only ONE candidate rim is
-    evaluated (the tallest one with enough room) — a real chart can have
-    several plausible rims; picking the single tallest-with-room one keeps
-    this deterministic and matches the "major resistance" framing in the
-    spec instead of trying every possible rim/low pair.
+    A real long-term chart can have MULTIPLE sequential cups (e.g. BHEL:
+    a huge older cup, then a second, more recent one formed on its right
+    side — per explicit user direction, 2026-09-23, the scanner must
+    recognize the CURRENT/most relevant one, not always the single oldest
+    or tallest rim). Every genuine swing-high candidate (a real local peak
+    — backend/divergence/swing.py's existing fractal pivot detector, same
+    one PRD/NRD use, 2 bars either side — not just any bar, so a smooth
+    decline/recovery never gets an arbitrary mid-slope point picked as a
+    "rim") is evaluated, each still required to leave >= `min_cup_months`
+    (5 years, per config) of room before the latest completed bar. Among
+    all that produce a valid depth [min_depth_pct, max_depth_pct], the one
+    whose current price is CLOSEST to its own breakout level wins — that is
+    what "uptrend cup" means here: the most actionable, most-recently-
+    relevant structure, not necessarily the biggest one on the chart.
     """
     n = len(monthly)
     b_idx = n - 1  # latest completed monthly bar
     highs = monthly["high"]
     lows = monthly["low"]
+    latest_close = float(monthly["close"].iloc[b_idx])
 
-    candidate_idxs = [i for i in range(0, b_idx - config.min_cup_months + 1)]
+    swing_highs = [p.index for p in find_swing_points(monthly["high"], monthly["low"], 2) if p.kind == "high"]
+    candidate_idxs = [i for i in swing_highs if i <= b_idx - config.min_cup_months]
     if not candidate_idxs:
         return None
-    left_rim_idx = max(candidate_idxs, key=lambda i: highs.iloc[i])
-    left_rim_price = float(highs.iloc[left_rim_idx])
-    left_rim_date = monthly.index[left_rim_idx]
 
-    after = lows.iloc[left_rim_idx + 1 :]
-    if after.empty:
-        return None
-    cup_low_idx = left_rim_idx + 1 + int(after.values.argmin())
-    cup_low_price = float(lows.iloc[cup_low_idx])
-    cup_low_date = monthly.index[cup_low_idx]
-
-    if left_rim_price <= 0:
-        return None
-    depth_pct = (left_rim_price - cup_low_price) / left_rim_price * 100.0
-    if not (config.min_depth_pct <= depth_pct <= config.max_depth_pct):
-        return None
-
-    return {
-        "left_rim_idx": left_rim_idx, "left_rim_date": left_rim_date, "left_rim_price": left_rim_price,
-        "cup_low_idx": cup_low_idx, "cup_low_date": cup_low_date, "cup_low_price": cup_low_price,
-        "depth_pct": depth_pct,
-    }
+    best: dict[str, Any] | None = None
+    best_distance = None
+    for left_rim_idx in candidate_idxs:
+        left_rim_price = float(highs.iloc[left_rim_idx])
+        if left_rim_price <= 0:
+            continue
+        after = lows.iloc[left_rim_idx + 1 :]
+        if after.empty:
+            continue
+        cup_low_idx = left_rim_idx + 1 + int(after.values.argmin())
+        cup_low_price = float(lows.iloc[cup_low_idx])
+        depth_pct = (left_rim_price - cup_low_price) / left_rim_price * 100.0
+        if not (config.min_depth_pct <= depth_pct <= config.max_depth_pct):
+            continue
+        distance = abs((left_rim_price - latest_close) / left_rim_price * 100.0)
+        if best_distance is None or distance < best_distance:
+            best_distance = distance
+            best = {
+                "left_rim_idx": left_rim_idx, "left_rim_date": monthly.index[left_rim_idx], "left_rim_price": left_rim_price,
+                "cup_low_idx": cup_low_idx, "cup_low_date": monthly.index[cup_low_idx], "cup_low_price": cup_low_price,
+                "depth_pct": depth_pct,
+            }
+    return best
 
 
 def _handle_status(monthly: pd.DataFrame, breakout_idx: int, breakout_price: float, config: CupConfig) -> str:
@@ -253,6 +260,13 @@ def detect_cup(
 
     if latest_close < breakout_level and distance_pct <= config.near_breakout_pct:
         result["status"] = STATUS_NEAR_BREAKOUT
+        return result
+
+    # Still too far from its own resistance to count as an actionable cup
+    # yet (still mostly in the decline leg, not a recovering "cup" shape) —
+    # see max_distance_to_breakout_pct's docstring in cup_config.py.
+    if distance_pct > config.max_distance_to_breakout_pct:
+        result["status"] = STATUS_NO_SIGNAL
         return result
 
     result["status"] = STATUS_EARLY_CUP

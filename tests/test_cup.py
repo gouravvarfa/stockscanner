@@ -56,7 +56,7 @@ def test_insufficient_history_empty_frame():
     assert result["status"] == "INSUFFICIENT_HISTORY"
 
 
-def _cup_specs(left_rim=1000.0, cup_low=600.0, recovery_close=900.0, n_decline=36, n_recover=36, n_lead=0):
+def _cup_specs(left_rim=1000.0, cup_low=600.0, recovery_close=900.0, n_decline=36, n_recover=36, n_lead=3):
     """LEFT RIM -> decline to CUP LOW -> straight-line recovery to
     `recovery_close` over n_recover months. Depth = 40% by default."""
     specs = []
@@ -83,7 +83,7 @@ def _cup_specs(left_rim=1000.0, cup_low=600.0, recovery_close=900.0, n_decline=3
 
 
 def test_valid_developing_cup_is_early_cup_or_near_breakout():
-    specs, (y, m) = _cup_specs(left_rim=1000.0, cup_low=600.0, recovery_close=750.0)  # recovery ~37.5%, not near
+    specs, (y, m) = _cup_specs(left_rim=1000.0, cup_low=600.0, recovery_close=800.0)  # distance 20%, within the actionable band, not near
     df = _monthly_frame(specs)
     now = dt.datetime(y, m, 10)
     result = detect_cup(df, DEFAULT_CONFIG, now=now)
@@ -95,12 +95,60 @@ def test_valid_developing_cup_is_early_cup_or_near_breakout():
 
 def test_cup_without_completed_right_rim_still_qualifies():
     # recovery stops well short of the rim — right side never "completes" —
-    # must still qualify (EARLY_CUP), per spec section 3/13.
-    specs, (y, m) = _cup_specs(left_rim=1000.0, cup_low=600.0, recovery_close=650.0)
+    # must still qualify (EARLY_CUP) as long as it's within the actionable
+    # distance band (max_distance_to_breakout_pct), per spec section 3/13
+    # as refined by the 2026-09-23 ACC fix (see test_..._too_far_... below
+    # for the "too far to count at all" case this refinement added).
+    specs, (y, m) = _cup_specs(left_rim=1000.0, cup_low=600.0, recovery_close=780.0)
     df = _monthly_frame(specs)
     result = detect_cup(df, DEFAULT_CONFIG, now=dt.datetime(y, m, 10))
     assert result["status"] in ("EARLY_CUP", "NEAR_BREAKOUT")
-    assert result["recovery_percent"] < 20
+    assert result["recovery_percent"] < 50
+
+
+def _step_month(y, m):
+    m += 1
+    if m > 12:
+        m, y = 1, y + 1
+    return y, m
+
+
+def test_most_recent_relevant_cup_is_picked_over_an_older_larger_one():
+    """BHEL-style double cup (2026-09-23, explicit user direction): a big
+    older cup, then a second, smaller, more recent cup formed on its right
+    side, with price now near the SECOND cup's rim. The scanner must report
+    the second (actionable) cup, not the older/bigger one, even though both
+    independently satisfy the 5-year-minimum + valid-depth rules."""
+    specs = []
+    y, m = 2010, 1
+    for _ in range(3):
+        specs.append((y, m, 400.0, 400.0, 400.0, 400.0, 1000.0)); y, m = _step_month(y, m)
+    specs.append((y, m, 1500.0, 1500.0, 1500.0, 1500.0, 2000.0))  # rim 1 (older, bigger cup)
+    y, m = _step_month(y, m)
+    price = 1500.0
+    for i in range(30):  # decline to cup-1 low (900, depth 40%)
+        price -= 600.0 / 30
+        specs.append((y, m, price, price, price, price, 1000.0)); y, m = _step_month(y, m)
+    for i in range(30):  # recovery up to rim 2 (1400)
+        price += 500.0 / 30
+        specs.append((y, m, price, price, price, price, 1000.0)); y, m = _step_month(y, m)
+    # rim 2: one bar higher than its neighbors, a genuine local peak.
+    specs.append((y, m, 1420.0, 1420.0, 1420.0, 1420.0, 2000.0))
+    y, m = _step_month(y, m)
+    price = 1420.0
+    for i in range(30):  # decline to cup-2 low (1000, depth ~29.6%)
+        price -= 420.0 / 30
+        specs.append((y, m, price, price, price, price, 1000.0)); y, m = _step_month(y, m)
+    for i in range(30):  # recovery close to (but not past) rim 2
+        price += 380.0 / 30
+        specs.append((y, m, price, price, price, price, 1000.0)); y, m = _step_month(y, m)
+    df = _monthly_frame(specs)
+    result = detect_cup(df, DEFAULT_CONFIG, now=dt.datetime(y, m, 10))
+    # The picked rim must be the SECOND (recent, smaller, closer) one, not
+    # the first (older, bigger, farther-away) one.
+    assert result["left_rim_price"] == pytest.approx(1420.0, abs=1.0)
+    assert result["status"] in ("NEAR_BREAKOUT", "EARLY_CUP")
+    assert abs(result["distance_to_breakout_percent"]) < 20  # close, not the ~8-25% an older-rim pick would give
 
 
 def test_near_breakout():
@@ -217,6 +265,18 @@ def test_deep_cup_is_detected_with_correct_depth():
     result = detect_cup(df, DEFAULT_CONFIG, now=dt.datetime(y, m, 10))
     assert result["status"] in ("EARLY_CUP", "NEAR_BREAKOUT")
     assert result["cup_depth_percent"] == pytest.approx(48.0, abs=0.5)
+
+
+def test_price_still_far_from_resistance_with_barely_any_recovery_is_no_signal():
+    """2026-09-23 live finding (ACC): a valid-depth structure whose price is
+    still ~48% below its own rim, with only ~2% recovery, is still mostly
+    in the decline leg, not an actual cup shape yet — must not be reported
+    at all (was showing as misleading EARLY_CUP before this fix)."""
+    specs, (y, m) = _cup_specs(left_rim=2454.95, cup_low=1251.0, recovery_close=1276.50)
+    df = _monthly_frame(specs)
+    result = detect_cup(df, DEFAULT_CONFIG, now=dt.datetime(y, m, 10))
+    assert result["status"] == "NO_SIGNAL"
+    assert result["distance_to_breakout_percent"] > DEFAULT_CONFIG.max_distance_to_breakout_pct
 
 
 def test_shallow_cup_rejected():

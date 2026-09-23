@@ -45,7 +45,7 @@ VALID_TIMEFRAMES = set(_NATIVE_INTERVAL) | set(_AGGREGATE_FROM)
 # same stock (both resample from the same depth of daily history).
 _LOOKBACK_DAYS = {
     "1m": 5, "5m": 10, "15m": 20, "30m": 40, "1H": 90,
-    "4H": 180, "1D": 800, "1W": 800, "1M": MONTHLY_RSI_LOOKBACK_DAYS,
+    "4H": 180, "1D": 800, "1W": MONTHLY_RSI_LOOKBACK_DAYS, "1M": MONTHLY_RSI_LOOKBACK_DAYS,
 }
 
 
