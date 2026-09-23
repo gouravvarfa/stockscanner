@@ -223,9 +223,21 @@ def detect_cup(
         if 0 < months_since <= config.recent_breakout_months:
             result["status"] = STATUS_RECENT_BREAKOUT
             return result
-        # A stale (>recent_breakout_months old) breakout falls through — the
-        # structure may still be actionable (e.g. price pulled back and is
-        # again NEAR_BREAKOUT), evaluated below exactly like any other cup.
+        # A stale (>recent_breakout_months old) breakout. If price is still
+        # ABOVE that old level, this setup already played out long ago —
+        # the old rim is no longer meaningful resistance, so it must NOT be
+        # reported as EARLY_CUP/NEAR_BREAKOUT against it (real bug, found
+        # live on ACE 2026-09-23: a breakout from ~4 years ago with price
+        # since running 4x past it was showing "EARLY_CUP" with a nonsense
+        # -308% distance/965% recovery, because the code kept evaluating
+        # everything below against the original, long-since-irrelevant
+        # left rim). Only a genuine PULLBACK — price back at/below the old
+        # level, actually re-testing it — is still actionable, so THAT case
+        # alone is allowed to fall through to the NEAR_BREAKOUT/EARLY_CUP
+        # checks below.
+        if latest_close > breakout_level:
+            result["status"] = STATUS_NO_SIGNAL
+            return result
 
     # BREAKOUT_FORMING: today's still-forming month is already testing/above
     # the level, but no COMPLETED month has confirmed it yet. Informational

@@ -161,6 +161,48 @@ def test_recent_breakout_within_configured_window():
     assert result["status"] == "RECENT_BREAKOUT"
 
 
+def test_stale_breakout_with_price_still_above_is_no_signal_not_early_cup():
+    """2026-09-23 live bug (ACE): a breakout confirmed years ago, with price
+    since running far past it, must NOT fall through and be reported as
+    EARLY_CUP/NEAR_BREAKOUT against that now-irrelevant old rim."""
+    specs, (y, m) = _cup_specs(left_rim=1000.0, cup_low=600.0, recovery_close=950.0)
+    specs.append((y, m, 1000.0, 1060.0, 995.0, 1040.0, 3000.0))  # breakout month
+    m += 1
+    if m > 12:
+        m, y = 1, y + 1
+    # Many completed months after the breakout, well past recent_breakout_months,
+    # with price having run up massively (4x) beyond the old breakout level.
+    for i in range(24):
+        price = 1040.0 + i * 150.0
+        specs.append((y, m, price, price * 1.02, price * 0.98, price, 2000.0))
+        m += 1
+        if m > 12:
+            m, y = 1, y + 1
+    df = _monthly_frame(specs)
+    result = detect_cup(df, DEFAULT_CONFIG, now=dt.datetime(y, m, 10))
+    assert result["status"] == "NO_SIGNAL"
+
+
+def test_stale_breakout_with_price_pulled_back_can_still_be_near_breakout():
+    """The one legitimate fall-through case: price pulled back to/below the
+    old breakout level and is genuinely re-testing it."""
+    specs, (y, m) = _cup_specs(left_rim=1000.0, cup_low=600.0, recovery_close=950.0)
+    specs.append((y, m, 1000.0, 1060.0, 995.0, 1040.0, 3000.0))  # breakout month
+    m += 1
+    if m > 12:
+        m, y = 1, y + 1
+    # Several completed months later, price has pulled back below the level
+    # (well past recent_breakout_months) and is now close to it again.
+    for i in range(6):
+        specs.append((y, m, 1000.0, 1010.0, 940.0, 960.0, 2000.0))
+        m += 1
+        if m > 12:
+            m, y = 1, y + 1
+    df = _monthly_frame(specs)
+    result = detect_cup(df, DEFAULT_CONFIG, now=dt.datetime(y, m, 10))
+    assert result["status"] == "NEAR_BREAKOUT"
+
+
 def test_price_too_far_from_resistance_is_early_cup_not_near_breakout():
     specs, (y, m) = _cup_specs(left_rim=1000.0, cup_low=600.0, recovery_close=850.0)  # distance 15% > 10%
     df = _monthly_frame(specs)
