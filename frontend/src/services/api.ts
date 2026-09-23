@@ -371,6 +371,9 @@ export const api = {
   getTradingViewStatus: () => request<TradingViewStatus>("/api/tradingview/status"),
   listTradingViewSignals: (limit = 200) => request<TradingViewSignal[]>(`/api/tradingview/signals?limit=${limit}`),
   getLogs: (sinceId = 0, limit = 200) => request<LogEntry[]>(`/api/logs?since_id=${sinceId}&limit=${limit}`),
-  getChartCandles: (symbol: string, timeframe: string, signal?: AbortSignal) =>
-    request<ChartCandlesResponse>(`/api/chart/candles?symbol=${encodeURIComponent(symbol)}&timeframe=${timeframe}`, { signal }),
+  getChartCandles: (symbol: string, timeframe: string, signal?: AbortSignal, longHistory = false) =>
+    request<ChartCandlesResponse>(
+      `/api/chart/candles?symbol=${encodeURIComponent(symbol)}&timeframe=${timeframe}${longHistory ? "&long_history=true" : ""}`,
+      { signal },
+    ),
 };

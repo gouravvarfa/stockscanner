@@ -53,11 +53,38 @@ class ChartUnsupportedTimeframeError(RuntimeError):
     pass
 
 
-async def get_candles(angelone: AngelOneProvider, symbol: str, timeframe: str) -> pd.DataFrame:
+async def get_candles(angelone: AngelOneProvider, symbol: str, timeframe: str, long_history: bool = False) -> pd.DataFrame:
+    """
+    `long_history=True` (only ever passed when the chart was opened from
+    Cup Breakout — see backend/api/chart.py) serves 1D/1W/1M from the SAME
+    ~10-year chunked-fetch + dedicated cache the Cup scanner itself uses
+    (backend/providers/cup_history.py), instead of the normal single-call
+    ~4.1-year window every other strategy's chart view uses. A single Angel
+    One call was verified live (2026-09-23) to silently truncate well short
+    of 10 years (e.g. ~5.5y for a 10y request), which is exactly why Cup's
+    own history fetch already chunks — this reuses that, rather than
+    duplicating chunking logic here. Never changes the default (short)
+    window any other caller gets, so monthly-RSI parity with the scanner
+    (see the depth-matching note above) is untouched for every other
+    strategy's chart.
+    """
     if timeframe not in VALID_TIMEFRAMES:
         raise ChartUnsupportedTimeframeError(
             f"Unsupported timeframe '{timeframe}'. Must be one of {sorted(VALID_TIMEFRAMES)}."
         )
+
+    if long_history and timeframe in ("1D", "1W", "1M"):
+        from backend.config.cup_config import DEFAULT_CUP_CONFIG
+        from backend.providers.cup_history import CupDataUnavailableError, fetch_cup_history
+
+        try:
+            base_bars = await fetch_cup_history(angelone, symbol, DEFAULT_CUP_CONFIG)
+        except CupDataUnavailableError as exc:
+            raise DataUnavailableError(str(exc)) from exc
+        if timeframe == "1D" or base_bars.empty:
+            return base_bars
+        rule = "W-FRI" if timeframe == "1W" else "ME"
+        return resample_ohlcv(base_bars, rule).dropna(subset=["open", "high", "low", "close"])
 
     match = await angelone.resolve_equity(symbol)
     if match is None:

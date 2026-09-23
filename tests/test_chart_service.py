@@ -78,3 +78,44 @@ async def test_empty_base_bars_returns_empty_without_error():
     provider = FakeAngelOneProvider({"ONE_DAY": pd.DataFrame(columns=["open", "high", "low", "close", "volume"])})
     df = await chart_service.get_candles(provider, "RELIANCE", "1M")
     assert df.empty
+
+
+class FakeLongHistoryProvider:
+    """Cup's fetch_cup_history() calls resolve_equity + get_daily_ohlc_range
+    (never get_intraday_ohlc) — a distinct fake so long_history=True is
+    proven to go through that path, not the normal short-window one."""
+
+    def __init__(self, bars: pd.DataFrame):
+        self.bars = bars
+        self.range_calls = 0
+
+    async def resolve_equity(self, symbol: str):
+        return FakeScripMatch(token="TOK-1", trading_symbol=symbol)
+
+    async def get_daily_ohlc_range(self, exch_seg, token, from_dt, to_dt):
+        self.range_calls += 1
+        return self.bars
+
+    async def get_intraday_ohlc(self, *a, **kw):
+        raise AssertionError("long_history=True must never call the short-window get_intraday_ohlc path")
+
+
+async def test_long_history_uses_cup_chunked_fetch_not_the_short_window(monkeypatch):
+    from backend.config.cup_config import DEFAULT_CUP_CONFIG
+    from backend.core.cache import cache
+    from backend.providers.cup_history import _cache_key
+
+    monkeypatch.setattr(DEFAULT_CUP_CONFIG, "chunk_delay_seconds", 0.0)  # skip the real rate-limit pacing in tests
+    cache.delete(_cache_key("LONGHISTTEST"))
+    provider = FakeLongHistoryProvider(_bars(400, "B"))
+    df = await chart_service.get_candles(provider, "LONGHISTTEST", "1M", long_history=True)
+    assert provider.range_calls > 0
+    assert not df.empty
+
+
+async def test_long_history_ignored_for_intraday_timeframes():
+    # long_history only applies to 1D/1W/1M — an intraday request must still
+    # take the normal short-window path even if the flag is passed.
+    provider = FakeAngelOneProvider({"FIFTEEN_MINUTE": _bars(50, "15min")})
+    df = await chart_service.get_candles(provider, "RELIANCE", "15m", long_history=True)
+    assert len(df) == 50

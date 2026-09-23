@@ -15,14 +15,22 @@ function cacheKey(symbol: string, timeframe: Timeframe): string {
  * request (symbol/timeframe change) before a prior one resolves — the
  * caller is responsible for passing a fresh AbortController per request.
  */
-export async function fetchCandles(symbol: string, timeframe: Timeframe, signal?: AbortSignal): Promise<OHLCBar[]> {
-  const key = cacheKey(symbol, timeframe);
+export async function fetchCandles(
+  symbol: string,
+  timeframe: Timeframe,
+  signal?: AbortSignal,
+  longHistory = false,
+): Promise<OHLCBar[]> {
+  // A separate cache key for the long-history variant — the normal
+  // (short-window) and Cup's long-window candles for the same
+  // symbol+timeframe are genuinely different data, never interchangeable.
+  const key = longHistory ? `${cacheKey(symbol, timeframe)}:long` : cacheKey(symbol, timeframe);
   const cached = cache.get(key);
   if (cached) {
     return cached;
   }
 
-  const res = await api.getChartCandles(symbol, timeframe, signal);
+  const res = await api.getChartCandles(symbol, timeframe, signal, longHistory);
   const bars = res.candles;
   cache.set(key, bars);
   return bars;

@@ -12,13 +12,13 @@ router = APIRouter(prefix="/api/chart", tags=["chart"])
 
 
 @router.get("/candles", response_model=ChartCandlesResponse)
-async def get_candles(symbol: str, timeframe: str = "1D") -> ChartCandlesResponse:
+async def get_candles(symbol: str, timeframe: str = "1D", long_history: bool = False) -> ChartCandlesResponse:
     symbol = symbol.strip().upper()
     if not symbol:
         raise HTTPException(status_code=400, detail="symbol is required")
 
     try:
-        df = await chart_service.get_candles(get_angelone_provider(), symbol, timeframe)
+        df = await chart_service.get_candles(get_angelone_provider(), symbol, timeframe, long_history=long_history)
     except chart_service.ChartUnsupportedTimeframeError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except DataUnavailableError as exc:

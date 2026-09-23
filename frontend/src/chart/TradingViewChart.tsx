@@ -54,7 +54,7 @@ export function TradingViewChart({ symbol, signalContext, isMaximized, onToggleM
     setStatus("loading");
     setErrorMessage(null);
 
-    fetchCandles(symbol, timeframe, controller.signal)
+    fetchCandles(symbol, timeframe, controller.signal, signalContext?.strategy === "CUP")
       .then((bars) => {
         if (requestIdRef.current !== requestId) return;
         if (bars.length === 0) {
