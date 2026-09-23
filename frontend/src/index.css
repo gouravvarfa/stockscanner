@@ -88,11 +88,65 @@
 
 * { box-sizing: border-box; }
 
+/* ---------- Global scrolling: native browser scrolling everywhere, no JS
+   wheel/scroll hijacking. `scroll-behavior: smooth` only affects in-page
+   anchor jumps / programmatic scrollIntoView calls — normal wheel, trackpad
+   and touch scrolling is untouched, exactly as the browser already does it. ---------- */
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   margin: 0;
   background: var(--bg-page);
   color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
+  overscroll-behavior-y: none; /* stops the whole page "rubber-banding" past the top/bottom on trackpads/Chrome; native touch bounce on mobile Safari is untouched (that's overscroll-behavior on the scrolling *element*, not this) */
+}
+
+/* Desktop/laptop: a slim, unobtrusive scrollbar instead of the default
+   chunky one — mobile/touch keeps the OS's native scrollbar untouched. */
+@media (pointer: fine) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-strong) transparent;
+  }
+  *::-webkit-scrollbar { width: 10px; height: 10px; }
+  *::-webkit-scrollbar-track { background: transparent; }
+  *::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 6px; border: 2px solid var(--bg-page); background-clip: padding-box; }
+  *::-webkit-scrollbar-thumb:hover { background: var(--text-muted); background-clip: padding-box; }
+}
+
+/* Local scroll containers (side panels, dropdowns, floating widgets): native
+   momentum scrolling on iOS, and scrolling that stops at their own edge
+   instead of "chaining" into the page scroll once it hits the top/bottom —
+   this is what makes a nested scroll area feel contained rather than jumpy. */
+.app-sidebar,
+.detail-panel,
+.logs-panel-body,
+.chart-panel-body,
+.tb-search-dropdown,
+.active-scans-panel,
+.live-results,
+.ranked-panel .ranked-list {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+/* Tables scroll horizontally in their own container only — the page's
+   vertical scroll is never nested inside a table's own scrollbar. */
+.table-wrap {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 a { color: inherit; }
