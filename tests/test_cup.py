@@ -56,7 +56,7 @@ def test_insufficient_history_empty_frame():
     assert result["status"] == "INSUFFICIENT_HISTORY"
 
 
-def _cup_specs(left_rim=1000.0, cup_low=600.0, recovery_close=900.0, n_decline=12, n_recover=12, n_lead=0):
+def _cup_specs(left_rim=1000.0, cup_low=600.0, recovery_close=900.0, n_decline=36, n_recover=36, n_lead=0):
     """LEFT RIM -> decline to CUP LOW -> straight-line recovery to
     `recovery_close` over n_recover months. Depth = 40% by default."""
     specs = []

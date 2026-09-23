@@ -39,10 +39,10 @@ def _cup_daily_series() -> pd.DataFrame:
         if m > 12:
             m, y = 1, y + 1
     add(1000.0)
-    for i in range(12):
-        add(1000.0 - (400.0 / 12) * (i + 1))
-    for i in range(12):
-        add(600.0 + (350.0 / 12) * (i + 1))
+    for i in range(36):
+        add(1000.0 - (400.0 / 36) * (i + 1))
+    for i in range(36):
+        add(600.0 + (350.0 / 36) * (i + 1))
     df = pd.DataFrame(rows, columns=["date", "open", "high", "low", "close", "volume"]).set_index("date")
     stub = pd.DataFrame(
         {"open": 950.0, "high": 950.0, "low": 950.0, "close": 950.0, "volume": 0.0},

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { InstrumentBadge } from "../components/InstrumentBadge";
+import { useChart } from "../chart/ChartContext";
 import { useScanJob } from "../hooks/useScanJob";
 import { fmtDuration } from "../services/scanJobsApi";
 
@@ -102,6 +103,7 @@ function partialToCupResult(signal: { extra: Record<string, unknown> }): CupResu
 
 export function CupBreakoutPage() {
   const { result, partial, job, running, error, run, runFresh, cancel } = useScanJob<CupScanResult>("cup_breakout");
+  const { openChart } = useChart();
 
   const [activeTab, setActiveTab] = useState<StatusTabKey>("all");
   const [symbolSearch, setSymbolSearch] = useState("");
@@ -300,11 +302,12 @@ export function CupBreakoutPage() {
                   <th className="num-cell">Recovery</th>
                   <th className="num-cell">Cup Age</th>
                   <th className="num-cell">Breakout %</th>
+                  <th>Chart</th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.length === 0 ? (
-                  <tr><td colSpan={10} className="muted small" style={{ padding: 16 }}>No stocks match these filters.</td></tr>
+                  <tr><td colSpan={11} className="muted small" style={{ padding: 16 }}>No stocks match these filters.</td></tr>
                 ) : (
                   filtered.map((r) => (
                     <tr key={r.symbol}>
@@ -321,6 +324,27 @@ export function CupBreakoutPage() {
                       <td className="num-cell">{fmtPct(r.recovery_percent)}</td>
                       <td className="num-cell">{r.cup_age_years !== null ? `${r.cup_age_years.toFixed(1)}Y` : "—"}</td>
                       <td className="num-cell">{r.breakout_percent !== null ? fmtPct(r.breakout_percent, true) : "—"}</td>
+                      <td>
+                        <button
+                          type="button"
+                          className="secondary-button"
+                          onClick={() =>
+                            openChart(r.symbol, {
+                              strategy: "CUP",
+                              daily_rsi: null,
+                              weekly_rsi: null,
+                              monthly_rsi: null,
+                              signal_date: r.updated_at,
+                              divergence_timeframe: "MONTHLY",
+                              explanation:
+                                `Cup Breakout: ${statusLabel(r.status)} — left rim ${fmtPrice(r.left_rim_price)} on ${fmtDay(r.left_rim_date)}, ` +
+                                `cup low ${fmtPrice(r.cup_low_price)} on ${fmtDay(r.cup_low_date)}, breakout level ${fmtPrice(r.potential_breakout_level)}.`,
+                            })
+                          }
+                        >
+                          Chart
+                        </button>
+                      </td>
                     </tr>
                   ))
                 )}

@@ -30,9 +30,10 @@ class CupConfig(BaseModel):
     min_depth_pct: float = 12.0
     max_depth_pct: float = 50.0
     # A cup must span at least this many completed monthly candles between
-    # its left rim and the latest completed month, so a 2-3 month wiggle
-    # is never reported as a multi-year Cup.
-    min_cup_months: int = 12
+    # its left rim and the latest completed month — per explicit user
+    # direction (2026-09-23): this is a LONG-TERM cup scanner, so a cup
+    # under 5 years is never reported (longer is fine/better, no upper cap).
+    min_cup_months: int = 60
 
     # ---- Breakout classification -----------------------------------------
     near_breakout_pct: float = 10.0
