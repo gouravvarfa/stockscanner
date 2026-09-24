@@ -72,7 +72,7 @@ def _cup_specs(left_rim=1000.0, cup_low=600.0, recovery_close=900.0, n_decline=3
         price -= decline_step
         specs.append((y, m, price, price, price, price, 1000.0)); m += 1
         if m > 12: m, y = 1, y + 1
-    recover_step = (recovery_close - cup_low) / n_recover
+    recover_step = (recovery_close - cup_low) / n_recover if n_recover > 0 else 0.0
     price = cup_low
     for i in range(n_recover):
         price += recover_step
@@ -275,8 +275,29 @@ def test_price_still_far_from_resistance_with_barely_any_recovery_is_no_signal()
     specs, (y, m) = _cup_specs(left_rim=2454.95, cup_low=1251.0, recovery_close=1276.50)
     df = _monthly_frame(specs)
     result = detect_cup(df, DEFAULT_CONFIG, now=dt.datetime(y, m, 10))
+    # Rejected even earlier now (min_recovery_pct: ~2% recovery is too small
+    # to count as having turned up at all) — still correctly NO_SIGNAL.
     assert result["status"] == "NO_SIGNAL"
-    assert result["distance_to_breakout_percent"] > DEFAULT_CONFIG.max_distance_to_breakout_pct
+
+
+def test_cup_low_on_the_latest_bar_itself_is_rejected_still_a_downtrend():
+    """2026-09-24, explicit user direction: upside-only scanner. If the cup
+    low IS the current/latest completed month (no recovery bar exists yet —
+    the stock is still making new lows), it's still in its decline leg, not
+    an actual cup that has turned up — must be NO_SIGNAL, not EARLY_CUP."""
+    specs, (y, m) = _cup_specs(left_rim=1000.0, cup_low=600.0, recovery_close=650.0, n_decline=60, n_recover=0)
+    df = _monthly_frame(specs)
+    result = detect_cup(df, DEFAULT_CONFIG, now=dt.datetime(y, m, 10))
+    assert result["status"] == "NO_SIGNAL"
+
+
+def test_barely_positive_recovery_below_minimum_is_rejected():
+    # Left rim 1000, cup low 600 (range 400). Recovery to 610 = 2.5%,
+    # below the 5% min_recovery_pct floor — still effectively flat/declining.
+    specs, (y, m) = _cup_specs(left_rim=1000.0, cup_low=600.0, recovery_close=610.0)
+    df = _monthly_frame(specs)
+    result = detect_cup(df, DEFAULT_CONFIG, now=dt.datetime(y, m, 10))
+    assert result["status"] == "NO_SIGNAL"
 
 
 def test_shallow_cup_rejected():

@@ -95,6 +95,14 @@ def _find_cup_structure(monthly: pd.DataFrame, config: CupConfig) -> dict[str, A
         depth_pct = (left_rim_price - cup_low_price) / left_rim_price * 100.0
         if not (config.min_depth_pct <= depth_pct <= config.max_depth_pct):
             continue
+        # Upside-only (see min_recovery_pct docstring): the cup low can't be
+        # the current bar itself (still making new lows, no recovery leg has
+        # even started) and the recovery so far must be genuinely positive —
+        # otherwise this is still a downtrend, not a cup that has turned up.
+        recovery_range = left_rim_price - cup_low_price
+        recovery_pct = (latest_close - cup_low_price) / recovery_range * 100.0 if recovery_range > 0 else 0.0
+        if cup_low_idx == b_idx or recovery_pct < config.min_recovery_pct:
+            continue
         distance = abs((left_rim_price - latest_close) / left_rim_price * 100.0)
         if best_distance is None or distance < best_distance:
             best_distance = distance

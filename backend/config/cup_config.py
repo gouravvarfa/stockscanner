@@ -46,6 +46,13 @@ class CupConfig(BaseModel):
     # a structure that has meaningfully turned and is within reach of its
     # own resistance counts as an actionable (even if early) cup.
     max_distance_to_breakout_pct: float = 25.0
+    # An UPSIDE-only scanner (explicit user direction, 2026-09-24: "upside
+    # wale cup hi chahiye... downtrend wale nahi chahiye") — a structure
+    # whose cup low IS the latest completed month (no recovery candle yet:
+    # the stock is still making new lows, not turning up) or whose recovery
+    # is not yet meaningfully positive is still in its decline leg, not an
+    # actual cup. Gated out as NO_SIGNAL, same as too-shallow/too-deep.
+    min_recovery_pct: float = 5.0
 
     # ---- Handle (optional, informational only — see backend/strategies/cup.py)
     handle_max_months: int = 3
