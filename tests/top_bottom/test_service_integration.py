@@ -32,6 +32,11 @@ class FakeAngelOneProvider:
             raise self._raise
         return self._df
 
+    async def get_daily_ohlc_range(self, exch_seg, symbol_token, from_dt, to_dt):
+        if self._raise:
+            raise self._raise
+        return self._df
+
 
 _RELIANCE_FUT = FutureContract(
     underlying="RELIANCE", trading_symbol="RELIANCE29SEP26FUT", token="68777",
@@ -87,6 +92,61 @@ async def test_date_range_filters_to_only_requested_window():
         assert from_date <= s.signal_date <= to_date
     for t in result.trades:
         assert from_date <= t.entry_date <= to_date
+
+
+class FakeChunkTrackingProvider:
+    """Tracks whether the single-call or chunked-date-range path was used —
+    proves a pre-2022-style from_date actually triggers chunking instead of
+    silently getting the same truncated single call as before."""
+
+    def __init__(self, df: pd.DataFrame):
+        self._df = df
+        self.single_call_days: list[int] = []
+        self.range_calls: list[tuple[dt.datetime, dt.datetime]] = []
+
+    async def get_intraday_ohlc(self, exch_seg, symbol_token, interval, days_back):
+        self.single_call_days.append(days_back)
+        return self._df
+
+    async def get_daily_ohlc_range(self, exch_seg, symbol_token, from_dt, to_dt):
+        self.range_calls.append((from_dt, to_dt))
+        return self._df
+
+
+async def test_backtest_before_the_old_lookback_window_uses_chunked_fetch(monkeypatch):
+    """2026-09-24, explicit user direction: a from_date older than the
+    previous fixed ~4.1y (1500-day) single-call lookback must still run a
+    full backtest, via the same chunked fetch Cup Breakout's history uses —
+    not silently clipped to whatever a single call happens to return."""
+    from backend.config.cup_config import DEFAULT_CUP_CONFIG
+
+    monkeypatch.setattr(DEFAULT_CUP_CONFIG, "chunk_delay_seconds", 0.0)  # skip real rate-limit pacing in tests
+    old_start = dt.datetime.now() - dt.timedelta(days=2000)  # well before the old 1500-day window
+    df = _ohlc(30, start=old_start.strftime("%Y-%m-%d"))
+    provider = FakeChunkTrackingProvider(df)
+
+    from_date = old_start
+    to_date = old_start + dt.timedelta(days=40)
+    result = await run_futures_backtest(provider, "RELIANCE", "FUTURES", "1D", from_date, to_date)
+
+    assert provider.range_calls, "expected the chunked date-range path, not a single get_intraday_ohlc call"
+    assert not provider.single_call_days
+    assert result is not None
+
+
+async def test_recent_backtest_still_uses_a_single_call_not_chunked():
+    """The default/common case (from_date within the old ~4.1y window) must
+    NOT start chunking — that would add unnecessary delay to every ordinary
+    request, not just the genuinely-old ones this feature is for."""
+    df = _ohlc(60)
+    provider = FakeChunkTrackingProvider(df)
+    from_date = pd.Timestamp("2025-01-10").to_pydatetime()
+    to_date = pd.Timestamp("2025-01-20").to_pydatetime()
+
+    await run_futures_backtest(provider, "RELIANCE", "FUTURES", "1D", from_date, to_date)
+
+    assert provider.single_call_days
+    assert not provider.range_calls
 
 
 async def test_insufficient_historical_data_raises_clear_error_not_fabricated_result():

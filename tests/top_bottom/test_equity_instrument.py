@@ -34,6 +34,10 @@ class FakeAngelOneProvider:
         self.last_exch_seg = exch_seg
         return self._df
 
+    async def get_daily_ohlc_range(self, exch_seg, symbol_token, from_dt, to_dt):
+        self.last_exch_seg = exch_seg
+        return self._df
+
 
 @pytest.fixture(autouse=True)
 def fake_equity_resolution(monkeypatch):
