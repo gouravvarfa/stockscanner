@@ -252,6 +252,41 @@ def _right_rim(monthly: pd.DataFrame, cup_low_idx: int, b_idx: int) -> tuple[int
     return idx, float(window.iloc[local_idx])
 
 
+def _is_failed_rollover_from_right_rim(
+    monthly: pd.DataFrame, right_rim_idx: int, b_idx: int, right_rim_price: float, latest_close: float, config: CupConfig,
+) -> bool:
+    """
+    2026-09-24 (CROPMTON false positive): a structure that recovered toward
+    its rim and then rolled over — an INVERTED cup / rounding-top, not a
+    bullish Cup — must be rejected even though it never technically broke
+    out (so the stale-breakout check above never fires) and even though
+    current price may still sit within the normal distance bands of the
+    breakout level. Three checks, ALL must hold (deliberately conservative
+    so routine one-month noise near the rim, and genuinely still-rising
+    structures like SONACOMS/VEDL/BHEL where the right rim IS the latest
+    bar or close to it, are never affected):
+
+      1. The right rim happened at least rim_rejection_min_months_since_rim
+         completed months ago — a single recent pullback month is normal
+         volatility, not a rollover.
+      2. Price has lost at least rim_rejection_min_pullback_pct off that
+         rim — a shallow dip is not a failure.
+      3. The closes SINCE the rim are actually trending down (last <
+         midpoint < first of that segment), not just one noisy low month.
+    """
+    months_since_rim = b_idx - right_rim_idx
+    if months_since_rim < config.rim_rejection_min_months_since_rim or right_rim_price <= 0:
+        return False
+    pullback_pct = (right_rim_price - latest_close) / right_rim_price * 100.0
+    if pullback_pct < config.rim_rejection_min_pullback_pct:
+        return False
+    post_rim = monthly["close"].iloc[right_rim_idx : b_idx + 1]
+    if len(post_rim) < 3:
+        return False
+    mid_idx = len(post_rim) // 2
+    return float(post_rim.iloc[-1]) < float(post_rim.iloc[mid_idx]) < float(post_rim.iloc[0])
+
+
 def detect_cup(
     daily_ohlcv: pd.DataFrame,
     config: CupConfig,
@@ -424,6 +459,15 @@ def detect_cup(
         if live_high >= breakout_level and latest_close <= breakout_level:
             result["status"] = STATUS_BREAKOUT_FORMING
             return result
+
+    # Inverted cup / rounding-top: recovered toward the rim then rolled over
+    # and is now falling materially, never having actually broken out (see
+    # _is_failed_rollover_from_right_rim's docstring — CROPMTON, 2026-09-24).
+    if _is_failed_rollover_from_right_rim(monthly, right_rim_idx, b_idx, right_rim_price, latest_close, config):
+        result["status"] = STATUS_NO_SIGNAL
+        result["invalidation_reason"] = "inverted_or_failed_cup_structure"
+        result["rejection_reason"] = result["invalidation_reason"]
+        return result
 
     # Right rim never actually got close to the left rim (see
     # CupConfig.max_rim_difference_pct docstring) — additive strictness on

@@ -845,3 +845,71 @@ def test_deep_cup_does_not_weaken_the_existing_five_percent_and_25_percent_rules
     df = _monthly_frame(specs)
     result = detect_cup(df, DEFAULT_CONFIG, now=dt.datetime(y, m, 10))
     assert result["status"] == "NO_SIGNAL"
+
+
+# ---------------------------------------------------------------------------
+# Inverted-cup / rounding-top rejection (2026-09-24, CROPMTON false positive)
+#
+# A structure that recovers toward its rim and then rolls over and declines
+# again — never actually breaking out — is an inverted cup / rounding-top,
+# not a bullish Cup, and must be rejected even though the current price may
+# still sit within the normal distance/recovery bands of the (never broken)
+# breakout level.
+# ---------------------------------------------------------------------------
+
+def _cropmton_like_rollover_specs():
+    """LEFT RIM (~2016-2017) -> long decline -> long recovery toward (not
+    past) the rim -> ROLLS OVER and declines again, materially and for
+    several months, right up to "now" - illustrative shape only, matching
+    CROPMTON's reported real structure (2021 high -> 2023 low -> recovered
+    toward the 2021 high during 2024-2025 -> declined again afterward). No
+    CROPMTON data/dates are hardcoded into the detector itself."""
+    specs = []
+    y, m = 2016, 1
+    for _ in range(3):
+        specs.append((y, m, 400.0, 400.0, 400.0, 400.0, 1000.0)); y, m = _step_month(y, m)
+    specs.append((y, m, 1000.0, 1000.0, 1000.0, 1000.0, 2000.0)); y, m = _step_month(y, m)  # left rim
+    price = 1000.0
+    for _ in range(30):
+        price -= 400.0 / 30
+        specs.append((y, m, price, price, price, price, 1000.0)); y, m = _step_month(y, m)  # decline to cup low (~600)
+    for _ in range(24):
+        price += 350.0 / 24
+        specs.append((y, m, price, price, price, price, 1000.0)); y, m = _step_month(y, m)  # recover toward (not past) the rim (~950)
+    for _ in range(6):
+        price -= 250.0 / 6
+        specs.append((y, m, price, price, price, price, 1000.0)); y, m = _step_month(y, m)  # rolls over and declines again
+    return specs, (y, m)
+
+
+def test_cropmton_like_inverted_rounding_top_is_rejected_as_no_signal():
+    specs, (y, m) = _cropmton_like_rollover_specs()
+    df = _monthly_frame(specs)
+    result = detect_cup(df, DEFAULT_CONFIG, now=dt.datetime(y, m, 10))
+    assert result["status"] == "NO_SIGNAL"
+    assert result["rejection_reason"] == "inverted_or_failed_cup_structure"
+    assert result["invalidation_reason"] == "inverted_or_failed_cup_structure"
+
+
+def test_sonacoms_like_still_rising_structure_is_not_flagged_as_rollover():
+    """A structure whose right rim IS the latest (or near-latest) bar - i.e.
+    still climbing toward its rim, exactly like SONACOMS/VEDL/BHEL's real
+    shape - must never trip the new rollover check just because it happens
+    to also be a valid, currently-actionable cup."""
+    specs, (y, m) = _cup_specs(left_rim=840.0, cup_low=380.0, recovery_close=760.0, n_decline=40, n_recover=24)
+    df = _monthly_frame(specs)
+    result = detect_cup(df, DEFAULT_CONFIG, now=dt.datetime(y, m, 10))
+    assert result["status"] in ("EARLY_CUP", "NEAR_BREAKOUT", "BREAKOUT_CONFIRMED", "RECENT_BREAKOUT")
+    assert result["rejection_reason"] is None
+
+
+def test_vedl_like_and_bhel_like_structures_unaffected_by_rollover_check():
+    """Same fixtures as the existing VEDL/BHEL-style tests - must remain
+    completely unaffected by the CROPMTON rollover-rejection addition."""
+    specs, (y, m) = _cup_specs(left_rim=1000.0, cup_low=600.0, recovery_close=950.0, n_decline=36, n_recover=36)
+    specs2 = list(specs)
+    specs2.append((y, m, 1010.0, 1010.0, 1010.0, 1010.0, 2000.0))
+    y2, m2 = _step_month(y, m)
+    df2 = _monthly_frame(specs2)
+    result = detect_cup(df2, DEFAULT_CONFIG, now=dt.datetime(y2, m2, 10))
+    assert result["status"] in ("BREAKOUT_CONFIRMED", "RECENT_BREAKOUT")

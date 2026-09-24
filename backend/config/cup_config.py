@@ -98,6 +98,22 @@ class CupConfig(BaseModel):
     deep_cup_bottom_band_pct: float = 60.0
     deep_cup_max_single_month_share_pct: float = 40.0
 
+    # ---- Rollover / inverted-structure rejection (2026-09-24, CROPMTON) --
+    # A structure that recovered toward its left rim and then rolled over
+    # and declined again (an inverted-cup / rounding-top, NOT a bullish
+    # Cup) must never be reported as EARLY_CUP/NEAR_BREAKOUT just because
+    # the current price still happens to sit within the normal distance
+    # bands of the (never actually broken) breakout level. A pullback from
+    # the right rim only counts as a genuine rollover/failure (not routine
+    # volatility near the rim, which stays well under this) once it has
+    # persisted at least rim_rejection_min_months_since_rim completed
+    # months AND lost at least rim_rejection_min_pullback_pct off the right
+    # rim AND the post-rim closes are actually trending down (not just one
+    # noisy month) — see _is_failed_rollover_from_right_rim() in
+    # strategies/cup.py.
+    rim_rejection_min_months_since_rim: int = 2
+    rim_rejection_min_pullback_pct: float = 15.0
+
     # ---- Right rim (2026-09-24, VEDL/BHEL structural reference) ----------
     # The RIGHT rim is the highest CLOSE actually reached during the
     # recovery so far (cup_low -> now) — real price action that has tested
