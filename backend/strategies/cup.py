@@ -53,7 +53,59 @@ def _months_between(a: pd.Timestamp, b: pd.Timestamp) -> int:
     return (b.year - a.year) * 12 + (b.month - a.month)
 
 
-def _find_cup_structure(monthly: pd.DataFrame, config: CupConfig) -> dict[str, Any] | None:
+def _classify_deep_cup(
+    monthly: pd.DataFrame, cup_low_idx: int, b_idx: int, cup_low_price: float, recovery_range: float, config: CupConfig,
+) -> tuple[bool, str | None, int, int]:
+    """
+    Distinguishes a genuine DEEP (50-60% depth) rounded cup from a
+    V-SHAPED crash-and-bounce (2026-09-24, SONACOMS: depth 54.8%,
+    rejected by the flat 50% cap despite a real ~14-month base before its
+    final breakout thrust). Three deterministic, symmetric checks — ALL
+    must pass:
+
+      1. bottom_duration_months: consecutive completed months, starting at
+         the cup low, whose CLOSE stays within deep_cup_bottom_band_pct of
+         the cup low price — a real base, not one isolated low candle.
+      2. recovery_duration_months (cup low -> now) >=
+         deep_cup_min_recovery_months — the climb itself took real time.
+      3. No single month's close-to-close move exceeds
+         deep_cup_max_single_month_share_pct of the ENTIRE recovery range
+         (left rim - cup low) — a legitimate final breakout thrust is
+         normal and allowed (SONACOMS' own last month was ~34%), but one
+         month dominating the *majority* of the whole recovery is exactly
+         the V-shape this is meant to exclude.
+
+    Returns (is_deep_cup, rejection_reason, bottom_duration_months,
+    recovery_duration_months) — the two duration values are always
+    returned (for diagnostics) even when rejected.
+    """
+    band_price = cup_low_price * (1 + config.deep_cup_bottom_band_pct / 100.0)
+    closes = monthly["close"]
+    bottom_duration = 0
+    for i in range(cup_low_idx, b_idx + 1):
+        if float(closes.iloc[i]) <= band_price:
+            bottom_duration += 1
+        else:
+            break
+
+    recovery_duration = b_idx - cup_low_idx
+
+    max_single_month_share = 0.0
+    if recovery_range > 0:
+        for i in range(cup_low_idx + 1, b_idx + 1):
+            move = abs(float(closes.iloc[i]) - float(closes.iloc[i - 1]))
+            max_single_month_share = max(max_single_month_share, move / recovery_range * 100.0)
+
+    if bottom_duration < config.deep_cup_min_bottom_months:
+        return False, "insufficient_bottom_duration", bottom_duration, recovery_duration
+    if recovery_duration < config.deep_cup_min_recovery_months:
+        return False, "recovery_too_short", bottom_duration, recovery_duration
+    if max_single_month_share > config.deep_cup_max_single_month_share_pct:
+        return False, "v_shaped_recovery_too_sharp", bottom_duration, recovery_duration
+    return True, None, bottom_duration, recovery_duration
+
+
+def _find_cup_structure(monthly: pd.DataFrame, config: CupConfig) -> tuple[dict[str, Any] | None, str | None]:
     """
     A real long-term chart can have MULTIPLE sequential cups (e.g. BHEL:
     a huge older cup, then a second, more recent one formed on its right
@@ -76,13 +128,28 @@ def _find_cup_structure(monthly: pd.DataFrame, config: CupConfig) -> dict[str, A
     lows = monthly["low"]
     latest_close = float(monthly["close"].iloc[b_idx])
 
+    # Recently-listed stocks may not HAVE min_cup_months of total history at
+    # all (SONACOMS live example, 2026-09-24: ~5.25y total listed history,
+    # so the strict 60-month room requirement left ~zero valid candidate
+    # window even though a real multi-year structure is visible on the
+    # chart). When total history is already short, require a
+    # history-proportional room instead — still most of what's available,
+    # never below short_history_min_cup_months, and NEVER larger than
+    # min_cup_months, so a stock with genuinely 5+ years available is
+    # completely unaffected by this.
+    effective_min_cup_months = min(
+        config.min_cup_months,
+        max(config.short_history_min_cup_months, int(n * config.short_history_ratio)),
+    )
+
     swing_highs = [p.index for p in find_swing_points(monthly["high"], monthly["low"], 2) if p.kind == "high"]
-    candidate_idxs = [i for i in swing_highs if i <= b_idx - config.min_cup_months]
+    candidate_idxs = [i for i in swing_highs if i <= b_idx - effective_min_cup_months]
     if not candidate_idxs:
-        return None
+        return None, None
 
     best: dict[str, Any] | None = None
     best_distance = None
+    last_rejection_reason: str | None = None
     for left_rim_idx in candidate_idxs:
         left_rim_price = float(highs.iloc[left_rim_idx])
         if left_rim_price <= 0:
@@ -108,15 +175,30 @@ def _find_cup_structure(monthly: pd.DataFrame, config: CupConfig) -> dict[str, A
         if not between.empty and float(between.max()) > left_rim_price:
             continue
         depth_pct = (left_rim_price - cup_low_price) / left_rim_price * 100.0
-        if not (config.min_depth_pct <= depth_pct <= config.max_depth_pct):
+        recovery_range = left_rim_price - cup_low_price
+        cup_type = "STANDARD_CUP"
+        bottom_duration_months = None
+        recovery_duration_months = None
+        if config.min_depth_pct <= depth_pct <= config.max_depth_pct:
+            cup_type = "STANDARD_CUP"
+        elif config.max_depth_pct < depth_pct <= config.deep_cup_max_depth_pct:
+            is_deep_cup, reason, bottom_duration_months, recovery_duration_months = _classify_deep_cup(
+                monthly, cup_low_idx, b_idx, cup_low_price, recovery_range, config,
+            )
+            if not is_deep_cup:
+                last_rejection_reason = reason
+                continue
+            cup_type = "DEEP_CUP"
+        else:
+            last_rejection_reason = "depth_out_of_range"
             continue
         # Upside-only (see min_recovery_pct docstring): the cup low can't be
         # the current bar itself (still making new lows, no recovery leg has
         # even started) and the recovery so far must be genuinely positive —
         # otherwise this is still a downtrend, not a cup that has turned up.
-        recovery_range = left_rim_price - cup_low_price
         recovery_pct = (latest_close - cup_low_price) / recovery_range * 100.0 if recovery_range > 0 else 0.0
         if cup_low_idx == b_idx or recovery_pct < config.min_recovery_pct:
+            last_rejection_reason = "insufficient_recovery"
             continue
         distance = abs((left_rim_price - latest_close) / left_rim_price * 100.0)
         if best_distance is None or distance < best_distance:
@@ -124,9 +206,10 @@ def _find_cup_structure(monthly: pd.DataFrame, config: CupConfig) -> dict[str, A
             best = {
                 "left_rim_idx": left_rim_idx, "left_rim_date": monthly.index[left_rim_idx], "left_rim_price": left_rim_price,
                 "cup_low_idx": cup_low_idx, "cup_low_date": monthly.index[cup_low_idx], "cup_low_price": cup_low_price,
-                "depth_pct": depth_pct,
+                "depth_pct": depth_pct, "cup_type": cup_type,
+                "bottom_duration_months": bottom_duration_months, "recovery_duration_months": recovery_duration_months,
             }
-    return best
+    return best, (None if best is not None else last_rejection_reason)
 
 
 def _handle_details(monthly: pd.DataFrame, breakout_idx: int, breakout_price: float, config: CupConfig) -> dict[str, Any]:
@@ -206,6 +289,8 @@ def detect_cup(
         "handle_start_date": None, "handle_end_date": None, "handle_low_price": None,
         "history_years_available": None,
         "invalidation_reason": "insufficient_history",
+        "cup_type": None, "bottom_duration_months": None, "recovery_duration_months": None,
+        "rejection_reason": "insufficient_history",  # alias of invalidation_reason (spec naming)
     }
 
     if daily_ohlcv is None or daily_ohlcv.empty:
@@ -224,10 +309,11 @@ def detect_cup(
     latest_close = float(monthly["close"].iloc[b_idx])
     result["latest_monthly_close"] = latest_close
 
-    structure = _find_cup_structure(monthly, config)
+    structure, structure_rejection_reason = _find_cup_structure(monthly, config)
     if structure is None:
         result["status"] = STATUS_NO_SIGNAL
-        result["invalidation_reason"] = "no_valid_cup_structure_found"
+        result["invalidation_reason"] = structure_rejection_reason or "no_valid_cup_structure_found"
+        result["rejection_reason"] = result["invalidation_reason"]
         return result
 
     left_rim_price = structure["left_rim_price"]
@@ -262,6 +348,10 @@ def detect_cup(
         "potential_breakout_level": breakout_level,
         "breakout_level": breakout_level,
         "invalidation_reason": None,
+        "rejection_reason": None,
+        "cup_type": structure["cup_type"],
+        "bottom_duration_months": structure["bottom_duration_months"],
+        "recovery_duration_months": structure["recovery_duration_months"],
     })
 
     distance_pct = (breakout_level - latest_close) / breakout_level * 100.0
@@ -320,6 +410,7 @@ def detect_cup(
         if latest_close > breakout_level:
             result["status"] = STATUS_NO_SIGNAL
             result["invalidation_reason"] = "stale_breakout_price_already_moved_away"
+            result["rejection_reason"] = result["invalidation_reason"]
             return result
 
     # BREAKOUT_FORMING: today's still-forming month is already testing/above
@@ -340,6 +431,7 @@ def detect_cup(
     if rim_difference_pct > config.max_rim_difference_pct:
         result["status"] = STATUS_NO_SIGNAL
         result["invalidation_reason"] = "rim_mismatch_too_large"
+        result["rejection_reason"] = result["invalidation_reason"]
         return result
 
     if latest_close < breakout_level and distance_pct <= config.near_breakout_pct:
@@ -352,6 +444,7 @@ def detect_cup(
     if distance_pct > config.max_distance_to_breakout_pct:
         result["status"] = STATUS_NO_SIGNAL
         result["invalidation_reason"] = "too_far_from_breakout_level"
+        result["rejection_reason"] = result["invalidation_reason"]
         return result
 
     result["status"] = STATUS_EARLY_CUP

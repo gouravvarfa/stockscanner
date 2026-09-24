@@ -34,6 +34,17 @@ class CupConfig(BaseModel):
     # direction (2026-09-23): this is a LONG-TERM cup scanner, so a cup
     # under 5 years is never reported (longer is fine/better, no upper cap).
     min_cup_months: int = 60
+    # Recently-listed stocks (e.g. a 2021 IPO) may simply not HAVE 5 years
+    # of history at all yet — per explicit user direction (2026-09-24,
+    # SONACOMS example): rather than reject them outright, a stock whose
+    # TOTAL available history is short uses a reduced, history-proportional
+    # minimum instead of the full 60 months — still requiring most of
+    # whatever history exists (never shorter than
+    # short_history_min_cup_months), so this is a relaxation for limited
+    # history, never a general weakening of the 5-year rule for stocks that
+    # actually have 5+ years available.
+    short_history_min_cup_months: int = 24
+    short_history_ratio: float = 0.65
 
     # ---- Breakout classification -----------------------------------------
     near_breakout_pct: float = 10.0
@@ -53,6 +64,22 @@ class CupConfig(BaseModel):
     # is not yet meaningfully positive is still in its decline leg, not an
     # actual cup. Gated out as NO_SIGNAL, same as too-shallow/too-deep.
     min_recovery_pct: float = 5.0
+
+    # ---- DEEP CUP (2026-09-24, SONACOMS structural investigation) --------
+    # depth > max_depth_pct is normally rejected outright — a 55% crash is
+    # NOT automatically a cup just because it's deep; it could just as
+    # easily be a V-shaped crash-and-bounce, which is structurally NOT a
+    # cup. A deep decline only qualifies (as cup_type=DEEP_CUP, never
+    # STANDARD_CUP) when it ALSO has: a genuine multi-month base at the
+    # bottom (not one sharp low), a recovery that has taken real time (not
+    # an instant spike), and no single month's move accounting for most of
+    # the whole recovery. See _classify_deep_cup() in strategies/cup.py for
+    # the exact deterministic check.
+    deep_cup_max_depth_pct: float = 60.0
+    deep_cup_min_bottom_months: int = 4
+    deep_cup_min_recovery_months: int = 8
+    deep_cup_bottom_band_pct: float = 60.0
+    deep_cup_max_single_month_share_pct: float = 40.0
 
     # ---- Right rim (2026-09-24, VEDL/BHEL structural reference) ----------
     # The RIGHT rim is the highest CLOSE actually reached during the

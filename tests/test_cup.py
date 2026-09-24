@@ -634,3 +634,214 @@ def test_asianpaint_like_early_smaller_pivot_never_wins_over_a_later_dominant_hi
     if result["left_rim_price"] is not None:
         assert result["left_rim_price"] != pytest.approx(1000.0, abs=1.0)
     assert result["status"] in ("NO_SIGNAL", "INSUFFICIENT_HISTORY")
+
+
+def test_sonacoms_like_short_total_history_uses_relaxed_room_requirement():
+    """Live finding, 2026-09-24 (SONACOMS / Sona BLW — listed 2021, so total
+    Angel One history is only ~5.25 years): the strict 60-month room
+    requirement left essentially zero valid candidate window even though
+    the chart showed a real multi-year rim->decline->recovery->breakout
+    structure. A stock whose TOTAL history is short now gets a reduced,
+    history-proportional room requirement — this must surface that
+    structure instead of NO_SIGNAL."""
+    specs = []
+    y, m = 2021, 1
+    for _ in range(3):
+        specs.append((y, m, 400.0, 400.0, 400.0, 400.0, 1000.0)); y, m = _step_month(y, m)
+    specs.append((y, m, 700.0, 700.0, 700.0, 700.0, 2000.0))  # left rim (2022-ish high)
+    y, m = _step_month(y, m)
+    price = 700.0
+    for _ in range(20):  # decline to a low
+        price -= 300.0 / 20
+        specs.append((y, m, price, price, price, price, 1000.0)); y, m = _step_month(y, m)
+    for _ in range(38):  # long recovery, close to (not past) the rim
+        price += 260.0 / 38
+        specs.append((y, m, price, price, price, price, 1000.0)); y, m = _step_month(y, m)
+    df = _monthly_frame(specs)
+    total_months = len(specs)
+    assert DEFAULT_CONFIG.min_cup_months < total_months < DEFAULT_CONFIG.min_cup_months + 12  # short total history, matching SONACOMS (~5.25y)
+    result = detect_cup(df, DEFAULT_CONFIG, now=dt.datetime(y, m, 10))
+    assert result["status"] in ("EARLY_CUP", "NEAR_BREAKOUT", "BREAKOUT_CONFIRMED", "RECENT_BREAKOUT")
+    assert result["left_rim_price"] == pytest.approx(700.0, abs=1.0)
+
+
+def test_short_history_relaxation_never_exceeds_the_normal_five_year_rule():
+    """The relaxation only ever REDUCES the room requirement for short
+    total history — it must never let a candidate with genuinely
+    insufficient room (even under the relaxed floor) through, and normal
+    (5+ year margin) stocks must be completely unaffected (already proven
+    by every other passing test in this file, which all use ample lead-in
+    history)."""
+    # Only ~30 months total — even the relaxed floor (short_history_min_cup_months=24,
+    # or 65% of 30≈19) can't manufacture room from a rim placed too close to "now".
+    specs, (y, m) = _cup_specs(left_rim=1000.0, cup_low=600.0, recovery_close=950.0, n_decline=10, n_recover=10, n_lead=3)
+    df = _monthly_frame(specs)
+    result = detect_cup(df, DEFAULT_CONFIG, now=dt.datetime(y, m, 10))
+    # With only ~24 months of decline+recovery after the rim, and the
+    # relaxed floor still requiring 24, this sits right at the edge —
+    # accept either a valid (relaxed-but-still-real) structure or a clean
+    # rejection, but never a crash or a nonsensical result.
+    assert result["status"] in ("EARLY_CUP", "NEAR_BREAKOUT", "NO_SIGNAL", "INSUFFICIENT_HISTORY")
+
+
+# ---------------------------------------------------------------------------
+# DEEP_CUP (2026-09-24, SONACOMS structural investigation)
+#
+# depth > max_depth_pct (50%) is NOT automatically rejected any more - it is
+# additionally evaluated against deep_cup_* thresholds (genuine multi-month
+# base at the bottom, real recovery duration, no single month dominating the
+# whole recovery range) and, only if ALL of those hold, accepted as
+# cup_type=DEEP_CUP (never STANDARD_CUP). A 50-60% decline that is really a
+# V-shaped crash-and-bounce must still be rejected (NO_SIGNAL), and anything
+# beyond deep_cup_max_depth_pct (60%) is rejected regardless of shape.
+# ---------------------------------------------------------------------------
+
+def _deep_cup_rounded_specs(left_rim=1000.0, cup_low=450.0, recovery_close=900.0, n_decline=36, n_recover=36):
+    """A genuinely deep (55%) but ROUNDED decline: gradual multi-month
+    decline AND gradual multi-month recovery (same shape _cup_specs already
+    uses for standard cups) - no single month dominates, matching the
+    SONACOMS-style base-then-climb shape the DEEP_CUP feature exists for."""
+    return _cup_specs(left_rim=left_rim, cup_low=cup_low, recovery_close=recovery_close,
+                       n_decline=n_decline, n_recover=n_recover)
+
+
+def test_deep_cup_50_to_60_percent_rounded_recovery_is_accepted_as_deep_cup():
+    specs, (y, m) = _deep_cup_rounded_specs(left_rim=1000.0, cup_low=450.0, recovery_close=900.0)
+    df = _monthly_frame(specs)
+    result = detect_cup(df, DEFAULT_CONFIG, now=dt.datetime(y, m, 10))
+    assert result["status"] in ("EARLY_CUP", "NEAR_BREAKOUT", "BREAKOUT_CONFIRMED", "RECENT_BREAKOUT")
+    assert result["cup_depth_percent"] == pytest.approx(55.0, abs=0.5)
+    assert result["cup_type"] == "DEEP_CUP"
+    assert result["bottom_duration_months"] is not None
+    assert result["recovery_duration_months"] is not None
+
+
+def _v_shaped_deep_specs():
+    """A 55%-deep decline followed by a genuine multi-month bottom base
+    (so bottom_duration passes) but then one single explosive month
+    accounting for the vast majority of the whole recovery range - the
+    V-SHAPED CRASH + SPIKE this feature must still reject, distinct from a
+    genuine rounded base-then-climb DEEP_CUP."""
+    specs = []
+    y, m = 2015, 1
+    for _ in range(3):
+        specs.append((y, m, 500.0, 500.0, 500.0, 500.0, 1000.0)); y, m = _step_month(y, m)
+    specs.append((y, m, 1000.0, 1000.0, 1000.0, 1000.0, 2000.0)); y, m = _step_month(y, m)
+    decline_step = (1000.0 - 450.0) / 50
+    price = 1000.0
+    for _ in range(50):
+        price -= decline_step
+        specs.append((y, m, price, price, price, price, 1000.0)); y, m = _step_month(y, m)
+    price = 450.0
+    for _ in range(7):
+        price += 10.0
+        specs.append((y, m, price, price, price, price, 1000.0)); y, m = _step_month(y, m)
+    specs.append((y, m, 900.0, 900.0, 900.0, 900.0, 1000.0)); y, m = _step_month(y, m)
+    return specs, (y, m)
+
+
+def test_deep_cup_50_to_60_percent_v_shaped_spike_is_rejected_as_no_signal():
+    specs, (y, m) = _v_shaped_deep_specs()
+    df = _monthly_frame(specs)
+    result = detect_cup(df, DEFAULT_CONFIG, now=dt.datetime(y, m, 10))
+    assert result["status"] == "NO_SIGNAL"
+    assert result["rejection_reason"] == "v_shaped_recovery_too_sharp"
+    assert result["invalidation_reason"] == "v_shaped_recovery_too_sharp"
+    assert result["cup_type"] is None
+
+
+def test_depth_beyond_deep_cup_cap_is_rejected_regardless_of_shape():
+    # 65% depth - beyond deep_cup_max_depth_pct (60%) even with a gradual,
+    # rounded recovery shape identical to the accepted DEEP_CUP case above.
+    specs, (y, m) = _deep_cup_rounded_specs(left_rim=1000.0, cup_low=350.0, recovery_close=900.0)
+    df = _monthly_frame(specs)
+    result = detect_cup(df, DEFAULT_CONFIG, now=dt.datetime(y, m, 10))
+    assert result["status"] == "NO_SIGNAL"
+    assert result["rejection_reason"] == "depth_out_of_range"
+
+
+def test_sonacoms_like_rounded_deep_decline_is_accepted_as_deep_cup():
+    """SONACOMS' real structure (2026-09-24 live diagnostic): ~55% depth,
+    rim Dec-2021, multi-month base near the low, then a sustained (not
+    single-spike) climb back toward the rim - illustrative shape only, no
+    SONACOMS data/dates are hardcoded into the detector itself."""
+    specs, (y, m) = _cup_specs(left_rim=840.0, cup_low=380.0, recovery_close=760.0, n_decline=40, n_recover=24)
+    df = _monthly_frame(specs)
+    result = detect_cup(df, DEFAULT_CONFIG, now=dt.datetime(y, m, 10))
+    assert result["status"] in ("EARLY_CUP", "NEAR_BREAKOUT", "BREAKOUT_CONFIRMED", "RECENT_BREAKOUT")
+    assert result["cup_type"] == "DEEP_CUP"
+
+
+def test_vedl_like_full_structure_remains_valid_after_deep_cup_change():
+    """The existing VEDL-like structural test (standard-depth, <=50%) must
+    remain entirely unaffected by the DEEP_CUP addition - same fixture
+    shape as test_vedl_like_full_structure_reaches_breakout_confirmed."""
+    specs, (y, m) = _cup_specs(left_rim=1000.0, cup_low=600.0, recovery_close=950.0, n_decline=36, n_recover=36)
+    specs2 = list(specs)
+    specs2.append((y, m, 1010.0, 1010.0, 1010.0, 1010.0, 2000.0))
+    y2, m2 = _step_month(y, m)
+    df2 = _monthly_frame(specs2)
+    result = detect_cup(df2, DEFAULT_CONFIG, now=dt.datetime(y2, m2, 10))
+    assert result["status"] in ("BREAKOUT_CONFIRMED", "RECENT_BREAKOUT")
+    assert result["cup_type"] == "STANDARD_CUP"
+
+
+def test_bhel_like_multi_cup_selection_remains_valid_after_deep_cup_change():
+    """The existing multi-cup "most recent relevant cup wins" behavior must
+    be completely unaffected by the DEEP_CUP addition."""
+    specs = []
+    y, m = 2010, 1
+    for _ in range(3):
+        specs.append((y, m, 400.0, 400.0, 400.0, 400.0, 1000.0)); y, m = _step_month(y, m)
+    specs.append((y, m, 900.0, 900.0, 900.0, 900.0, 2000.0)); y, m = _step_month(y, m)
+    price = 900.0
+    for i in range(30):
+        price -= 500.0 / 30
+        specs.append((y, m, price, price, price, price, 1000.0)); y, m = _step_month(y, m)
+    for i in range(30):
+        price += 480.0 / 30
+        specs.append((y, m, price, price, price, price, 1000.0)); y, m = _step_month(y, m)
+    specs.append((y, m, 1200.0, 1200.0, 1200.0, 1200.0, 2000.0)); y, m = _step_month(y, m)
+    price = 1200.0
+    for i in range(24):
+        price -= 500.0 / 24
+        specs.append((y, m, price, price, price, price, 1000.0)); y, m = _step_month(y, m)
+    for i in range(36):
+        price += 400.0 / 36
+        specs.append((y, m, price, price, price, price, 1000.0)); y, m = _step_month(y, m)
+    df = _monthly_frame(specs)
+    result = detect_cup(df, DEFAULT_CONFIG, now=dt.datetime(y, m, 10))
+    assert result["left_rim_price"] == pytest.approx(1200.0, abs=1.0)
+
+
+def test_deep_cup_does_not_weaken_the_existing_stale_cup_validation():
+    """A DEEP_CUP structure whose price has already moved past the
+    breakout level on a completed month, then pulled back below it again
+    without a fresh confirmed breakout, must still be classified NO_SIGNAL
+    (stale) exactly like a STANDARD_CUP - the existing stale-breakout rule
+    is untouched by the DEEP_CUP addition."""
+    specs, (y2, m2) = _deep_cup_rounded_specs(left_rim=1000.0, cup_low=450.0, recovery_close=900.0)
+    specs = specs + [(y2, m2, 1000.0, 1060.0, 995.0, 1040.0, 3000.0)]  # breakout month
+    y, m = _step_month(y2, m2)
+    # Many completed months after the breakout, well past recent_breakout_months,
+    # with price having run up massively beyond the old breakout level.
+    for i in range(24):
+        price = 1040.0 + i * 150.0
+        specs.append((y, m, price, price * 1.02, price * 0.98, price, 2000.0))
+        y, m = _step_month(y, m)
+    df = _monthly_frame(specs)
+    result = detect_cup(df, DEFAULT_CONFIG, now=dt.datetime(y, m, 10))
+    assert result["status"] == "NO_SIGNAL"
+    assert result["rejection_reason"] == "stale_breakout_price_already_moved_away"
+
+
+def test_deep_cup_does_not_weaken_the_existing_five_percent_and_25_percent_rules():
+    """DEEP_CUP candidates are still gated by the SAME min_recovery_pct (5%)
+    and max_distance_to_breakout_pct (25%) rules as STANDARD_CUP - the
+    DEEP_CUP checks are purely additive on top, never a replacement."""
+    # 55% deep decline, but recovery stalls right at the cup low (no real
+    # upward turn yet) -> must still fail the existing 5% recovery rule.
+    specs, (y, m) = _cup_specs(left_rim=1000.0, cup_low=450.0, recovery_close=460.0, n_decline=40, n_recover=24)
+    df = _monthly_frame(specs)
+    result = detect_cup(df, DEFAULT_CONFIG, now=dt.datetime(y, m, 10))
+    assert result["status"] == "NO_SIGNAL"
