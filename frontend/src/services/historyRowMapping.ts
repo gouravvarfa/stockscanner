@@ -191,6 +191,24 @@ export function signalToRows(
     );
   }
 
+  if (strategyName === "CUP") {
+    const status = typeof extra.status === "string" ? extra.status : "QUALIFIED";
+    return [
+      withId({
+        ...base(),
+        status,
+        signal: status,
+        price: num(extra.latest_monthly_close ?? extra.current_price),
+        rsi: null, // Cup Breakout has no RSI concept — monthly price structure only
+        aDate: str(extra.left_rim_date),
+        aPrice: num(extra.left_rim_price),
+        bDate: str(extra.cup_low_date),
+        bPrice: num(extra.cup_low_price),
+        abDistance: typeof extra.cup_age_months === "number" ? extra.cup_age_months : null,
+      }),
+    ];
+  }
+
   return [withId(base())];
 }
 
@@ -207,11 +225,20 @@ export function mapPartialSignalsToRows(localId: string, partial: PartialResult)
  *  used to fill in anything the live streams above might have missed (e.g.
  *  if this browser tab wasn't open for part of the scan) and to write the
  *  final failed-stock rows. Never recalculated — only reformatted. */
-export function mapScanResultToHistoryRows(localId: string, result: ScanResult): HistoryResultRow[] {
+export function mapScanResultToHistoryRows(localId: string, result: ScanResult | Record<string, unknown>): HistoryResultRow[] {
+  // Only the A Group scan's result has this shape (nifty200_universe +
+  // strategies). Other scan types (Cup Breakout, Expiry Level 1/5) stream
+  // everything they need through mapPartialSignalsToRows/mapProgressItemToRow
+  // already — this final-result backfill is A-Group-specific and must be a
+  // no-op (not a crash) for anything else.
+  if (!result || !Array.isArray((result as { nifty200_universe?: unknown }).nifty200_universe)) {
+    return [];
+  }
+  const scanResult = result as ScanResult;
   const now = new Date().toISOString();
   const rows: HistoryResultRow[] = [];
   const instrumentBySymbol = new Map<string, "FUTURE" | "EQUITY" | null>();
-  for (const u of result.nifty200_universe as NiftyUniverseStock[]) {
+  for (const u of scanResult.nifty200_universe as NiftyUniverseStock[]) {
     instrumentBySymbol.set(u.symbol, u.instrument_type ?? null);
     if (u.status !== "OK") {
       const row: HistoryResultRow = {
@@ -241,7 +268,7 @@ export function mapScanResultToHistoryRows(localId: string, result: ScanResult):
     }
   }
 
-  for (const [strategyName, signals] of Object.entries(result.strategies ?? {})) {
+  for (const [strategyName, signals] of Object.entries(scanResult.strategies ?? {})) {
     for (const signal of signals) {
       rows.push(...signalToRows(localId, strategyName, signal, instrumentBySymbol.get(signal.symbol) ?? null, now));
     }

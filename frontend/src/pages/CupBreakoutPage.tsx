@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { InstrumentBadge } from "../components/InstrumentBadge";
 import { useChart } from "../chart/ChartContext";
+import { useLocalHistoryWriter } from "../hooks/useLocalHistoryWriter";
 import { useScanJob } from "../hooks/useScanJob";
 import { fmtDuration } from "../services/scanJobsApi";
+
+const SCAN_TYPE = "cup_breakout";
 
 /**
  * Cup Breakout — a completely separate long-term MONTHLY pattern scanner.
@@ -102,8 +105,13 @@ function partialToCupResult(signal: { extra: Record<string, unknown> }): CupResu
 }
 
 export function CupBreakoutPage() {
-  const { result, partial, job, running, error, run, runFresh, cancel } = useScanJob<CupScanResult>("cup_breakout");
+  const { result, partial, progressLog, job, running, error, run, runFresh, cancel } = useScanJob<CupScanResult>(SCAN_TYPE);
   const { openChart } = useChart();
+
+  // Permanent, device-local Scan History (IndexedDB) — same mechanism the
+  // A Group scan already uses (frontend/src/hooks/useLocalHistoryWriter.ts),
+  // so a Render restart never loses a completed Cup Breakout scan either.
+  useLocalHistoryWriter(SCAN_TYPE, job, partial, progressLog, result);
 
   const [activeTab, setActiveTab] = useState<StatusTabKey>("all");
   const [symbolSearch, setSymbolSearch] = useState("");

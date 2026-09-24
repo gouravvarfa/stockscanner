@@ -1,5 +1,4 @@
 import { useEffect, useRef } from "react";
-import type { ScanResult } from "../services/api";
 import type { PartialResult, ProgressLogItem, ScanJobOut } from "../services/scanJobsApi";
 import {
   localIdForJob,
@@ -41,7 +40,12 @@ export function useLocalHistoryWriter(
   job: ScanJobOut | null,
   partial: PartialResult[],
   progressLog: ProgressLogItem[],
-  result: ScanResult | null,
+  // Only the A-Group scan's final result has the shape
+  // mapScanResultToHistoryRows expects; other scan types' result payloads
+  // (any shape) are still accepted here (so this hook stays reusable for
+  // all of them) but that function safely no-ops for anything that isn't
+  // A-Group's shape.
+  result: unknown,
 ) {
   const localIdRef = useRef<string | null>(null);
   const seenPartialSeq = useRef(0);
@@ -124,7 +128,7 @@ export function useLocalHistoryWriter(
     if (!localId || !job || job.status !== "completed" || !result) return;
     if (finalizedFor.current === localId) return;
     finalizedFor.current = localId;
-    const rows = mapScanResultToHistoryRows(localId, result);
+    const rows = mapScanResultToHistoryRows(localId, result as Record<string, unknown>);
     // Batch in chunks so a 615-stock result never blocks the UI thread in one go.
     const CHUNK = 150;
     (async () => {
@@ -132,9 +136,14 @@ export function useLocalHistoryWriter(
         await putResults(rows.slice(i, i + CHUNK));
         await new Promise((r) => setTimeout(r, 0));
       }
+      // totalStocks/failedStocks come from `job` (generic across every scan
+      // type, already accurate) rather than `result` — `result.scan_id`/
+      // `.universe_requested` only exist on the A-Group result shape; other
+      // scan types' result payloads don't have them.
+      const scanId = (result as { scan_id?: number | null }).scan_id ?? null;
       await putSnapshot({
         localId,
-        scanId: result.scan_id,
+        scanId,
         jobId: job.job_id,
         scanType,
         scanDate: newSnapshotMeta(scanType, job.job_id, job.start_time, job.total).scanDate,
@@ -142,10 +151,10 @@ export function useLocalHistoryWriter(
         startedAt: job.start_time,
         completedAt: job.completion_time,
         durationSeconds: job.elapsed_seconds,
-        totalStocks: result.universe_requested,
+        totalStocks: job.total,
         processedStocks: job.processed,
         successfulStocks: job.successful,
-        failedStocks: result.stocks_failed,
+        failedStocks: job.failed,
         signalCount: job.signals_found,
         status: "completed",
       });
