@@ -78,13 +78,19 @@ async def fetch_cup_history(angelone: AngelOneProvider, symbol: str, config: Cup
     Only THIS symbol's DataFrame is ever loaded into memory here — the
     caller (cup_scan_service.py) lets it go out of scope once this stock's
     Cup detection finishes, so nothing accumulates across a scan.
+
+    When config.enable_disk_cache is False (Render, by default — see
+    CupConfig docstring), both the read and the write below are skipped
+    entirely: every call does a full chunked fetch and nothing is ever
+    persisted to this instance's disk, so nothing can accumulate there
+    across a scan or across restarts.
     """
     match = await angelone.resolve_equity(symbol)
     if match is None:
         raise CupDataUnavailableError(f"Angel One has no equity listing for '{symbol}'.")
 
     now = dt.datetime.now()
-    entry = cup_disk_cache.load(symbol)
+    entry = cup_disk_cache.load(symbol) if config.enable_disk_cache else None
 
     if entry is not None:
         # +10 day tolerance: the oldest cached bar is a real trading day
@@ -97,7 +103,8 @@ async def fetch_cup_history(angelone: AngelOneProvider, symbol: str, config: Cup
             # Only fetch the missing tail, not the full N years again.
             fresh_tail = await _fetch_chunked(angelone, match.exch_seg, match.token, entry.newest_date, now, config)
             merged = _dedupe_and_sort([entry.data, fresh_tail])
-            cup_disk_cache.save(symbol, merged)
+            if config.enable_disk_cache:
+                cup_disk_cache.save(symbol, merged)
             return merged
         # Cached depth no longer covers the requested history_years (e.g.
         # config was widened since this was cached) — safe invalidation:
@@ -105,5 +112,6 @@ async def fetch_cup_history(angelone: AngelOneProvider, symbol: str, config: Cup
 
     start = now - dt.timedelta(days=int(config.history_years * 365.25))
     full = await _fetch_chunked(angelone, match.exch_seg, match.token, start, now, config)
-    cup_disk_cache.save(symbol, full)
+    if config.enable_disk_cache:
+        cup_disk_cache.save(symbol, full)
     return full

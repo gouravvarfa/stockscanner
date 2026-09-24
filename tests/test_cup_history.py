@@ -112,6 +112,38 @@ async def test_insufficient_cached_depth_triggers_a_full_refetch():
     assert len(provider.calls) >= 3  # a full chunked refetch, not a 1-call tail fetch
 
 
+async def test_disk_cache_disabled_never_reads_or_writes_the_cache_file():
+    """2026-09-24, Render OOM: on Render (enable_disk_cache=False, the
+    default whenever the RENDER env var is set), nothing may ever be
+    persisted to this instance's disk, and a full chunked fetch must run
+    every single call even for the same symbol back-to-back."""
+    no_cache_config = CONFIG.model_copy(update={"enable_disk_cache": False})
+    provider = FakeProvider()
+    await fetch_cup_history(provider, "NOCACHE1", no_cache_config)
+    calls_after_first = len(provider.calls)
+    assert calls_after_first >= 3  # a full chunked fetch, same as a cold cache
+    assert cup_disk_cache.load("NOCACHE1") is None  # never written to disk
+
+    await fetch_cup_history(provider, "NOCACHE1", no_cache_config)
+    # A second call for the SAME symbol still does a full fetch again — no
+    # cache hit is possible since nothing was ever persisted.
+    assert len(provider.calls) == calls_after_first * 2
+
+
+def test_default_enable_disk_cache_reflects_the_render_env_var(monkeypatch):
+    import importlib
+
+    from backend.config import cup_config as cup_config_module
+
+    monkeypatch.setenv("RENDER", "true")
+    importlib.reload(cup_config_module)
+    assert cup_config_module.CupConfig().enable_disk_cache is False
+
+    monkeypatch.delenv("RENDER", raising=False)
+    importlib.reload(cup_config_module)
+    assert cup_config_module.CupConfig().enable_disk_cache is True
+
+
 async def test_missing_equity_listing_raises_cup_specific_error():
     provider = FakeProvider(has_equity=False)
     with pytest.raises(CupDataUnavailableError):

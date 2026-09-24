@@ -10,6 +10,8 @@ influenced by their RSI/divergence calculations.
 """
 from __future__ import annotations
 
+import os
+
 from pydantic import BaseModel
 
 
@@ -25,6 +27,21 @@ class CupConfig(BaseModel):
     history_years: int = 10
     chunk_years: float = 2.0
     chunk_delay_seconds: float = 3.0
+    # ---- Disk cache (2026-09-24, Render OOM) ------------------------------
+    # Render's instance kept exceeding its memory limit and auto-restarting
+    # mid-scan even after the per-symbol disk cache fix — on Render's small
+    # instance, the growing pile of per-symbol .pkl files under
+    # backend/providers/cup_disk_cache.py's CACHE_DIR is itself unwanted
+    # accumulation on a constrained container. Per explicit user direction
+    # (2026-09-24): Cup history must NOT persist on Render at all — only a
+    # local development machine should keep the on-disk cache. Defaults to
+    # False whenever the RENDER env var is set (Render sets this
+    # automatically in every one of its runtimes), True otherwise (local
+    # dev). fetch_cup_history() in cup_history.py honors this by skipping
+    # both cache reads and writes when False, always doing a fresh chunked
+    # fetch and discarding the DataFrame once detect_cup() is done with it
+    # (see cup_scan_service.py's explicit `del daily_ohlcv`).
+    enable_disk_cache: bool = os.environ.get("RENDER") != "true"
 
     # ---- Cup structure ----------------------------------------------------
     min_depth_pct: float = 12.0
