@@ -259,6 +259,23 @@ class TooManyConcurrentScansError(RuntimeError):
 # cap exists only to bound that per-job memory, not to protect Angel One.
 MAX_CONCURRENT_JOBS_PER_SCAN_TYPE = 3
 
+# 2026-09-24, Render OOM: completed/failed/cancelled ScanJob objects were
+# never removed from the in-process registry below — their progress_log
+# (every processed stock, every run) and partial_results (full signal
+# detail for every qualifying stock, every run) accumulated forever across
+# a running day until the instance's memory limit was exceeded and Render
+# force-restarted it. This is independent of, and in addition to, the Cup
+# Breakout history cache fixed earlier the same day, and affects EVERY scan
+# type (A-Group/Expiry Level 1/5/Cup Breakout), since they all share this
+# one registry. Only RUNNING jobs are ever kept in full; once a job
+# finishes, only the most recent MAX_COMPLETED_JOBS_RETAINED_PER_TYPE
+# finished jobs of its scan_type are retained — older ones are evicted
+# entirely (see JobManager._evict_old_completed_jobs). The 24-hour result
+# cache below (get_cached_result/set_cached_result) is a SEPARATE, already-
+# persisted copy of each scan type's final result, so nothing user-visible
+# is lost by evicting an old job object.
+MAX_COMPLETED_JOBS_RETAINED_PER_TYPE = 5
+
 
 class JobManager:
     """One instance lives for the app's lifetime (module-level singleton
@@ -329,9 +346,22 @@ class JobManager:
                 job.error = str(exc)
             finally:
                 job.completion_time = dt.datetime.now(dt.timezone.utc)
+                self._evict_old_completed_jobs(scan_type)
 
         job._task = asyncio.create_task(_execute())
         return job
+
+    def _evict_old_completed_jobs(self, scan_type: ScanType) -> None:
+        """See MAX_COMPLETED_JOBS_RETAINED_PER_TYPE's comment above — keeps
+        this registry bounded regardless of how many scans run over the
+        life of the process. Never touches a still-running job."""
+        finished = sorted(
+            (j for j in self._jobs.values() if j.scan_type == scan_type and j.status != "running"),
+            key=lambda j: j.completion_time or j.start_time,
+            reverse=True,
+        )
+        for stale in finished[MAX_COMPLETED_JOBS_RETAINED_PER_TYPE:]:
+            del self._jobs[stale.job_id]
 
     def get(self, job_id: str, *, device_id: str | None = None) -> ScanJob | None:
         """With `device_id`, only returns the job if it belongs to that

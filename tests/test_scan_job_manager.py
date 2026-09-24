@@ -219,3 +219,59 @@ def test_partial_result_includes_full_signal_detail_not_just_names():
     assert item["signals"][0]["strategy"] == "PRD Forming"
     assert item["signals"][0]["extra"]["forming"][0]["a_rsi"] == 73.02
     assert item["signals"][0]["weekly_rsi"] == 62.0
+
+
+async def test_old_completed_jobs_are_evicted_beyond_the_retained_cap():
+    """2026-09-24 Render OOM fix: finished ScanJob objects (each carrying a
+    progress_log entry per processed stock and full signal detail per
+    qualifying stock) must not accumulate forever in the in-process
+    registry across many scans run over a day — only the most recent
+    MAX_COMPLETED_JOBS_RETAINED_PER_TYPE finished jobs of a scan_type stay
+    in memory; older ones are dropped once a newer one of the same type
+    finishes."""
+    from backend.services.scan_job_manager import MAX_COMPLETED_JOBS_RETAINED_PER_TYPE
+
+    manager = JobManager()
+
+    async def quick_runner(job):
+        job.total = 1
+        job.record_progress("A", True)
+        return {"ok": True}
+
+    job_ids = []
+    for _ in range(MAX_COMPLETED_JOBS_RETAINED_PER_TYPE + 3):
+        job = manager.start_job("a_group", quick_runner, allow_concurrent_same_type=True)
+        await job._task
+        job_ids.append(job.job_id)
+
+    remaining = [jid for jid in job_ids if manager.get(jid) is not None]
+    assert len(remaining) == MAX_COMPLETED_JOBS_RETAINED_PER_TYPE
+    # The most recently completed jobs are the ones kept, not the earliest.
+    assert remaining == job_ids[-MAX_COMPLETED_JOBS_RETAINED_PER_TYPE:]
+
+
+async def test_a_still_running_job_is_never_evicted_even_when_many_others_finish():
+    from backend.services.scan_job_manager import MAX_COMPLETED_JOBS_RETAINED_PER_TYPE
+
+    manager = JobManager()
+    still_running = asyncio.Event()
+
+    async def blocking_runner(job):
+        job.total = 1
+        await still_running.wait()
+        job.record_progress("A", True)
+        return {"ok": True}
+
+    async def quick_runner(job):
+        job.total = 1
+        job.record_progress("A", True)
+        return {"ok": True}
+
+    long_job = manager.start_job("a_group", blocking_runner)
+    for _ in range(MAX_COMPLETED_JOBS_RETAINED_PER_TYPE + 3):
+        job = manager.start_job("a_group", quick_runner, allow_concurrent_same_type=True)
+        await job._task
+
+    assert manager.get(long_job.job_id) is not None
+    still_running.set()
+    await long_job._task
