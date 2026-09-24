@@ -4,7 +4,7 @@ import { IndicatorsMenu } from "./IndicatorsMenu";
 import { OHLCReadout } from "./OHLCReadout";
 import { TimeframeSelector } from "./TimeframeSelector";
 import { DEFAULT_INDICATOR_SETTINGS, type ChartDataStatus, type ChartSignalContext, type IndicatorSettings, type Timeframe } from "./chartTypes";
-import { useTradingViewChart } from "./useTradingViewChart";
+import { useTradingViewChart, type ChartSeriesType } from "./useTradingViewChart";
 import { INDICATOR_PREFS_STORAGE_KEY } from "./chartConfig";
 
 export interface TradingViewChartProps {
@@ -31,6 +31,7 @@ function fmtRsi(value: number | null | undefined): string {
 
 export function TradingViewChart({ symbol, signalContext, isMaximized, onToggleMaximize, onClose }: TradingViewChartProps) {
   const [timeframe, setTimeframe] = useState<Timeframe>("1D");
+  const [chartType, setChartType] = useState<ChartSeriesType>("candles");
   const [indicators, setIndicators] = useState<IndicatorSettings>(loadIndicatorPrefs);
   const [status, setStatus] = useState<ChartDataStatus>("loading");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -45,7 +46,7 @@ export function TradingViewChart({ symbol, signalContext, isMaximized, onToggleM
     }
   }, [indicators]);
 
-  const { crosshair, setData, fitContent, bollingerLatest, rsiLatest } = useTradingViewChart(containerRef, { indicators });
+  const { crosshair, setData, fitContent, bollingerLatest, rsiLatest } = useTradingViewChart(containerRef, { indicators, chartType });
 
   useEffect(() => {
     const controller = new AbortController();
@@ -105,6 +106,22 @@ export function TradingViewChart({ symbol, signalContext, isMaximized, onToggleM
         <div className="chart-toolbar">
           <TimeframeSelector value={timeframe} onChange={setTimeframe} />
           <div className="chart-toolbar-right">
+            <div className="chart-type-toggle">
+              <button
+                type="button"
+                className={chartType === "candles" ? "chart-toolbar-btn active" : "chart-toolbar-btn"}
+                onClick={() => setChartType("candles")}
+              >
+                Candles
+              </button>
+              <button
+                type="button"
+                className={chartType === "line" ? "chart-toolbar-btn active" : "chart-toolbar-btn"}
+                onClick={() => setChartType("line")}
+              >
+                Line
+              </button>
+            </div>
             <IndicatorsMenu value={indicators} onChange={setIndicators} />
             <button type="button" className="chart-toolbar-btn" aria-label="Reset zoom" onClick={fitContent}>
               Reset Zoom

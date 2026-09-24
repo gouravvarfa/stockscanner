@@ -36,8 +36,11 @@ export interface BollingerLatest {
   lower: number;
 }
 
+export type ChartSeriesType = "candles" | "line";
+
 interface UseTradingViewChartOptions {
   indicators: IndicatorSettings;
+  chartType?: ChartSeriesType;
 }
 
 /**
@@ -52,6 +55,7 @@ interface UseTradingViewChartOptions {
 export function useTradingViewChart(containerRef: React.RefObject<HTMLDivElement | null>, options: UseTradingViewChartOptions) {
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
+  const closeLineSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
   const volumeSeriesRef = useRef<ISeriesApi<"Histogram"> | null>(null);
   const bbUpperRef = useRef<ISeriesApi<"Line"> | null>(null);
   const bbMiddleRef = useRef<ISeriesApi<"Line"> | null>(null);
@@ -139,17 +143,30 @@ export function useTradingViewChart(containerRef: React.RefObject<HTMLDivElement
     });
     candleSeriesRef.current = candleSeries;
 
+    // A plain close-price line — the alternative to candles, toggled via
+    // the header's Candles/Line switch (chartType option below). Created
+    // up front (hidden by default) so switching types never re-fetches or
+    // re-renders the underlying data, only which series is visible.
+    const closeLineSeries = chart.addSeries(LineSeries, { color: colors.purple, lineWidth: 2, visible: false });
+    closeLineSeriesRef.current = closeLineSeries;
+
     chart.subscribeCrosshairMove((param) => {
       if (!param.time || !param.seriesData) {
         setCrosshair(null);
         return;
       }
       const data = param.seriesData.get(candleSeries) as { open: number; high: number; low: number; close: number } | undefined;
-      if (!data) {
+      if (data) {
+        setCrosshair({ time: toSeconds(param.time), open: data.open, high: data.high, low: data.low, close: data.close });
+        return;
+      }
+      // Candle series is hidden in line-chart mode — only its close value is available.
+      const lineData = param.seriesData.get(closeLineSeries) as { value: number } | undefined;
+      if (!lineData) {
         setCrosshair(null);
         return;
       }
-      setCrosshair({ time: toSeconds(param.time), open: data.open, high: data.high, low: data.low, close: data.close });
+      setCrosshair({ time: toSeconds(param.time), open: lineData.value, high: lineData.value, low: lineData.value, close: lineData.value });
     });
 
     let lastWidth = container.clientWidth;
@@ -175,6 +192,7 @@ export function useTradingViewChart(containerRef: React.RefObject<HTMLDivElement
       chart.remove();
       chartRef.current = null;
       candleSeriesRef.current = null;
+      closeLineSeriesRef.current = null;
       volumeSeriesRef.current = null;
       bbUpperRef.current = null;
       bbMiddleRef.current = null;
@@ -298,9 +316,18 @@ export function useTradingViewChart(containerRef: React.RefObject<HTMLDivElement
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [options.indicators.rsi, options.indicators.rsiPeriod, options.indicators.rsiUpper, options.indicators.rsiLower]);
 
+  // Candles/Line toggle — both series always hold the same data; only
+  // which one is visible changes, so switching is instant (no re-fetch).
+  useEffect(() => {
+    const isLine = options.chartType === "line";
+    candleSeriesRef.current?.applyOptions({ visible: !isLine });
+    closeLineSeriesRef.current?.applyOptions({ visible: isLine });
+  }, [options.chartType]);
+
   const setData = (bars: OHLCBar[]): void => {
     barsRef.current = bars;
     candleSeriesRef.current?.setData(bars.map((bar) => ({ time: bar.time as Time, open: bar.open, high: bar.high, low: bar.low, close: bar.close })));
+    closeLineSeriesRef.current?.setData(bars.map((bar) => ({ time: bar.time as Time, value: bar.close })));
     if (volumeSeriesRef.current) {
       const colors = getChartThemeColors();
       volumeSeriesRef.current.setData(bars.map((bar) => toVolumePoint(bar, colors)));

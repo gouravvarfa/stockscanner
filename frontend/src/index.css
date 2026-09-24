@@ -971,6 +971,10 @@ td .symbol-cell { font-weight: 700; color: var(--text-primary); }
   cursor: pointer;
 }
 .chart-toolbar-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+.chart-toolbar-btn.active { background: var(--accent-soft); color: var(--accent-soft-text); border-color: var(--accent); }
+
+.chart-type-toggle { display: flex; gap: 4px; }
+.chart-type-toggle .chart-toolbar-btn { padding: 7px 10px; }
 
 .timeframe-row { display: flex; gap: 6px; overflow-x: auto; }
 
