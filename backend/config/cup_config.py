@@ -54,6 +54,16 @@ class CupConfig(BaseModel):
     # actual cup. Gated out as NO_SIGNAL, same as too-shallow/too-deep.
     min_recovery_pct: float = 5.0
 
+    # ---- Right rim (2026-09-24, VEDL/BHEL structural reference) ----------
+    # The RIGHT rim is the highest CLOSE actually reached during the
+    # recovery so far (cup_low -> now) — real price action that has tested
+    # the resistance zone, not just "current price happens to be close".
+    # A candidate whose best-ever recovery point never got within this much
+    # of the left rim is rejected (NO_SIGNAL) even if it separately passes
+    # max_distance_to_breakout_pct on the current bar alone — additive
+    # strictness, never looser than the existing distance/recovery filters.
+    max_rim_difference_pct: float = 20.0
+
     # ---- Handle (optional, informational only — see backend/strategies/cup.py)
     handle_max_months: int = 3
     handle_max_retrace_pct: float = 15.0

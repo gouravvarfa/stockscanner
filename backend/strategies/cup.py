@@ -92,6 +92,21 @@ def _find_cup_structure(monthly: pd.DataFrame, config: CupConfig) -> dict[str, A
             continue
         cup_low_idx = left_rim_idx + 1 + int(after.values.argmin())
         cup_low_price = float(lows.iloc[cup_low_idx])
+        # DOMINANCE (2026-09-24, live ASIANPAINT false positive): the left
+        # rim must actually BE the peak the decline falls from — if a HIGHER
+        # high occurs anywhere between it and the cup low, this candidate is
+        # just an earlier, lesser pivot that price later exceeded before
+        # ever really declining; the genuine rim is that later, higher
+        # point (which is itself already a separate swing-high candidate in
+        # this same loop). Without this, a small/early local high with a
+        # shallow-looking "cup" underneath it could out-rank the real,
+        # larger structure purely for being numerically closer to today's
+        # price — exactly what produced ASIANPAINT's false positive
+        # (rim picked at 2021's ~2873 while price had actually rallied to
+        # ~3600 in 2022 before the real decline even started).
+        between = highs.iloc[left_rim_idx + 1 : cup_low_idx]
+        if not between.empty and float(between.max()) > left_rim_price:
+            continue
         depth_pct = (left_rim_price - cup_low_price) / left_rim_price * 100.0
         if not (config.min_depth_pct <= depth_pct <= config.max_depth_pct):
             continue
@@ -114,23 +129,44 @@ def _find_cup_structure(monthly: pd.DataFrame, config: CupConfig) -> dict[str, A
     return best
 
 
-def _handle_status(monthly: pd.DataFrame, breakout_idx: int, breakout_price: float, config: CupConfig) -> str:
+def _handle_details(monthly: pd.DataFrame, breakout_idx: int, breakout_price: float, config: CupConfig) -> dict[str, Any]:
     """
     Optional/informational only — never gates EARLY_CUP/NEAR_BREAKOUT/
     BREAKOUT_FORMING/BREAKOUT_CONFIRMED (see module docstring). A "handle" is
     a shallow pullback (<= handle_max_retrace_pct off the breakout close)
     within handle_max_months of the breakout, not yet a failed breakout.
     """
+    empty = {"status": "NOT_FORMED", "start_date": None, "end_date": None, "low_price": None}
     n = len(monthly)
     since = monthly.iloc[breakout_idx + 1 : n]
     if since.empty or breakout_price <= 0:
-        return "NOT_FORMED"
+        return empty
     min_close = float(since["close"].min())
     pullback_pct = max(0.0, (breakout_price - min_close) / breakout_price * 100.0)
     if pullback_pct <= 0 or pullback_pct > config.handle_max_retrace_pct:
-        return "NOT_FORMED"  # no pullback at all, or too deep to be a shallow handle
+        return empty  # no pullback at all, or too deep to be a shallow handle
     still_developing = len(since) <= config.handle_max_months and float(since["close"].iloc[-1]) < float(since["close"].max())
-    return "FORMING" if still_developing else "FORMED"
+    return {
+        "status": "FORMING" if still_developing else "FORMED",
+        "start_date": monthly.index[breakout_idx + 1].isoformat(),
+        "end_date": monthly.index[n - 1].isoformat(),
+        "low_price": round(float(monthly["low"].iloc[breakout_idx + 1 : n].min()), 2),
+    }
+
+
+def _right_rim(monthly: pd.DataFrame, cup_low_idx: int, b_idx: int) -> tuple[int, float]:
+    """
+    The RIGHT rim: the highest CLOSE actually reached during the recovery so
+    far (cup_low -> latest completed bar, inclusive) — real price action
+    that has tested the resistance zone, distinct from "current price
+    happens to be close" (see CupConfig.max_rim_difference_pct docstring).
+    """
+    window = monthly["close"].iloc[cup_low_idx + 1 : b_idx + 1]
+    if window.empty:
+        return b_idx, float(monthly["close"].iloc[b_idx])
+    local_idx = int(window.to_numpy().argmax())
+    idx = cup_low_idx + 1 + local_idx
+    return idx, float(window.iloc[local_idx])
 
 
 def detect_cup(
@@ -151,16 +187,25 @@ def detect_cup(
         "status": STATUS_INSUFFICIENT_HISTORY,
         "left_rim_date": None, "left_rim_price": None,
         "cup_low_date": None, "cup_low_price": None,
+        "cup_bottom_date": None, "cup_bottom_price": None,  # alias of cup_low_* (spec naming)
+        "right_rim_date": None, "right_rim_price": None,
+        "rim_difference_percent": None,
         "cup_depth_percent": None,
         "cup_age_months": None, "cup_age_years": None,
+        "candidate_age_months": None,  # alias of cup_age_months (spec naming)
         "recovery_percent": None,
+        "recovery_from_bottom_percent": None,  # alias of recovery_percent (spec naming)
         "potential_breakout_level": None,
+        "breakout_level": None,  # alias of potential_breakout_level (spec naming)
         "latest_monthly_close": None,
         "distance_to_breakout_percent": None,
+        "current_distance_to_breakout_percent": None,  # alias (spec naming)
         "breakout_date": None, "breakout_price": None, "breakout_percent": None,
         "breakout_volume": None, "average_monthly_volume": None, "volume_ratio": None,
         "handle_status": "NOT_FORMED",
+        "handle_start_date": None, "handle_end_date": None, "handle_low_price": None,
         "history_years_available": None,
+        "invalidation_reason": "insufficient_history",
     }
 
     if daily_ohlcv is None or daily_ohlcv.empty:
@@ -182,30 +227,46 @@ def detect_cup(
     structure = _find_cup_structure(monthly, config)
     if structure is None:
         result["status"] = STATUS_NO_SIGNAL
+        result["invalidation_reason"] = "no_valid_cup_structure_found"
         return result
 
     left_rim_price = structure["left_rim_price"]
     cup_low_price = structure["cup_low_price"]
     cup_low_idx = structure["cup_low_idx"]
+    left_rim_idx = structure["left_rim_idx"]
     breakout_level = left_rim_price  # the validated resistance IS the left rim — no arbitrary percentage
 
     recovery_range = left_rim_price - cup_low_price
     recovery_pct = ((latest_close - cup_low_price) / recovery_range * 100.0) if recovery_range > 0 else 0.0
 
+    right_rim_idx, right_rim_price = _right_rim(monthly, cup_low_idx, b_idx)
+    rim_difference_pct = (left_rim_price - right_rim_price) / left_rim_price * 100.0 if left_rim_price > 0 else 0.0
+
+    cup_age_months = b_idx - left_rim_idx
     result.update({
         "left_rim_date": structure["left_rim_date"].isoformat(),
         "left_rim_price": left_rim_price,
         "cup_low_date": structure["cup_low_date"].isoformat(),
         "cup_low_price": cup_low_price,
+        "cup_bottom_date": structure["cup_low_date"].isoformat(),
+        "cup_bottom_price": cup_low_price,
+        "right_rim_date": monthly.index[right_rim_idx].isoformat(),
+        "right_rim_price": round(right_rim_price, 2),
+        "rim_difference_percent": round(rim_difference_pct, 2),
         "cup_depth_percent": round(structure["depth_pct"], 2),
-        "cup_age_months": b_idx - structure["left_rim_idx"],
-        "cup_age_years": round((b_idx - structure["left_rim_idx"]) / 12.0, 2),
+        "cup_age_months": cup_age_months,
+        "cup_age_years": round(cup_age_months / 12.0, 2),
+        "candidate_age_months": cup_age_months,
         "recovery_percent": round(recovery_pct, 2),
+        "recovery_from_bottom_percent": round(recovery_pct, 2),
         "potential_breakout_level": breakout_level,
+        "breakout_level": breakout_level,
+        "invalidation_reason": None,
     })
 
     distance_pct = (breakout_level - latest_close) / breakout_level * 100.0
     result["distance_to_breakout_percent"] = round(distance_pct, 2)
+    result["current_distance_to_breakout_percent"] = round(distance_pct, 2)
 
     # First COMPLETED month, after the cup low, whose close crossed above the
     # breakout level — never uses the in-progress current month.
@@ -230,7 +291,13 @@ def detect_cup(
             "average_monthly_volume": avg_vol,
             "volume_ratio": round(breakout_vol / avg_vol, 2) if avg_vol else None,
         })
-        result["handle_status"] = _handle_status(monthly, breakout_idx, breakout_price, config)
+        handle = _handle_details(monthly, breakout_idx, breakout_price, config)
+        result.update({
+            "handle_status": handle["status"],
+            "handle_start_date": handle["start_date"],
+            "handle_end_date": handle["end_date"],
+            "handle_low_price": handle["low_price"],
+        })
 
         if months_since == 0:
             result["status"] = STATUS_BREAKOUT_CONFIRMED
@@ -252,6 +319,7 @@ def detect_cup(
         # checks below.
         if latest_close > breakout_level:
             result["status"] = STATUS_NO_SIGNAL
+            result["invalidation_reason"] = "stale_breakout_price_already_moved_away"
             return result
 
     # BREAKOUT_FORMING: today's still-forming month is already testing/above
@@ -266,6 +334,14 @@ def detect_cup(
             result["status"] = STATUS_BREAKOUT_FORMING
             return result
 
+    # Right rim never actually got close to the left rim (see
+    # CupConfig.max_rim_difference_pct docstring) — additive strictness on
+    # top of (never a replacement for) the distance/recovery filters below.
+    if rim_difference_pct > config.max_rim_difference_pct:
+        result["status"] = STATUS_NO_SIGNAL
+        result["invalidation_reason"] = "rim_mismatch_too_large"
+        return result
+
     if latest_close < breakout_level and distance_pct <= config.near_breakout_pct:
         result["status"] = STATUS_NEAR_BREAKOUT
         return result
@@ -275,6 +351,7 @@ def detect_cup(
     # see max_distance_to_breakout_pct's docstring in cup_config.py.
     if distance_pct > config.max_distance_to_breakout_pct:
         result["status"] = STATUS_NO_SIGNAL
+        result["invalidation_reason"] = "too_far_from_breakout_level"
         return result
 
     result["status"] = STATUS_EARLY_CUP
