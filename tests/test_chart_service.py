@@ -100,13 +100,12 @@ class FakeLongHistoryProvider:
         raise AssertionError("long_history=True must never call the short-window get_intraday_ohlc path")
 
 
-async def test_long_history_uses_cup_chunked_fetch_not_the_short_window(monkeypatch):
+async def test_long_history_uses_cup_chunked_fetch_not_the_short_window(monkeypatch, tmp_path):
     from backend.config.cup_config import DEFAULT_CUP_CONFIG
-    from backend.core.cache import cache
-    from backend.providers.cup_history import _cache_key
+    from backend.providers import cup_disk_cache
 
     monkeypatch.setattr(DEFAULT_CUP_CONFIG, "chunk_delay_seconds", 0.0)  # skip the real rate-limit pacing in tests
-    cache.delete(_cache_key("LONGHISTTEST"))
+    monkeypatch.setattr(cup_disk_cache, "CACHE_DIR", tmp_path / "cup_history")  # isolated, never the real on-disk cache
     provider = FakeLongHistoryProvider(_bars(400, "B"))
     df = await chart_service.get_candles(provider, "LONGHISTTEST", "1M", long_history=True)
     assert provider.range_calls > 0

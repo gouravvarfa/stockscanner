@@ -1,8 +1,11 @@
+import gc
+import weakref
+
 import pandas as pd
 import pytest
 
 from backend.config.cup_config import CupConfig
-from backend.providers.cup_history import _cache_key
+from backend.providers import cup_disk_cache
 from backend.services import universe_loader
 from backend.services.cup_scan_service import run_cup_scan
 
@@ -54,12 +57,11 @@ def _cup_daily_series() -> pd.DataFrame:
 
 
 @pytest.fixture(autouse=True)
-def _isolate():
-    from backend.core.cache import cache
-
+def _isolate(tmp_path, monkeypatch):
+    # Every test gets its own throwaway on-disk Cup cache — never touches
+    # the real .cache/cup_history/ the running app uses.
+    monkeypatch.setattr(cup_disk_cache, "CACHE_DIR", tmp_path / "cup_history")
     yield
-    for sym in ("AAA", "BBB", "CUPQUALIFIES", "FAILSYM"):
-        cache.delete(_cache_key(sym))
 
 
 def _patched_provider(monthly_series_by_symbol, fail_symbols=None):
@@ -140,3 +142,48 @@ async def test_instrument_type_is_attached_via_existing_classifier(monkeypatch):
     provider = _patched_provider({"CUPQUALIFIES": _cup_daily_series()})
     outcome = await run_cup_scan(provider, CONFIG, max_concurrent_fetches=1)
     assert outcome.results[0]["instrument_type"] in ("FUTURE", "EQUITY")
+
+
+async def test_cache_writes_are_per_symbol_not_one_giant_store(monkeypatch):
+    """2026-09-24 memory fix: scanning N stocks must produce N separate
+    on-disk cache files (backend/providers/cup_disk_cache.py), never one
+    shared/growing store the way the old shared FileCache did."""
+    symbols = [f"SYM{i}" for i in range(10)]
+    _set_universe(monkeypatch, symbols)
+    provider = _patched_provider({s: _flat_daily_series(20, 100.0 + i) for i, s in enumerate(symbols)})
+    await run_cup_scan(provider, CONFIG, max_concurrent_fetches=3)
+
+    files = list(cup_disk_cache.CACHE_DIR.glob("*.pkl"))
+    assert len(files) == len(symbols)
+    for sym in symbols:
+        assert cup_disk_cache.load(sym) is not None
+
+
+async def test_raw_daily_dataframes_are_not_retained_after_each_stock_finishes(monkeypatch):
+    """Memory requirement (2026-09-24): 'Stock A: fetch/load -> analyze ->
+    release memory' — not all 615 histories held at once. Patches
+    fetch_cup_history directly (below cup_history's own chunking/caching)
+    so each symbol's raw DataFrame identity can be tracked via a weakref;
+    once run_cup_scan finishes, none of those per-stock raw DataFrames may
+    still be referenced anywhere (cup_scan_service only ever keeps the
+    tiny `cup_result` dict, never the DataFrame itself)."""
+    import backend.services.cup_scan_service as cup_scan_service_module
+
+    symbols = [f"MEMSYM{i}" for i in range(8)]
+    _set_universe(monkeypatch, symbols)
+    live_refs: list[weakref.ReferenceType] = []
+
+    async def fake_fetch_cup_history(angelone, symbol, config):
+        df = _flat_daily_series(20, 100.0)  # a fresh object every call, not a shared/reused one
+        live_refs.append(weakref.ref(df))
+        return df
+
+    monkeypatch.setattr(cup_scan_service_module, "fetch_cup_history", fake_fetch_cup_history)
+
+    provider = _patched_provider({})  # unused — fetch_cup_history is patched directly above
+    await run_cup_scan(provider, CONFIG, max_concurrent_fetches=3)
+
+    assert len(live_refs) == len(symbols)
+    gc.collect()
+    still_alive = [i for i, ref in enumerate(live_refs) if ref() is not None]
+    assert still_alive == [], f"{len(still_alive)}/{len(symbols)} raw daily DataFrames were still referenced after the scan"

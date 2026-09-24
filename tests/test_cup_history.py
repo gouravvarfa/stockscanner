@@ -4,7 +4,7 @@ import pandas as pd
 import pytest
 
 from backend.config.cup_config import CupConfig
-from backend.providers import cup_history
+from backend.providers import cup_disk_cache, cup_history
 from backend.providers.cup_history import CupDataUnavailableError, fetch_cup_history
 
 
@@ -38,17 +38,12 @@ CONFIG = CupConfig(history_years=6, chunk_years=2, chunk_delay_seconds=0)
 
 
 @pytest.fixture(autouse=True)
-def clear_cup_cache():
-    # The project's cache singleton defaults to a FILE-backed cache
-    # (CACHE_URL=file://.cache/scanner_cache.pkl) that persists across
-    # separate test runs, not just within one process — so each test's
-    # symbol key is explicitly cleared first rather than relying on a
-    # fresh/empty cache.
-    from backend.core.cache import cache
-
-    for sym in ("COLDCACHE1", "MERGEDEDUPE1", "WARMCACHE1", "STALECACHE1", "NOLISTING1"):
-        cache.delete(cup_history._cache_key(sym))
-    yield
+def _isolated_cache_dir(tmp_path, monkeypatch):
+    """Every test gets its own throwaway on-disk cache — never touches the
+    real .cache/cup_history/ the running app uses, and never leaks state
+    between tests (unlike the old shared FileCache, which persisted across
+    separate test runs and needed explicit per-symbol clearing)."""
+    monkeypatch.setattr(cup_disk_cache, "CACHE_DIR", tmp_path / "cup_history")
 
 
 async def test_cold_cache_splits_full_history_into_chunk_years_windows():
@@ -78,14 +73,15 @@ async def test_warm_cache_is_reused_without_a_network_call():
     assert len(provider.calls) == calls_after_first
 
 
-async def test_stale_cache_only_fetches_the_missing_tail(monkeypatch):
-    from backend.core.cache import cache
-
+async def test_stale_cache_only_fetches_the_missing_tail():
+    # Cached depth already covers the full 6-year requirement (oldest date
+    # well before "now - 6y") — only fresh (newer-than-cached) days are
+    # actually missing, so only the tail should be fetched.
     old_data = pd.DataFrame(
-        {"open": [50.0], "high": [51.0], "low": [49.0], "close": [50.5], "volume": [500.0]},
-        index=[pd.Timestamp.now() - pd.Timedelta(days=10)],
+        {"open": [50.0, 51.0], "high": [51.0, 52.0], "low": [49.0, 50.0], "close": [50.5, 51.5], "volume": [500.0, 500.0]},
+        index=[pd.Timestamp.now() - pd.Timedelta(days=int(6.5 * 365.25)), pd.Timestamp.now() - pd.Timedelta(days=10)],
     )
-    cache.set(cup_history._cache_key("STALECACHE1"), old_data, cup_history.CACHE_TTL_SECONDS)
+    cup_disk_cache.save("STALECACHE1", old_data)
 
     provider = FakeProvider()
     result = await fetch_cup_history(provider, "STALECACHE1", CONFIG)
@@ -97,6 +93,23 @@ async def test_stale_cache_only_fetches_the_missing_tail(monkeypatch):
     # one row for that shared date, with the old, earlier data still intact.
     assert provider.calls[0][0] == old_data.index.max()
     assert result.index.min() == old_data.index.min()
+
+
+async def test_insufficient_cached_depth_triggers_a_full_refetch():
+    """Safe invalidation (per spec): a cache that only covers a SHORT
+    recent window (e.g. history_years was widened since it was written, or
+    a prior partial fetch) must NOT be treated as sufficient just because
+    it's fresh — the full multi-chunk history is refetched instead of
+    silently serving too-short a window."""
+    shallow_recent_data = pd.DataFrame(
+        {"open": [50.0], "high": [51.0], "low": [49.0], "close": [50.5], "volume": [500.0]},
+        index=[pd.Timestamp.now() - pd.Timedelta(days=10)],  # nowhere near 6 years back
+    )
+    cup_disk_cache.save("SHALLOWCACHE1", shallow_recent_data)
+
+    provider = FakeProvider()
+    await fetch_cup_history(provider, "SHALLOWCACHE1", CONFIG)
+    assert len(provider.calls) >= 3  # a full chunked refetch, not a 1-call tail fetch
 
 
 async def test_missing_equity_listing_raises_cup_specific_error():
@@ -114,3 +127,13 @@ async def test_duplicate_candle_removal_keeps_latest():
     merged = _dedupe_and_sort([old, new])
     assert len(merged) == 1
     assert merged["close"].iloc[0] == 2.0  # "keep=last" — the more-recently-fetched chunk wins
+
+
+async def test_fetch_writes_to_the_isolated_per_symbol_cache_not_the_shared_one():
+    provider = FakeProvider()
+    await fetch_cup_history(provider, "ISOLATEDCACHE1", CONFIG)
+    assert cup_disk_cache.load("ISOLATEDCACHE1") is not None
+    # The shared, cross-strategy FileCache must never see Cup's data.
+    from backend.core.cache import cache
+
+    assert cache.get("cup_history_daily:ISOLATEDCACHE1") is None

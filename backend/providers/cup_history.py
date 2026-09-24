@@ -21,21 +21,16 @@ import logging
 import pandas as pd
 
 from backend.config.cup_config import CupConfig
-from backend.core.cache import cache
+from backend.providers import cup_disk_cache
 from backend.providers.angelone_provider import AngelOneProvider
 
 logger = logging.getLogger("scanner.cup_history")
 
-CACHE_KEY_PREFIX = "cup_history_daily"
-CACHE_TTL_SECONDS = 24 * 3600  # a fresh chunk-refresh once/day is enough for a monthly-timeframe strategy
+CACHE_TTL_HOURS = 24  # a fresh chunk-refresh once/day is enough for a monthly-timeframe strategy
 
 
 class CupDataUnavailableError(RuntimeError):
     pass
-
-
-def _cache_key(symbol: str) -> str:
-    return f"{CACHE_KEY_PREFIX}:{symbol}"
 
 
 def _dedupe_and_sort(frames: list[pd.DataFrame]) -> pd.DataFrame:
@@ -69,34 +64,46 @@ async def _fetch_chunked(
 
 async def fetch_cup_history(angelone: AngelOneProvider, symbol: str, config: CupConfig) -> pd.DataFrame:
     """
-    Returns ~config.history_years of daily OHLCV for `symbol`, using a
-    dedicated in-process cache (see module docstring): a cold cache does the
-    full chunked multi-year fetch once; a warm-but-stale cache only fetches
-    the missing tail (today back to the cache's last known date) and merges
-    it in — "don't download the complete N years again unnecessarily", per
-    spec. Cache is in-process only (cleared on a Render restart, same as
-    every other in-process cache in this project) — acceptable since a cold
-    start just re-runs the full (slower) fetch once.
+    Returns ~config.history_years of daily OHLCV for `symbol`, using the
+    isolated per-symbol on-disk cache (backend/providers/cup_disk_cache.py —
+    see its module docstring for why this is NOT the shared FileCache): a
+    cold cache does the full chunked multi-year fetch once; a warm-but-
+    stale cache only fetches the missing tail (today back to the cache's
+    last known date) and merges it in — "don't download the complete N
+    years again unnecessarily", per spec. A cache whose depth no longer
+    covers config.history_years (e.g. history_years was increased since it
+    was written) is treated as a miss and fully refetched, rather than
+    silently served an insufficient window.
+
+    Only THIS symbol's DataFrame is ever loaded into memory here — the
+    caller (cup_scan_service.py) lets it go out of scope once this stock's
+    Cup detection finishes, so nothing accumulates across a scan.
     """
     match = await angelone.resolve_equity(symbol)
     if match is None:
         raise CupDataUnavailableError(f"Angel One has no equity listing for '{symbol}'.")
 
     now = dt.datetime.now()
-    key = _cache_key(symbol)
-    cached: pd.DataFrame | None = cache.get(key)
+    entry = cup_disk_cache.load(symbol)
 
-    if cached is not None and not cached.empty:
-        last_cached_date = cached.index.max()
-        if (now - last_cached_date).days <= 1:
-            return cached  # already fresh (fetched earlier today) — no network call at all
-        # Only fetch the missing tail, not the full N years again.
-        fresh_tail = await _fetch_chunked(angelone, match.exch_seg, match.token, last_cached_date, now, config)
-        merged = _dedupe_and_sort([cached, fresh_tail])
-        cache.set(key, merged, CACHE_TTL_SECONDS)
-        return merged
+    if entry is not None:
+        # +10 day tolerance: the oldest cached bar is a real trading day
+        # (weekends/holidays shift it a few days from the exact calendar
+        # cutoff), so an exact `<=` would spuriously force a full refetch.
+        required_start = now - dt.timedelta(days=int(config.history_years * 365.25))
+        if entry.oldest_date is not None and entry.oldest_date <= required_start + dt.timedelta(days=10):
+            if (now - entry.newest_date).days <= 1:
+                return entry.data  # already fresh (fetched earlier today) — no network call at all
+            # Only fetch the missing tail, not the full N years again.
+            fresh_tail = await _fetch_chunked(angelone, match.exch_seg, match.token, entry.newest_date, now, config)
+            merged = _dedupe_and_sort([entry.data, fresh_tail])
+            cup_disk_cache.save(symbol, merged)
+            return merged
+        # Cached depth no longer covers the requested history_years (e.g.
+        # config was widened since this was cached) — safe invalidation:
+        # fall through to a full refetch rather than serve a short window.
 
     start = now - dt.timedelta(days=int(config.history_years * 365.25))
     full = await _fetch_chunked(angelone, match.exch_seg, match.token, start, now, config)
-    cache.set(key, full, CACHE_TTL_SECONDS)
+    cup_disk_cache.save(symbol, full)
     return full

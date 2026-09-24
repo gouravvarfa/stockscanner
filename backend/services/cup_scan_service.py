@@ -97,6 +97,12 @@ async def run_cup_scan(
             # CPU-bound detection kept off the semaphore (no network here) —
             # cheap enough (~120 monthly bars) not to need its own thread pool.
             cup_result = detect_cup(daily_ohlcv, config)
+            # Explicit release: this stock's ~2,400-row daily frame is never
+            # needed again once detect_cup has produced its (tiny) result
+            # dict — don't wait for the next GC cycle to free it before
+            # moving on to the next stock (backend/providers/cup_disk_cache.py
+            # has the full story on why this matters for a 512MB instance).
+            del daily_ohlcv
         except CupDataUnavailableError as exc:
             failed_symbols.append(symbol)
             if on_progress is not None:
