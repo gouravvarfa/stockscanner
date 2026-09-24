@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type MouseEvent } from "react";
 import { InstrumentBadge } from "../components/InstrumentBadge";
+import { useChart } from "../chart/ChartContext";
 import { exportSnapshotToCsv } from "../services/historyExport";
 import {
   deleteSnapshot,
@@ -67,6 +68,7 @@ function strategyBadgeClass(strategy: string): string {
 }
 
 export function ScanHistoryPage() {
+  const { openChart } = useChart();
   const [snapshots, setSnapshots] = useState<HistorySnapshotMeta[] | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [rowsByLocalId, setRowsByLocalId] = useState<Record<string, HistoryResultRow[]>>({});
@@ -350,12 +352,13 @@ export function ScanHistoryPage() {
                               <th>A / B</th>
                               <th>Distance</th>
                               <th>Updated</th>
+                              <th>Chart</th>
                             </tr>
                           </thead>
                           <tbody>
                             {visibleRows.length === 0 ? (
                               <tr>
-                                <td colSpan={11} className="muted small" style={{ padding: 16 }}>
+                                <td colSpan={12} className="muted small" style={{ padding: 16 }}>
                                   No rows match these filters.
                                 </td>
                               </tr>
@@ -390,6 +393,25 @@ export function ScanHistoryPage() {
                                   </td>
                                   <td className="muted small" data-label="Updated">
                                     {fmtUpdated(r.updatedAt)}
+                                  </td>
+                                  <td data-label="Chart">
+                                    <button
+                                      type="button"
+                                      className="secondary-button"
+                                      onClick={() =>
+                                        openChart(r.symbol, {
+                                          strategy: r.strategy || "HISTORY",
+                                          daily_rsi: null,
+                                          weekly_rsi: null,
+                                          monthly_rsi: null,
+                                          signal_date: r.updatedAt,
+                                          divergence_timeframe: r.timeframe,
+                                          explanation: r.details,
+                                        })
+                                      }
+                                    >
+                                      Chart
+                                    </button>
                                   </td>
                                 </tr>
                               ))

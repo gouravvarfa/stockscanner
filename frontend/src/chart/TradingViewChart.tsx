@@ -46,7 +46,7 @@ export function TradingViewChart({ symbol, signalContext, isMaximized, onToggleM
     }
   }, [indicators]);
 
-  const { crosshair, setData, fitContent, bollingerLatest, rsiLatest } = useTradingViewChart(containerRef, { indicators, chartType });
+  const { crosshair, setData, fitContent, bollingerLatest, rsiLatest } = useTradingViewChart(containerRef, { indicators, chartType, timeframe });
 
   useEffect(() => {
     const controller = new AbortController();

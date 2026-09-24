@@ -38,9 +38,12 @@ export interface BollingerLatest {
 
 export type ChartSeriesType = "candles" | "line";
 
+const INTRADAY_TIMEFRAMES = new Set(["1m", "5m", "15m", "30m", "1H", "4H"]);
+
 interface UseTradingViewChartOptions {
   indicators: IndicatorSettings;
   chartType?: ChartSeriesType;
+  timeframe?: string;
 }
 
 /**
@@ -202,6 +205,29 @@ export function useTradingViewChart(containerRef: React.RefObject<HTMLDivElement
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // The x-axis date labels: `timeVisible: true` (needed for intraday, so
+  // ticks show a time-of-day) was being applied to every timeframe,
+  // including 1D/1W/1M — on those, lightweight-charts then tries to format
+  // a tick as date+time and the label comes out wrong/truncated. Daily and
+  // coarser timeframes get a clean date-only tick instead.
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart) return;
+    const isIntraday = options.timeframe ? INTRADAY_TIMEFRAMES.has(options.timeframe) : true;
+    chart.applyOptions({
+      timeScale: {
+        timeVisible: isIntraday,
+        secondsVisible: false,
+        tickMarkFormatter: isIntraday
+          ? undefined
+          : (time: Time) => {
+              const ms = (typeof time === "number" ? time : Number(time)) * 1000;
+              return new Date(ms).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "2-digit", timeZone: "UTC" });
+            },
+      },
+    });
+  }, [options.timeframe]);
 
   // Re-theme the existing chart instance when the app's light/dark theme
   // changes while the drawer stays open (chart is not recreated).
