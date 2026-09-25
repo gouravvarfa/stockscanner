@@ -56,14 +56,28 @@ def test_insufficient_history_empty_frame():
     assert result["status"] == "INSUFFICIENT_HISTORY"
 
 
-def _cup_specs(left_rim=1000.0, cup_low=600.0, recovery_close=900.0, n_decline=36, n_recover=36, n_lead=3):
-    """LEFT RIM -> decline to CUP LOW -> straight-line recovery to
-    `recovery_close` over n_recover months. Depth = 40% by default."""
+def _append_uptrend_lead_in(specs, y, m, rim_price, n=12):
+    """An established UPTREND leading into the left rim (2026-09-25: a Cup
+    is only valid as a correction inside an existing uptrend — see
+    _validate_pre_cup_uptrend in backend/strategies/cup.py). Rises steadily
+    from 55% to 90% of the rim over `n` months, so it never produces a
+    competing swing high of its own before the rim."""
+    start, end = rim_price * 0.55, rim_price * 0.90
+    for i in range(n):
+        price = start + (end - start) * i / max(n - 1, 1)
+        specs.append((y, m, price, price, price, price, 1000.0))
+        m += 1
+        if m > 12:
+            m, y = 1, y + 1
+    return y, m
+
+
+def _cup_specs(left_rim=1000.0, cup_low=600.0, recovery_close=900.0, n_decline=36, n_recover=36, n_lead=12):
+    """UPTREND lead-in -> LEFT RIM -> decline to CUP LOW -> straight-line
+    recovery to `recovery_close` over n_recover months. Depth = 40% by
+    default."""
     specs = []
-    y, m = 2015, 1
-    for _ in range(n_lead):
-        specs.append((y, m, 500.0, 500.0, 500.0, 500.0, 1000.0)); m += 1
-        if m > 12: m, y = 1, y + 1
+    y, m = _append_uptrend_lead_in(specs, 2015, 1, left_rim, n_lead)
     specs.append((y, m, left_rim, left_rim, left_rim, left_rim, 2000.0)); m += 1
     if m > 12: m, y = 1, y + 1
     decline_step = (left_rim - cup_low) / n_decline
@@ -121,8 +135,7 @@ def test_most_recent_relevant_cup_is_picked_over_an_older_larger_one():
     independently satisfy the 5-year-minimum + valid-depth rules."""
     specs = []
     y, m = 2010, 1
-    for _ in range(3):
-        specs.append((y, m, 400.0, 400.0, 400.0, 400.0, 1000.0)); y, m = _step_month(y, m)
+    y, m = _append_uptrend_lead_in(specs, y, m, 1500.0)
     specs.append((y, m, 1500.0, 1500.0, 1500.0, 1500.0, 2000.0))  # rim 1 (older, bigger cup)
     y, m = _step_month(y, m)
     price = 1500.0
@@ -407,8 +420,8 @@ def _vedl_like_specs(
         if m > 12:
             m, y = 1, y + 1
 
-    for _ in range(3):
-        add(left_rim * 0.6)  # lead-in, so the rim is a genuine 2-sided swing high
+    for i in range(12):  # established uptrend INTO the rim (the cup is a correction inside it)
+        add(left_rim * (0.55 + 0.35 * i / 11))
     add(left_rim)
     decline_step = (left_rim - bottom) / n_decline
     price = left_rim
@@ -573,8 +586,7 @@ def test_negative_9_multiple_historical_cups_chooses_relevant_current_one():
     # a big older cup, then a second, more recent, more actionable one.
     specs = []
     y, m = 2010, 1
-    for _ in range(3):
-        specs.append((y, m, 400.0, 400.0, 400.0, 400.0, 1000.0)); y, m = _step_month(y, m)
+    y, m = _append_uptrend_lead_in(specs, y, m, 1500.0)
     specs.append((y, m, 1500.0, 1500.0, 1500.0, 1500.0, 2000.0))
     y, m = _step_month(y, m)
     price = 1500.0
@@ -609,8 +621,7 @@ def test_asianpaint_like_early_smaller_pivot_never_wins_over_a_later_dominant_hi
     still far from B. Must be NO_SIGNAL (or reject A specifically)."""
     specs = []
     y, m = 2015, 1
-    for _ in range(3):
-        specs.append((y, m, 400.0, 400.0, 400.0, 400.0, 1000.0)); y, m = _step_month(y, m)
+    y, m = _append_uptrend_lead_in(specs, y, m, 1000.0)
     specs.append((y, m, 1000.0, 1000.0, 1000.0, 1000.0, 2000.0))  # A: an early, smaller swing high
     y, m = _step_month(y, m)
     price = 1000.0
@@ -646,8 +657,9 @@ def test_sonacoms_like_short_total_history_uses_relaxed_room_requirement():
     structure instead of NO_SIGNAL."""
     specs = []
     y, m = 2021, 1
-    for _ in range(3):
-        specs.append((y, m, 400.0, 400.0, 400.0, 400.0, 1000.0)); y, m = _step_month(y, m)
+    # Only ~6 months of post-listing rally before the rim (SONACOMS: listed
+    # mid-2021, rim Dec-2021) — that rally IS its pre-cup uptrend.
+    y, m = _append_uptrend_lead_in(specs, y, m, 700.0, n=6)
     specs.append((y, m, 700.0, 700.0, 700.0, 700.0, 2000.0))  # left rim (2022-ish high)
     y, m = _step_month(y, m)
     price = 700.0
@@ -724,8 +736,7 @@ def _v_shaped_deep_specs():
     genuine rounded base-then-climb DEEP_CUP."""
     specs = []
     y, m = 2015, 1
-    for _ in range(3):
-        specs.append((y, m, 500.0, 500.0, 500.0, 500.0, 1000.0)); y, m = _step_month(y, m)
+    y, m = _append_uptrend_lead_in(specs, y, m, 1000.0)
     specs.append((y, m, 1000.0, 1000.0, 1000.0, 1000.0, 2000.0)); y, m = _step_month(y, m)
     decline_step = (1000.0 - 450.0) / 50
     price = 1000.0
@@ -791,8 +802,7 @@ def test_bhel_like_multi_cup_selection_remains_valid_after_deep_cup_change():
     be completely unaffected by the DEEP_CUP addition."""
     specs = []
     y, m = 2010, 1
-    for _ in range(3):
-        specs.append((y, m, 400.0, 400.0, 400.0, 400.0, 1000.0)); y, m = _step_month(y, m)
+    y, m = _append_uptrend_lead_in(specs, y, m, 900.0)
     specs.append((y, m, 900.0, 900.0, 900.0, 900.0, 2000.0)); y, m = _step_month(y, m)
     price = 900.0
     for i in range(30):
@@ -866,8 +876,7 @@ def _cropmton_like_rollover_specs():
     CROPMTON data/dates are hardcoded into the detector itself."""
     specs = []
     y, m = 2016, 1
-    for _ in range(3):
-        specs.append((y, m, 400.0, 400.0, 400.0, 400.0, 1000.0)); y, m = _step_month(y, m)
+    y, m = _append_uptrend_lead_in(specs, y, m, 1000.0)
     specs.append((y, m, 1000.0, 1000.0, 1000.0, 1000.0, 2000.0)); y, m = _step_month(y, m)  # left rim
     price = 1000.0
     for _ in range(30):
@@ -913,3 +922,155 @@ def test_vedl_like_and_bhel_like_structures_unaffected_by_rollover_check():
     df2 = _monthly_frame(specs2)
     result = detect_cup(df2, DEFAULT_CONFIG, now=dt.datetime(y2, m2, 10))
     assert result["status"] in ("BREAKOUT_CONFIRMED", "RECENT_BREAKOUT")
+
+
+# ---------------------------------------------------------------------------
+# PRE-CUP UPTREND (2026-09-25, BHEL/SONACOMS continuation-pattern reference)
+#
+# A Cup is only valid as a CORRECTION inside an already-established
+# uptrend: UPTREND -> left rim -> rounded cup -> recovery -> breakout ->
+# uptrend continues. A large U-shaped recovery from a bear-market bottom is
+# NOT a cup, even though it can look like one.
+# ---------------------------------------------------------------------------
+
+def _specs_with_lead_in(lead_in_prices, left_rim=1000.0, cup_low=600.0, recovery_close=950.0, n_decline=36, n_recover=36):
+    """Same cup body as _cup_specs, but with an explicit, caller-chosen
+    lead-in before the left rim - so the ONLY thing that varies between
+    the accepted/rejected tests below is what happened BEFORE the cup."""
+    specs = []
+    y, m = 2012, 1
+    for price in lead_in_prices:
+        specs.append((y, m, price, price, price, price, 1000.0)); y, m = _step_month(y, m)
+    specs.append((y, m, left_rim, left_rim, left_rim, left_rim, 2000.0)); y, m = _step_month(y, m)
+    price = left_rim
+    for _ in range(n_decline):
+        price -= (left_rim - cup_low) / n_decline
+        specs.append((y, m, price, price, price, price, 1000.0)); y, m = _step_month(y, m)
+    price = cup_low
+    for _ in range(n_recover):
+        price += (recovery_close - cup_low) / n_recover
+        specs.append((y, m, price, price, price, price, 1000.0)); y, m = _step_month(y, m)
+    return specs, (y, m)
+
+
+def test_uptrend_then_correction_then_rounded_cup_is_accepted_with_trend_fields():
+    lead_in = [550.0 + 350.0 * i / 11 for i in range(12)]  # steady advance 550 -> 900
+    specs, (y, m) = _specs_with_lead_in(lead_in)
+    result = detect_cup(_monthly_frame(specs), DEFAULT_CONFIG, now=dt.datetime(y, m, 10))
+    assert result["status"] in ("EARLY_CUP", "NEAR_BREAKOUT")
+    assert result["trend_before_cup"] == "UPTREND"
+    assert result["trend_start_price"] == pytest.approx(550.0)  # the low the uptrend started from
+    assert result["trend_start_date"] is not None
+    assert result["trend_start_date"] < result["left_rim_date"]
+
+
+def test_bear_market_recovery_is_rejected_not_called_a_cup():
+    """The false pattern the 2026-09-25 spec calls out: a long decline, a
+    bounce high INSIDE that decline taken as the "rim", then a big
+    U-shaped recovery. Same cup body as the accepted test above - only the
+    pre-rim trend differs (falling instead of rising)."""
+    # Sustained decline 1600 -> 700, then a relief bounce up to the "rim" -
+    # the rim is a genuine swing high, and 1000 is +43% off the window low,
+    # but the window as a whole is FALLING (a bounce in a bear market).
+    lead_in = [1600.0, 1500.0, 1400.0, 1300.0, 1200.0, 1100.0, 1000.0, 900.0, 800.0, 700.0, 800.0, 900.0]
+    specs, (y, m) = _specs_with_lead_in(lead_in)
+    result = detect_cup(_monthly_frame(specs), DEFAULT_CONFIG, now=dt.datetime(y, m, 10))
+    assert result["status"] == "NO_SIGNAL"
+    assert result["rejection_reason"] == "no_established_uptrend_before_cup"
+    assert result["trend_before_cup"] is None
+
+
+def test_flat_sideways_market_before_the_rim_is_not_an_uptrend():
+    # Flat at 950 for a year, then one bar to the 1000 rim: +5% is not an
+    # established uptrend (min gain 15%).
+    lead_in = [950.0] * 12
+    specs, (y, m) = _specs_with_lead_in(lead_in)
+    result = detect_cup(_monthly_frame(specs), DEFAULT_CONFIG, now=dt.datetime(y, m, 10))
+    assert result["status"] == "NO_SIGNAL"
+    assert result["rejection_reason"] == "no_established_uptrend_before_cup"
+
+
+def test_single_spike_off_a_base_without_a_rising_bias_is_not_an_uptrend():
+    """A big gain from the window low alone isn't enough - the months
+    before the rim must actually trend UP (second half averaging above the
+    first half). Here: a slow year-long DECLINE, then a single-month spike
+    to the rim (+47% off the low, but no uptrend led into it)."""
+    lead_in = [900.0 - 20.0 * i for i in range(12)]  # 900 -> 680
+    specs, (y, m) = _specs_with_lead_in(lead_in)
+    result = detect_cup(_monthly_frame(specs), DEFAULT_CONFIG, now=dt.datetime(y, m, 10))
+    assert result["status"] == "NO_SIGNAL"
+    assert result["rejection_reason"] == "no_established_uptrend_before_cup"
+
+
+def test_rim_with_too_little_prior_history_to_confirm_an_uptrend_is_rejected():
+    # Only 2 months before the rim (< pre_cup_trend_min_history_months=4):
+    # "bullish" can't be confirmed, so it isn't assumed.
+    lead_in = [700.0, 800.0]
+    specs, (y, m) = _specs_with_lead_in(lead_in, n_decline=40, n_recover=40)
+    result = detect_cup(_monthly_frame(specs), DEFAULT_CONFIG, now=dt.datetime(y, m, 10))
+    assert result["status"] == "NO_SIGNAL"
+    assert result["rejection_reason"] == "no_established_uptrend_before_cup"
+
+
+def test_short_post_listing_rally_counts_as_the_pre_cup_uptrend():
+    """SONACOMS-like: a recently-listed stock whose ~6-month post-IPO rally
+    is its whole pre-cup history - accepted (>= 4 months, rising, big gain)."""
+    lead_in = [300.0 + 100.0 * i for i in range(6)]  # 300 -> 800
+    specs, (y, m) = _specs_with_lead_in(lead_in, left_rim=840.0, cup_low=460.0, recovery_close=800.0, n_decline=40, n_recover=24)
+    result = detect_cup(_monthly_frame(specs), DEFAULT_CONFIG, now=dt.datetime(y, m, 10))
+    assert result["status"] in ("EARLY_CUP", "NEAR_BREAKOUT")
+    assert result["trend_before_cup"] == "UPTREND"
+    assert result["trend_start_price"] == pytest.approx(300.0)
+
+
+def test_among_multiple_cups_only_the_one_inside_an_uptrend_is_selected():
+    """Two candidate rims: an OLDER one that is really a bounce inside a
+    bear market (rejected), and a later one reached by a genuine uptrend
+    (accepted) - the later one must be what's reported."""
+    specs = []
+    y, m = 2010, 1
+    price = 2000.0
+    for _ in range(12):  # bear market
+        price -= 60.0
+        specs.append((y, m, price, price, price, price, 1000.0)); y, m = _step_month(y, m)
+    specs.append((y, m, 1400.0, 1400.0, 1400.0, 1400.0, 2000.0)); y, m = _step_month(y, m)  # bounce "rim" inside the downtrend
+    price = 1400.0
+    for _ in range(12):  # decline continues to the bear-market low
+        price -= 40.0
+        specs.append((y, m, price, price, price, price, 1000.0)); y, m = _step_month(y, m)
+    for _ in range(24):  # genuine new uptrend 920 -> 1520
+        price += 25.0
+        specs.append((y, m, price, price, price, price, 1000.0)); y, m = _step_month(y, m)
+    specs.append((y, m, 1600.0, 1600.0, 1600.0, 1600.0, 2000.0)); y, m = _step_month(y, m)  # real rim, reached by an uptrend
+    price = 1600.0
+    for _ in range(30):  # correction (the cup), depth ~31%
+        price -= 500.0 / 30
+        specs.append((y, m, price, price, price, price, 1000.0)); y, m = _step_month(y, m)
+    for _ in range(30):  # recovery toward the rim
+        price += 450.0 / 30
+        specs.append((y, m, price, price, price, price, 1000.0)); y, m = _step_month(y, m)
+    result = detect_cup(_monthly_frame(specs), DEFAULT_CONFIG, now=dt.datetime(y, m, 10))
+    assert result["trend_before_cup"] == "UPTREND"
+    assert result["left_rim_price"] == pytest.approx(1600.0, abs=1.0)
+
+
+def test_confirmed_breakout_reports_the_full_continuation_structure():
+    """End-to-end: uptrend -> cup -> recovery -> right rim -> shallow
+    handle -> completed-month close above the rim, with every structure
+    field the spec requires populated."""
+    rows = _vedl_like_specs()
+    df = pd.DataFrame(rows, columns=["date", "open", "high", "low", "close", "volume"]).set_index("date")
+    stub = pd.DataFrame(
+        {"open": rows[-1][4], "high": rows[-1][4], "low": rows[-1][4], "close": rows[-1][4], "volume": 0.0},
+        index=[df.index.max() + pd.Timedelta(days=5)],
+    )
+    df = pd.concat([df, stub])
+    now = dt.datetime(df.index[-2].year, df.index[-2].month, 28) + pd.Timedelta(days=10)
+    result = detect_cup(df, DEFAULT_CONFIG, now=now)
+    assert result["status"] == "BREAKOUT_CONFIRMED"
+    assert result["trend_before_cup"] == "UPTREND"
+    assert result["trend_start_date"] < result["left_rim_date"] < result["cup_bottom_date"] < result["right_rim_date"]
+    assert result["breakout_level"] == result["left_rim_price"]
+    assert result["cup_duration_months"] == result["cup_age_months"]
+    assert result["recovery_duration_months"] is not None
+    assert isinstance(result["handle_present"], bool)

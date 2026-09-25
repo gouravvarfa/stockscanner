@@ -114,6 +114,29 @@ class CupConfig(BaseModel):
     rim_rejection_min_months_since_rim: int = 2
     rim_rejection_min_pullback_pct: float = 15.0
 
+    # ---- Pre-cup uptrend (2026-09-25, BHEL/SONACOMS continuation pattern) -
+    # A Cup must be a CORRECTION inside an already-established uptrend, not
+    # every large historical U-shaped recovery (e.g. a multi-year bear-
+    # market bottom followed by a slow multi-year climb back up, which is
+    # structurally a totally different thing even though it also "looks
+    # like a cup" on a chart). For each left-rim candidate, the
+    # pre_cup_trend_lookback_months completed months immediately BEFORE it
+    # are examined for a genuine prior uptrend: price must have gained at
+    # least pre_cup_trend_min_gain_pct off ITS OWN low within that window,
+    # with a rising (not flat/declining) bias across that window. A
+    # candidate with insufficient prior history to even evaluate this (the
+    # left rim sits too close to the start of available data) is rejected
+    # too — never assume "bullish" when it can't be confirmed. See
+    # _validate_pre_cup_uptrend() in strategies/cup.py.
+    # Recently-listed stocks may have fewer than pre_cup_trend_lookback_
+    # months of data before their rim at all (SONACOMS: listed mid-2021,
+    # rim Dec-2021 — its post-IPO rally IS its pre-cup uptrend) — whatever
+    # prior history exists is used, as long as there are at least
+    # pre_cup_trend_min_history_months of it.
+    pre_cup_trend_lookback_months: int = 12
+    pre_cup_trend_min_history_months: int = 4
+    pre_cup_trend_min_gain_pct: float = 15.0
+
     # ---- Right rim (2026-09-24, VEDL/BHEL structural reference) ----------
     # The RIGHT rim is the highest CLOSE actually reached during the
     # recovery so far (cup_low -> now) — real price action that has tested

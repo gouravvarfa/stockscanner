@@ -105,6 +105,65 @@ def _classify_deep_cup(
     return True, None, bottom_duration, recovery_duration
 
 
+def _validate_pre_cup_uptrend(
+    monthly: pd.DataFrame, left_rim_idx: int, config: CupConfig,
+) -> tuple[bool, pd.Timestamp | None, float | None]:
+    """
+    2026-09-25 (BHEL/SONACOMS continuation-pattern reference): a Cup must
+    be a CORRECTION inside an ALREADY-established uptrend — the left rim
+    is the high that uptrend reached before pausing to form the cup — not
+    just any large historical U-shaped recovery (a multi-year bear-market
+    bottom followed by a slow recovery can also look cup-shaped on a
+    chart, but it is structurally the opposite: there was no uptrend to
+    continue in the first place).
+
+    Examines up to pre_cup_trend_lookback_months completed months
+    immediately BEFORE the left rim (fewer if the stock was listed more
+    recently than that):
+
+      1. At least pre_cup_trend_min_history_months of prior history must
+         exist to evaluate this at all (a rim too close to the start of
+         the data is rejected — never assume "bullish" when it can't be
+         confirmed).
+      2. The left rim must be >= pre_cup_trend_min_gain_pct above the
+         LOWEST low in that window — a meaningful prior advance, not a
+         flat/sideways market.
+      3. That window's closes must have a genuine RISING bias (average of
+         its second half > average of its first half) — distinguishes a
+         real uptrend leading into the rim from a single spike off a
+         lower base.
+
+    Returns (is_uptrend, trend_start_date, trend_start_price) — the start
+    date/price are always returned when computable (for diagnostics), even
+    when rejected.
+    """
+    start_idx = max(0, left_rim_idx - config.pre_cup_trend_lookback_months)
+    if left_rim_idx - start_idx < config.pre_cup_trend_min_history_months:
+        return False, None, None
+    window_low = monthly["low"].iloc[start_idx:left_rim_idx]
+    if window_low.empty:
+        return False, None, None
+    low_offset = int(window_low.values.argmin())
+    trend_start_idx = start_idx + low_offset
+    trend_start_price = float(window_low.iloc[low_offset])
+    trend_start_date = monthly.index[trend_start_idx]
+    if trend_start_price <= 0:
+        return False, trend_start_date, trend_start_price
+
+    left_rim_price = float(monthly["high"].iloc[left_rim_idx])
+    gain_pct = (left_rim_price - trend_start_price) / trend_start_price * 100.0
+    if gain_pct < config.pre_cup_trend_min_gain_pct:
+        return False, trend_start_date, trend_start_price
+
+    closes = monthly["close"].iloc[start_idx:left_rim_idx]
+    if len(closes) >= 4:
+        mid = len(closes) // 2
+        if float(closes.iloc[mid:].mean()) <= float(closes.iloc[:mid].mean()):
+            return False, trend_start_date, trend_start_price
+
+    return True, trend_start_date, trend_start_price
+
+
 def _find_cup_structure(monthly: pd.DataFrame, config: CupConfig) -> tuple[dict[str, Any] | None, str | None]:
     """
     A real long-term chart can have MULTIPLE sequential cups (e.g. BHEL:
@@ -200,6 +259,12 @@ def _find_cup_structure(monthly: pd.DataFrame, config: CupConfig) -> tuple[dict[
         if cup_low_idx == b_idx or recovery_pct < config.min_recovery_pct:
             last_rejection_reason = "insufficient_recovery"
             continue
+        # Continuation-only (2026-09-25): the cup must be a correction
+        # inside an existing uptrend — see _validate_pre_cup_uptrend.
+        is_uptrend, trend_start_date, trend_start_price = _validate_pre_cup_uptrend(monthly, left_rim_idx, config)
+        if not is_uptrend:
+            last_rejection_reason = "no_established_uptrend_before_cup"
+            continue
         distance = abs((left_rim_price - latest_close) / left_rim_price * 100.0)
         if best_distance is None or distance < best_distance:
             best_distance = distance
@@ -208,6 +273,7 @@ def _find_cup_structure(monthly: pd.DataFrame, config: CupConfig) -> tuple[dict[
                 "cup_low_idx": cup_low_idx, "cup_low_date": monthly.index[cup_low_idx], "cup_low_price": cup_low_price,
                 "depth_pct": depth_pct, "cup_type": cup_type,
                 "bottom_duration_months": bottom_duration_months, "recovery_duration_months": recovery_duration_months,
+                "trend_start_date": trend_start_date, "trend_start_price": trend_start_price,
             }
     return best, (None if best is not None else last_rejection_reason)
 
@@ -326,6 +392,9 @@ def detect_cup(
         "invalidation_reason": "insufficient_history",
         "cup_type": None, "bottom_duration_months": None, "recovery_duration_months": None,
         "rejection_reason": "insufficient_history",  # alias of invalidation_reason (spec naming)
+        "trend_before_cup": None, "trend_start_date": None, "trend_start_price": None,
+        "cup_duration_months": None,  # alias of cup_age_months (spec naming)
+        "handle_present": False,
     }
 
     if daily_ohlcv is None or daily_ohlcv.empty:
@@ -386,7 +455,11 @@ def detect_cup(
         "rejection_reason": None,
         "cup_type": structure["cup_type"],
         "bottom_duration_months": structure["bottom_duration_months"],
-        "recovery_duration_months": structure["recovery_duration_months"],
+        "recovery_duration_months": b_idx - cup_low_idx if structure["recovery_duration_months"] is None else structure["recovery_duration_months"],
+        "trend_before_cup": "UPTREND",
+        "trend_start_date": structure["trend_start_date"].isoformat() if structure["trend_start_date"] is not None else None,
+        "trend_start_price": structure["trend_start_price"],
+        "cup_duration_months": cup_age_months,
     })
 
     distance_pct = (breakout_level - latest_close) / breakout_level * 100.0
@@ -422,6 +495,7 @@ def detect_cup(
             "handle_start_date": handle["start_date"],
             "handle_end_date": handle["end_date"],
             "handle_low_price": handle["low_price"],
+            "handle_present": handle["status"] != "NOT_FORMED",
         })
 
         if months_since == 0:

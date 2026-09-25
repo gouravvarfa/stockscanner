@@ -4,10 +4,13 @@ import {
   HistogramSeries,
   LineSeries,
   createChart,
+  createSeriesMarkers,
   type IChartApi,
   type IPriceLine,
   type ISeriesApi,
+  type ISeriesMarkersPluginApi,
   type LineData,
+  type SeriesMarker,
   type Time,
 } from "lightweight-charts";
 import {
@@ -20,7 +23,7 @@ import {
 } from "./chartConfig";
 import { calculateBollingerBands, calculateRSI } from "./chartStudies";
 import { getChartThemeColors } from "./chartTheme";
-import type { IndicatorSettings, OHLCBar } from "./chartTypes";
+import type { CupStructure, IndicatorSettings, OHLCBar } from "./chartTypes";
 
 export interface CrosshairReadout {
   time: number;
@@ -44,6 +47,7 @@ interface UseTradingViewChartOptions {
   indicators: IndicatorSettings;
   chartType?: ChartSeriesType;
   timeframe?: string;
+  cupStructure?: CupStructure | null;
 }
 
 /**
@@ -65,6 +69,8 @@ export function useTradingViewChart(containerRef: React.RefObject<HTMLDivElement
   const bbLowerRef = useRef<ISeriesApi<"Line"> | null>(null);
   const rsiSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
   const rsiPriceLinesRef = useRef<IPriceLine[]>([]);
+  const cupMarkersRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
+  const breakoutLineRef = useRef<IPriceLine | null>(null);
   const barsRef = useRef<OHLCBar[]>([]);
   const optionsRef = useRef(options);
   optionsRef.current = options;
@@ -116,6 +122,53 @@ export function useTradingViewChart(containerRef: React.RefObject<HTMLDivElement
       setRsiLatest(lastIndex >= 0 ? rsi[lastIndex] : null);
     } else {
       setRsiLatest(null);
+    }
+  };
+
+  // Cup structure overlay — draws exactly the points the backend detector
+  // reported (never re-derived here). Re-applied whenever bars change, so
+  // switching timeframe re-snaps every marker onto that timeframe's bars.
+  const applyCupStructure = (): void => {
+    const series = candleSeriesRef.current;
+    if (!series) return;
+    const structure = optionsRef.current.cupStructure;
+    const bars = barsRef.current;
+
+    if (breakoutLineRef.current) {
+      try {
+        series.removePriceLine(breakoutLineRef.current);
+      } catch {
+        // series already disposed
+      }
+      breakoutLineRef.current = null;
+    }
+    if (!cupMarkersRef.current) {
+      cupMarkersRef.current = createSeriesMarkers(series, []);
+    }
+    if (!structure || bars.length === 0) {
+      cupMarkersRef.current.setMarkers([]);
+      return;
+    }
+
+    const colors = getChartThemeColors();
+    const markers: SeriesMarker<Time>[] = [];
+    const add = (time: number | null, position: "aboveBar" | "belowBar", color: string, shape: "arrowUp" | "arrowDown" | "circle", text: string) => {
+      if (time !== null) markers.push({ time: time as Time, position, color, shape, text });
+    };
+    add(snapToBar(bars, structure.trend_start_date, null, "low"), "belowBar", colors.muted, "circle", "Uptrend start");
+    add(snapToBar(bars, structure.left_rim_date, null, "high"), "aboveBar", colors.warning, "arrowDown", "Left Rim");
+    add(snapToBar(bars, structure.cup_bottom_date, null, "low"), "belowBar", colors.purple, "arrowUp", "Cup Bottom");
+    add(snapToBar(bars, structure.right_rim_date, null, "high"), "aboveBar", colors.warning, "arrowDown", "Right Rim");
+    add(snapToBar(bars, structure.handle_start_date, structure.handle_end_date, "low"), "belowBar", colors.purple, "circle", "Handle");
+    add(snapToBar(bars, structure.breakout_date, null, "last"), "aboveBar", colors.success, "arrowUp", "Breakout");
+    markers.sort((a, b) => (a.time as number) - (b.time as number));
+    cupMarkersRef.current.setMarkers(markers);
+
+    if (structure.breakout_level !== null && structure.breakout_level !== undefined) {
+      breakoutLineRef.current = series.createPriceLine({
+        price: structure.breakout_level, color: colors.success, lineWidth: 2, lineStyle: 2,
+        axisLabelVisible: true, title: "Breakout level",
+      });
     }
   };
 
@@ -202,9 +255,16 @@ export function useTradingViewChart(containerRef: React.RefObject<HTMLDivElement
       bbLowerRef.current = null;
       rsiSeriesRef.current = null;
       rsiPriceLinesRef.current = [];
+      cupMarkersRef.current = null;
+      breakoutLineRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    applyCupStructure();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [options.cupStructure]);
 
   // The x-axis date labels: `timeVisible: true` (needed for intraday, so
   // ticks show a time-of-day) was being applied to every timeframe,
@@ -360,6 +420,7 @@ export function useTradingViewChart(containerRef: React.RefObject<HTMLDivElement
     }
     chartRef.current?.timeScale().fitContent();
     recalcIndicators();
+    applyCupStructure();
   };
 
   const fitContent = (): void => {
@@ -367,6 +428,38 @@ export function useTradingViewChart(containerRef: React.RefObject<HTMLDivElement
   };
 
   return { crosshair, setData, fitContent, bollingerLatest, rsiLatest };
+}
+
+/**
+ * Maps a backend Cup structure date (a MONTHLY period-end ISO date, e.g.
+ * "2021-12-31T00:00:00") onto the bar actually displayed for the current
+ * timeframe: the bar within that calendar month (or startIso's month
+ * through endIso's month) with the highest high / lowest low / last time.
+ * On 1M this is exactly the detector's own monthly bar; on 1D/1W it's the
+ * real bar where that month's extreme happened. Returns null if no bar is
+ * in range (e.g. the point is older than the loaded history).
+ */
+export function snapToBar(bars: OHLCBar[], startIso: string | null | undefined, endIso: string | null | undefined, pick: "high" | "low" | "last"): number | null {
+  const start = parseIsoDay(startIso);
+  if (start === null) return null;
+  const end = parseIsoDay(endIso) ?? start;
+  const windowStart = Date.UTC(start.y, start.m - 1, 1) / 1000;
+  const windowEnd = Date.UTC(end.y, end.m, 1) / 1000 - 1; // last second of end's month
+  let best: OHLCBar | null = null;
+  for (const bar of bars) {
+    if (bar.time < windowStart || bar.time > windowEnd) continue;
+    if (best === null) best = bar;
+    else if (pick === "high" && bar.high > best.high) best = bar;
+    else if (pick === "low" && bar.low < best.low) best = bar;
+    else if (pick === "last" && bar.time > best.time) best = bar;
+  }
+  return best ? best.time : null;
+}
+
+function parseIsoDay(iso: string | null | undefined): { y: number; m: number } | null {
+  if (!iso) return null;
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+  return match ? { y: Number(match[1]), m: Number(match[2]) } : null;
 }
 
 function toSeconds(time: Time): number {

@@ -41,8 +41,8 @@ def _cup_daily_series() -> pd.DataFrame:
         m += 1
         if m > 12:
             m, y = 1, y + 1
-    for _ in range(3):
-        add(400.0)
+    for i in range(12):  # established uptrend into the rim (a Cup is a correction inside an uptrend)
+        add(550.0 + 350.0 * i / 11)
     add(1000.0)
     for i in range(36):
         add(1000.0 - (400.0 / 36) * (i + 1))

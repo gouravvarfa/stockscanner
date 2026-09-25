@@ -40,6 +40,20 @@ interface CupResult {
   handle_status: string;
   history_years_available: number | null;
   updated_at: string;
+  // Structure fields (present on results from 2026-09-25 onward; optional
+  // so older cached/IndexedDB results without them still render).
+  trend_before_cup?: string | null;
+  trend_start_date?: string | null;
+  trend_start_price?: number | null;
+  cup_bottom_date?: string | null;
+  cup_bottom_price?: number | null;
+  right_rim_date?: string | null;
+  right_rim_price?: number | null;
+  breakout_level?: number | null;
+  handle_start_date?: string | null;
+  handle_end_date?: string | null;
+  handle_low_price?: number | null;
+  cup_type?: string | null;
 }
 
 interface CupScanResult {
@@ -347,6 +361,21 @@ export function CupBreakoutPage() {
                               explanation:
                                 `Cup Breakout: ${statusLabel(r.status)} — left rim ${fmtPrice(r.left_rim_price)} on ${fmtDay(r.left_rim_date)}, ` +
                                 `cup low ${fmtPrice(r.cup_low_price)} on ${fmtDay(r.cup_low_date)}, breakout level ${fmtPrice(r.potential_breakout_level)}.`,
+                              cupStructure: {
+                                trend_start_date: r.trend_start_date ?? null,
+                                trend_start_price: r.trend_start_price ?? null,
+                                left_rim_date: r.left_rim_date,
+                                left_rim_price: r.left_rim_price,
+                                cup_bottom_date: r.cup_bottom_date ?? r.cup_low_date,
+                                cup_bottom_price: r.cup_bottom_price ?? r.cup_low_price,
+                                right_rim_date: r.right_rim_date ?? null,
+                                right_rim_price: r.right_rim_price ?? null,
+                                breakout_level: r.breakout_level ?? r.potential_breakout_level,
+                                breakout_date: r.breakout_date,
+                                handle_start_date: r.handle_start_date ?? null,
+                                handle_end_date: r.handle_end_date ?? null,
+                                handle_low_price: r.handle_low_price ?? null,
+                              },
                             })
                           }
                         >

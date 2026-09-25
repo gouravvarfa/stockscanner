@@ -37,6 +37,28 @@ export const DEFAULT_INDICATOR_SETTINGS: IndicatorSettings = {
 export type ChartDataStatus = "loading" | "ready" | "empty" | "error";
 
 /** Scanner-derived context shown in the chart panel header — display only, never fed back into strategy logic. */
+/**
+ * The exact Cup structure the backend detector selected
+ * (backend/strategies/cup.py detect_cup) — drawn on the chart as-is, never
+ * re-derived in the frontend, so the markers always match what the scanner
+ * actually reported. Dates are the backend's monthly period-end ISO dates.
+ */
+export interface CupStructure {
+  trend_start_date?: string | null;
+  trend_start_price?: number | null;
+  left_rim_date: string | null;
+  left_rim_price: number | null;
+  cup_bottom_date: string | null;
+  cup_bottom_price: number | null;
+  right_rim_date?: string | null;
+  right_rim_price?: number | null;
+  breakout_level: number | null;
+  breakout_date?: string | null;
+  handle_start_date?: string | null;
+  handle_end_date?: string | null;
+  handle_low_price?: number | null;
+}
+
 export interface ChartSignalContext {
   strategy: string;
   daily_rsi: number | null;
@@ -45,6 +67,7 @@ export interface ChartSignalContext {
   signal_date: string | null;
   divergence_timeframe?: string | null;
   explanation?: string;
+  cupStructure?: CupStructure | null;
 }
 
 export interface ChartState {

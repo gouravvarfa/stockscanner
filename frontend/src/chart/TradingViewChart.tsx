@@ -39,7 +39,9 @@ function fmtRsi(value: number | null | undefined): string {
 }
 
 export function TradingViewChart({ symbol, signalContext, isMaximized, onToggleMaximize, onClose }: TradingViewChartProps) {
-  const [timeframe, setTimeframe] = useState<Timeframe>("1D");
+  // Cup Breakout is a MONTHLY detector — open its charts on 1M so the
+  // structure markers land on the exact bars the detector used.
+  const [timeframe, setTimeframe] = useState<Timeframe>(signalContext?.strategy === "CUP" ? "1M" : "1D");
   const [chartType, setChartType] = useState<ChartSeriesType>("candles");
   const [indicators, setIndicators] = useState<IndicatorSettings>(loadIndicatorPrefs);
   const [status, setStatus] = useState<ChartDataStatus>("loading");
@@ -60,7 +62,9 @@ export function TradingViewChart({ symbol, signalContext, isMaximized, onToggleM
     }
   }, [indicators]);
 
-  const { crosshair, setData, fitContent, bollingerLatest, rsiLatest } = useTradingViewChart(containerRef, { indicators, chartType, timeframe });
+  const { crosshair, setData, fitContent, bollingerLatest, rsiLatest } = useTradingViewChart(containerRef, {
+    indicators, chartType, timeframe, cupStructure: signalContext?.cupStructure ?? null,
+  });
 
   useEffect(() => {
     const controller = new AbortController();
