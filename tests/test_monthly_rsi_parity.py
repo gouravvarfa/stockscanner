@@ -319,26 +319,50 @@ def test_scan_service_and_chart_service_request_the_same_monthly_lookback():
 
 
 async def test_mahlife_scanner_monthly_rsi_matches_the_chart():
+    """2026-09-25 update: the MAHLIFE fixture's last date (2026-09-18) is
+    itself mid-September, so since chart_service.get_candles("1M") now
+    deliberately includes the current in-progress month (the APLAPOLLO
+    fix — see resample_ohlcv's include_partial), the chart's LIVE monthly
+    RSI and the scanner's CONFIRMED monthly RSI (completed months only,
+    per backend/screeners/stock_analysis.py's unmodified to_monthly() call)
+    are now EXPECTED to differ whenever a partial current month exists —
+    that is the whole point of the LIVE vs CONFIRMED distinction, not a
+    regression of this test's original parity guarantee (both paths still
+    read from the exact same MONTHLY_RSI_LOOKBACK_DAYS-deep history, so
+    they never again diverge for the old, unrelated reason this test was
+    written to catch — see test_scan_service_and_chart_service_request_the_
+    same_monthly_lookback above)."""
     provider = _FakeAngelOneProvider(_mahlife_ohlcv())
 
-    # Scanner path: exactly what scan_service.py does for every stock.
+    # Scanner (CONFIRMED) path: exactly what scan_service.py does for every
+    # stock — completed monthly candles only.
     scan_ohlcv = await fetch_daily_ohlcv(provider, "MAHLIFE", scan_service.STOCK_HISTORY_DAYS)
     result = analyze_stock("MAHLIFE", scan_ohlcv, DEFAULT_STRATEGY_CONFIG)
+    assert result.monthly.rsi == pytest.approx(EXPECTED_MONTHLY_RSI, abs=0.01)
+    # The old, too-shallow 800-day fetch must NOT be what the scanner uses.
+    assert result.monthly.rsi != pytest.approx(STALE_MONTHLY_RSI, abs=0.01)
 
-    # Chart path: exactly what GET /api/chart/candles does for timeframe=1M,
-    # then the same Wilder RSI(14) the frontend port (chartStudies.ts)
-    # mirrors exactly.
+    # Chart (LIVE) path: exactly what GET /api/chart/candles does for
+    # timeframe=1M, then the same Wilder RSI(14) the frontend port
+    # (chartStudies.ts) mirrors exactly. Verified against an INDEPENDENTLY
+    # computed expectation (same resample+RSI building blocks, not a
+    # hardcoded number) to prove the chart's pipeline is actually correct,
+    # not merely different from the scanner's.
+    from backend.indicators.resample import to_monthly
     from backend.indicators.rsi import rsi
 
     chart_monthly_candles = await chart_service.get_candles(provider, "MAHLIFE", "1M")
     chart_monthly_rsi = float(rsi(chart_monthly_candles["close"], 14).iloc[-1])
+    independently_expected = to_monthly(_mahlife_ohlcv(), include_partial=True)
+    independently_expected_rsi = float(rsi(independently_expected["close"], 14).iloc[-1])
+    assert chart_monthly_rsi == pytest.approx(independently_expected_rsi, abs=0.01)
 
-    assert result.monthly.rsi == pytest.approx(EXPECTED_MONTHLY_RSI, abs=0.01)
-    assert chart_monthly_rsi == pytest.approx(EXPECTED_MONTHLY_RSI, abs=0.01)
-    assert result.monthly.rsi == pytest.approx(chart_monthly_rsi, abs=0.01)
-
-    # The old, too-shallow 800-day fetch must NOT be what either path uses.
-    assert result.monthly.rsi != pytest.approx(STALE_MONTHLY_RSI, abs=0.01)
+    # The live (partial-September-included) chart RSI must differ from the
+    # confirmed (August-only) scanner RSI for this fixture — proving
+    # September was actually picked up, not silently dropped.
+    assert chart_monthly_rsi != pytest.approx(result.monthly.rsi, abs=0.01)
+    assert chart_monthly_candles.index[-1].month == 9
+    assert chart_monthly_candles.index[-1].year == 2026
 
 
 async def test_mahlife_no_longer_incorrectly_qualifies_for_value_buy():

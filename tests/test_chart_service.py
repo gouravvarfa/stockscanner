@@ -118,3 +118,69 @@ async def test_long_history_ignored_for_intraday_timeframes():
     provider = FakeAngelOneProvider({"FIFTEEN_MINUTE": _bars(50, "15min")})
     df = await chart_service.get_candles(provider, "RELIANCE", "15m", long_history=True)
     assert len(df) == 50
+
+
+# ---------------------------------------------------------------------------
+# APLAPOLLO regression (2026-09-25): the 1M chart must show the CURRENT
+# in-progress month as its latest candle, built from real Angel One daily
+# bars (never fabricated, never hardcoded to any real stock's actual
+# TradingView values) — not silently drop it and show last month instead.
+# ---------------------------------------------------------------------------
+
+def _daily_bars_spanning_into_current_month(n_prior_month_days: int, n_current_month_days: int) -> pd.DataFrame:
+    """Business days ending "today" (deterministic relative to whenever the
+    test runs, exactly like the real Angel One feed) so the fixture always
+    genuinely spans into a real, currently in-progress month — the same
+    situation APLAPOLLO was reported in for September 2026."""
+    total = n_prior_month_days + n_current_month_days
+    idx = pd.bdate_range(end=pd.Timestamp.now().normalize(), periods=total)
+    closes = [100.0 + i * 0.5 for i in range(total)]
+    return pd.DataFrame(
+        {"open": closes, "high": [c + 1 for c in closes], "low": [c - 1 for c in closes],
+         "close": closes, "volume": [1000.0] * total},
+        index=idx,
+    )
+
+
+async def test_aplapollo_style_1m_chart_shows_the_current_month_as_latest_candle():
+    bars = _daily_bars_spanning_into_current_month(45, 5)
+    provider = FakeAngelOneProvider({"ONE_DAY": bars})
+    df = await chart_service.get_candles(provider, "APLAPOLLO", "1M")
+    now = pd.Timestamp.now()
+    assert df.index[-1].year == now.year
+    assert df.index[-1].month == now.month
+    # The partial current-month candle must be built only from the real
+    # current-month days actually present in the fetched daily bars.
+    current_month_days = bars[(bars.index.year == now.year) & (bars.index.month == now.month)]
+    latest = df.iloc[-1]
+    assert latest["open"] == pytest.approx(float(current_month_days["open"].iloc[0]))
+    assert latest["close"] == pytest.approx(float(current_month_days["close"].iloc[-1]))
+    assert latest["high"] == pytest.approx(float(current_month_days["high"].max()))
+    assert latest["low"] == pytest.approx(float(current_month_days["low"].min()))
+    assert latest["volume"] == pytest.approx(float(current_month_days["volume"].sum()))
+
+
+async def test_aplapollo_style_1m_previous_completed_month_still_present_before_current():
+    bars = _daily_bars_spanning_into_current_month(45, 5)
+    provider = FakeAngelOneProvider({"ONE_DAY": bars})
+    df = await chart_service.get_candles(provider, "APLAPOLLO", "1M")
+    now = pd.Timestamp.now()
+    # At least one earlier, fully-completed month must still be present
+    # immediately before the current live one — the fix must ADD the
+    # current month, never remove history that was already there.
+    assert len(df) >= 2
+    prev = df.index[-2]
+    assert (prev.year, prev.month) != (now.year, now.month)
+
+
+async def test_aplapollo_style_1m_live_rsi_and_bollinger_source_includes_current_month():
+    """The chart's RSI/Bollinger Bands are computed client-side FROM this
+    exact candle series (frontend/src/chart/chartStudies.ts) — proving the
+    current month is the last row here is sufficient to prove live RSI/BB
+    will include it too, without duplicating the RSI/BB implementation in
+    this backend test."""
+    bars = _daily_bars_spanning_into_current_month(45, 5)
+    provider = FakeAngelOneProvider({"ONE_DAY": bars})
+    df = await chart_service.get_candles(provider, "APLAPOLLO", "1M")
+    now = pd.Timestamp.now()
+    assert (df.index[-1].year, df.index[-1].month) == (now.year, now.month)

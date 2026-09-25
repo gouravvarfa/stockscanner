@@ -84,7 +84,12 @@ async def get_candles(angelone: AngelOneProvider, symbol: str, timeframe: str, l
         if timeframe == "1D" or base_bars.empty:
             return base_bars
         rule = "W-FRI" if timeframe == "1W" else "ME"
-        return resample_ohlcv(base_bars, rule).dropna(subset=["open", "high", "low", "close"])
+        # include_partial=True: the chart must show the current in-progress
+        # week/month (e.g. APLAPOLLO's live September 2026 candle), built
+        # from whatever real completed daily bars already exist for it —
+        # never fabricated, never used for strategy confirmation (see
+        # resample_ohlcv's docstring).
+        return resample_ohlcv(base_bars, rule, include_partial=True).dropna(subset=["open", "high", "low", "close"])
 
     match = await angelone.resolve_equity(symbol)
     if match is None:
@@ -100,7 +105,11 @@ async def get_candles(angelone: AngelOneProvider, symbol: str, timeframe: str, l
     if base_bars.empty:
         return base_bars
 
-    resampled = resample_ohlcv(base_bars, rule)
+    # include_partial=True for 1W/1M only (never 4H — see module docstring:
+    # 4H has no meaningful "current period" concept for this chart and
+    # dropping its trailing bucket is still correct) — same live-current-
+    # period rule as the long_history path above.
+    resampled = resample_ohlcv(base_bars, rule, include_partial=timeframe in ("1W", "1M"))
     # resample_ohlcv only drops a bucket when EVERY column is NaN, but a
     # calendar-fixed bucket (e.g. "4h") that falls entirely outside market
     # hours/on a non-trading day still gets a real volume SUM of 0 (not
