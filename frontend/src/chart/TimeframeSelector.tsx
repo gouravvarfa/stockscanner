@@ -1,5 +1,6 @@
 import { TIMEFRAMES, type Timeframe } from "./chartTypes";
 
+/** Compact segmented control; scrolls horizontally on narrow screens. */
 export function TimeframeSelector({ value, onChange }: { value: Timeframe; onChange: (timeframe: Timeframe) => void }) {
   return (
     <div className="timeframe-row" role="tablist" aria-label="Chart timeframe">

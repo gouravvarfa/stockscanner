@@ -6,17 +6,22 @@ export function IndicatorsMenu({ value, onChange }: { value: IndicatorSettings; 
 
   return (
     <div className="chart-dropdown">
-      <button type="button" className="chart-toolbar-btn" onClick={() => setOpen((current) => !current)}>
+      <button
+        type="button"
+        className={open ? "chart-toolbar-btn active" : "chart-toolbar-btn"}
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+      >
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+          <path d="M1.5 12.5l4-5 3 3 6-8" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
         Indicators
       </button>
       {open && (
         <>
           <div className="chart-dropdown-backdrop" onClick={() => setOpen(false)} />
           <div className="chart-dropdown-panel">
-            <label className="chart-dropdown-item">
-              <input type="checkbox" checked={value.volume} onChange={(e) => onChange({ ...value, volume: e.target.checked })} />
-              Volume
-            </label>
+            <span className="chart-dropdown-heading">Overlays</span>
 
             <label className="chart-dropdown-item">
               <input type="checkbox" checked={value.bollinger} onChange={(e) => onChange({ ...value, bollinger: e.target.checked })} />
@@ -46,6 +51,11 @@ export function IndicatorsMenu({ value, onChange }: { value: IndicatorSettings; 
               </div>
             )}
 
+            <span className="chart-dropdown-heading">Panes</span>
+            <label className="chart-dropdown-item">
+              <input type="checkbox" checked={value.volume} onChange={(e) => onChange({ ...value, volume: e.target.checked })} />
+              Volume
+            </label>
             <label className="chart-dropdown-item">
               <input type="checkbox" checked={value.rsi} onChange={(e) => onChange({ ...value, rsi: e.target.checked })} />
               RSI

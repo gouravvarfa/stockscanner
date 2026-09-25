@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { fetchCandles } from "./chartDatafeed";
 import { IndicatorsMenu } from "./IndicatorsMenu";
-import { OHLCReadout } from "./OHLCReadout";
+import { OHLCReadout, fmtVolume } from "./OHLCReadout";
 import { TimeframeSelector } from "./TimeframeSelector";
 import { DEFAULT_INDICATOR_SETTINGS, type ChartDataStatus, type ChartSignalContext, type IndicatorSettings, type OHLCBar, type Timeframe } from "./chartTypes";
 import { useTradingViewChart, type ChartSeriesType } from "./useTradingViewChart";
@@ -38,6 +38,55 @@ function fmtRsi(value: number | null | undefined): string {
   return value === null || value === undefined || Number.isNaN(value) ? "—" : value.toFixed(1);
 }
 
+const INTRADAY = new Set<Timeframe>(["1m", "5m", "15m", "30m", "1H", "4H"]);
+
+/** Hovered bar's date (and time, on intraday) for the legend. Bar times are UTC-labelled wall-clock. */
+function fmtLegendTime(seconds: number, timeframe: Timeframe): string {
+  const d = new Date(seconds * 1000);
+  const opts: Intl.DateTimeFormatOptions = timeframe === "1M"
+    ? { month: "short", year: "numeric", timeZone: "UTC" }
+    : { day: "2-digit", month: "short", year: "2-digit", timeZone: "UTC" };
+  if (INTRADAY.has(timeframe)) Object.assign(opts, { hour: "2-digit", minute: "2-digit", hour12: false });
+  return d.toLocaleString("en-IN", opts);
+}
+
+/** Only the signal-context values that actually exist — no rows of "—". */
+function signalContextItems(ctx: ChartSignalContext | null): Array<[string, string]> {
+  if (!ctx) return [];
+  const items: Array<[string, string]> = [];
+  if (ctx.daily_rsi != null) items.push(["Daily RSI", fmtRsi(ctx.daily_rsi)]);
+  if (ctx.weekly_rsi != null) items.push(["Weekly RSI", fmtRsi(ctx.weekly_rsi)]);
+  if (ctx.monthly_rsi != null) items.push(["Monthly RSI", fmtRsi(ctx.monthly_rsi)]);
+  if (ctx.divergence_timeframe) items.push(["Signal TF", ctx.divergence_timeframe]);
+  if (ctx.signal_date) items.push(["Signal Date", new Date(ctx.signal_date).toLocaleDateString("en-IN")]);
+  return items;
+}
+
+const iconProps = { width: 16, height: 16, viewBox: "0 0 16 16", fill: "none", stroke: "currentColor", strokeWidth: 1.5, "aria-hidden": true } as const;
+function CandlesIcon() {
+  return (
+    <svg {...iconProps}>
+      <path d="M4.5 1.5v2M4.5 10.5v4M11.5 1.5v4M11.5 11.5v3" strokeLinecap="round" />
+      <rect x="2.75" y="3.5" width="3.5" height="7" rx="0.75" />
+      <rect x="9.75" y="5.5" width="3.5" height="6" rx="0.75" fill="currentColor" />
+    </svg>
+  );
+}
+function LineIcon() {
+  return (
+    <svg {...iconProps}>
+      <path d="M1.5 12l4-4.5 3 2.5 6-7" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+function FitIcon() {
+  return (
+    <svg {...iconProps}>
+      <path d="M1.5 5.5v-4h4M14.5 5.5v-4h-4M1.5 10.5v4h4M14.5 10.5v4h-4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 export function TradingViewChart({ symbol, signalContext, isMaximized, onToggleMaximize, onClose }: TradingViewChartProps) {
   // Cup Breakout is a MONTHLY detector — open its charts on 1M so the
   // structure markers land on the exact bars the detector used.
@@ -53,6 +102,7 @@ export function TradingViewChart({ symbol, signalContext, isMaximized, onToggleM
   // (see useLiveChart.ts's cleanup and backend/api/live.py's stream
   // lifetime) — the whole point of the 2026-09-25 "chart open flow" spec.
   const { liveCandles, status: liveStatus } = useLiveChart(symbol, true);
+  const contextItems = signalContextItems(signalContext);
 
   useEffect(() => {
     try {
@@ -62,7 +112,7 @@ export function TradingViewChart({ symbol, signalContext, isMaximized, onToggleM
     }
   }, [indicators]);
 
-  const { crosshair, setData, fitContent, bollingerLatest, rsiLatest } = useTradingViewChart(containerRef, {
+  const { crosshair, setData, fitContent, bollingerLatest, rsiLatest, paneTops } = useTradingViewChart(containerRef, {
     indicators, chartType, timeframe, cupStructure: signalContext?.cupStructure ?? null,
   });
 
@@ -108,7 +158,7 @@ export function TradingViewChart({ symbol, signalContext, isMaximized, onToggleM
     const liveBar: OHLCBar = { time: live.time, open: live.open, high: live.high, low: live.low, close: live.close, volume: live.volume };
     const merged = last && last.time === live.time ? [...bars.slice(0, -1), liveBar] : [...bars, liveBar];
     barsRef.current = merged;
-    setData(merged);
+    setData(merged, { fit: false }); // live tick: keep the user's zoom/scroll
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [liveCandles, timeframe]);
 
@@ -134,13 +184,11 @@ export function TradingViewChart({ symbol, signalContext, isMaximized, onToggleM
         </div>
       </div>
 
-      {signalContext && (
+      {contextItems.length > 0 && (
         <div className="chart-signal-context">
-          <span>Daily RSI <strong>{fmtRsi(signalContext.daily_rsi)}</strong></span>
-          <span>Weekly RSI <strong>{fmtRsi(signalContext.weekly_rsi)}</strong></span>
-          <span>Monthly RSI <strong>{fmtRsi(signalContext.monthly_rsi)}</strong></span>
-          {signalContext.divergence_timeframe && <span>Signal TF <strong>{signalContext.divergence_timeframe}</strong></span>}
-          {signalContext.signal_date && <span>Signal Date <strong>{new Date(signalContext.signal_date).toLocaleDateString()}</strong></span>}
+          {contextItems.map(([label, value]) => (
+            <span key={label}>{label} <strong>{value}</strong></span>
+          ))}
         </div>
       )}
 
@@ -148,46 +196,63 @@ export function TradingViewChart({ symbol, signalContext, isMaximized, onToggleM
         <div className="chart-toolbar">
           <TimeframeSelector value={timeframe} onChange={setTimeframe} />
           <div className="chart-toolbar-right">
-            <div className="chart-type-toggle">
+            <div className="chart-type-toggle" role="group" aria-label="Chart type">
               <button
                 type="button"
-                className={chartType === "candles" ? "chart-toolbar-btn active" : "chart-toolbar-btn"}
+                title="Candles"
+                aria-label="Candles"
+                aria-pressed={chartType === "candles"}
+                className={chartType === "candles" ? "chart-toolbar-btn chart-icon-btn active" : "chart-toolbar-btn chart-icon-btn"}
                 onClick={() => setChartType("candles")}
               >
-                Candles
+                <CandlesIcon />
               </button>
               <button
                 type="button"
-                className={chartType === "line" ? "chart-toolbar-btn active" : "chart-toolbar-btn"}
+                title="Line"
+                aria-label="Line"
+                aria-pressed={chartType === "line"}
+                className={chartType === "line" ? "chart-toolbar-btn chart-icon-btn active" : "chart-toolbar-btn chart-icon-btn"}
                 onClick={() => setChartType("line")}
               >
-                Line
+                <LineIcon />
               </button>
             </div>
             <IndicatorsMenu value={indicators} onChange={setIndicators} />
-            <button type="button" className="chart-toolbar-btn" aria-label="Reset zoom" onClick={fitContent}>
-              Reset Zoom
+            <button type="button" className="chart-toolbar-btn chart-icon-btn" title="Fit all bars" aria-label="Fit all bars" onClick={fitContent}>
+              <FitIcon />
             </button>
           </div>
         </div>
 
         <div className="chart-canvas-wrap">
+          {/* Price pane legend */}
           <div className="chart-legend-overlay">
+            <span className="chart-legend-title">
+              {symbol} <span className="muted">· {timeframe}</span>
+              {crosshair && !crosshair.isLatest && <span className="muted"> · {fmtLegendTime(crosshair.time, timeframe)}</span>}
+            </span>
+            <OHLCReadout readout={crosshair} showVolume={!indicators.volume} />
             {indicators.bollinger && bollingerLatest && (
               <span className="chart-indicator-legend">
-                BB ({indicators.bollingerPeriod}, {indicators.bollingerMultiplier}){" "}
+                BB {indicators.bollingerPeriod} {indicators.bollingerMultiplier}{" "}
                 <span className="bb-upper-lower">{bollingerLatest.upper.toFixed(2)}</span>{" "}
                 <span className="bb-mid">{bollingerLatest.middle.toFixed(2)}</span>{" "}
                 <span className="bb-upper-lower">{bollingerLatest.lower.toFixed(2)}</span>
               </span>
             )}
-            {indicators.rsi && rsiLatest !== null && (
-              <span className="chart-indicator-legend">
-                RSI ({indicators.rsiPeriod}) <strong>{rsiLatest.toFixed(2)}</strong>
-              </span>
-            )}
-            <OHLCReadout readout={crosshair} />
           </div>
+          {/* In-pane legends: each indicator's name/value sits inside its own pane. */}
+          {indicators.volume && paneTops.volume !== null && (
+            <div className="chart-pane-legend" style={{ top: paneTops.volume + 4 }}>
+              Vol <strong>{fmtVolume(crosshair?.volume ?? null)}</strong>
+            </div>
+          )}
+          {indicators.rsi && paneTops.rsi !== null && (
+            <div className="chart-pane-legend" style={{ top: paneTops.rsi + 4 }}>
+              RSI {indicators.rsiPeriod} <strong className="rsi-value">{fmtRsi(crosshair?.rsi ?? rsiLatest)}</strong>
+            </div>
+          )}
           <div ref={containerRef} className="chart-canvas-el" />
 
           {status !== "ready" && (

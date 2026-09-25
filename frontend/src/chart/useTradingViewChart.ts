@@ -32,6 +32,16 @@ export interface CrosshairReadout {
   high: number;
   low: number;
   close: number;
+  prevClose: number | null; // previous bar's close — for change / change%
+  volume: number | null;
+  rsi: number | null; // RSI at this bar (null if RSI is off / not yet warmed up)
+  isLatest: boolean; // true when showing the latest bar (not hovering)
+}
+
+/** Pixel offset of each indicator pane's top edge inside the chart container. */
+export interface PaneTops {
+  volume: number | null;
+  rsi: number | null;
 }
 
 export interface BollingerLatest {
@@ -79,6 +89,44 @@ export function useTradingViewChart(containerRef: React.RefObject<HTMLDivElement
   const [crosshair, setCrosshair] = useState<CrosshairReadout | null>(null);
   const [bollingerLatest, setBollingerLatest] = useState<BollingerLatest | null>(null);
   const [rsiLatest, setRsiLatest] = useState<number | null>(null);
+  const [paneTops, setPaneTops] = useState<PaneTops>({ volume: null, rsi: null });
+  const rsiValuesRef = useRef<Array<number | null>>([]);
+  const barIndexRef = useRef<Map<number, number>>(new Map());
+  const hoveringRef = useRef(false);
+
+  // Legend readout for bar `index`: the hovered bar, or the latest bar when
+  // not hovering — so O/H/L/C/change are always visible, not "hover for OHLC".
+  const readoutAt = (index: number, isLatest: boolean): CrosshairReadout | null => {
+    const bars = barsRef.current;
+    const bar = bars[index];
+    if (!bar) return null;
+    return {
+      time: bar.time, open: bar.open, high: bar.high, low: bar.low, close: bar.close,
+      prevClose: index > 0 ? bars[index - 1].close : null,
+      volume: bar.volume ?? null,
+      rsi: rsiSeriesRef.current ? rsiValuesRef.current[index] ?? null : null,
+      isLatest,
+    };
+  };
+  const showLatestReadout = (): void => {
+    if (!hoveringRef.current) setCrosshair(readoutAt(barsRef.current.length - 1, true));
+  };
+
+  // Where each indicator pane starts, for the in-pane legends. Measured after
+  // layout settles (stretch factors apply on the next frame).
+  const measurePanes = (): void => {
+    requestAnimationFrame(() => {
+      const container = containerRef.current;
+      if (!container) return;
+      const origin = container.getBoundingClientRect().top;
+      const topOf = (series: ISeriesApi<"Histogram"> | ISeriesApi<"Line"> | null): number | null => {
+        const el = series?.getPane().getHTMLElement();
+        return el ? Math.round(el.getBoundingClientRect().top - origin) : null;
+      };
+      const next = { volume: topOf(volumeSeriesRef.current), rsi: topOf(rsiSeriesRef.current) };
+      setPaneTops((prev) => (prev.volume === next.volume && prev.rsi === next.rsi ? prev : next));
+    });
+  };
 
   // Pane layout: price (0), then volume (if on), then RSI (if on) — each in
   // its OWN pane. Positions are derived from what's actually enabled, so
@@ -123,6 +171,7 @@ export function useTradingViewChart(containerRef: React.RefObject<HTMLDivElement
     chart.panes()[0]?.setStretchFactor(Math.max(total - volumeHeight - rsiHeight, 1));
     if (volumeSeriesRef.current) volumeSeriesRef.current.getPane().setStretchFactor(Math.max(volumeHeight, 1));
     if (rsiSeriesRef.current) rsiSeriesRef.current.getPane().setStretchFactor(Math.max(rsiHeight, 1));
+    measurePanes();
   };
 
   const recalcIndicators = (): void => {
@@ -151,11 +200,14 @@ export function useTradingViewChart(containerRef: React.RefObject<HTMLDivElement
     if (rsiSeriesRef.current) {
       const rsi = calculateRSI(closes, optionsRef.current.indicators.rsiPeriod);
       rsiSeriesRef.current.setData(toLineData(bars, rsi));
+      rsiValuesRef.current = rsi;
       const lastIndex = rsi.length - 1;
       setRsiLatest(lastIndex >= 0 ? rsi[lastIndex] : null);
     } else {
+      rsiValuesRef.current = [];
       setRsiLatest(null);
     }
+    showLatestReadout();
   };
 
   // Cup structure overlay — draws exactly the points the backend detector
@@ -219,7 +271,11 @@ export function useTradingViewChart(containerRef: React.RefObject<HTMLDivElement
       grid: { vertLines: { color: colors.grid }, horzLines: { color: colors.grid } },
       rightPriceScale: { borderColor: colors.border },
       timeScale: { borderColor: colors.border, timeVisible: true },
-      crosshair: { mode: 0 },
+      crosshair: {
+        mode: 0,
+        vertLine: { color: colors.muted, width: 1, style: 3, labelBackgroundColor: colors.text },
+        horzLine: { color: colors.muted, width: 1, style: 3, labelBackgroundColor: colors.text },
+      },
       autoSize: false,
       width: container.clientWidth,
       height: container.clientHeight,
@@ -243,23 +299,21 @@ export function useTradingViewChart(containerRef: React.RefObject<HTMLDivElement
     closeLineSeriesRef.current = closeLineSeries;
 
     chart.subscribeCrosshairMove((param) => {
-      if (!param.time || !param.seriesData) {
-        setCrosshair(null);
+      const index = param.time !== undefined ? barIndexRef.current.get(toSeconds(param.time)) : undefined;
+      if (index === undefined) {
+        // Left the plot (or no bar under the cursor): fall back to the latest bar.
+        hoveringRef.current = false;
+        setCrosshair(readoutAt(barsRef.current.length - 1, true));
         return;
       }
-      const data = param.seriesData.get(candleSeries) as { open: number; high: number; low: number; close: number } | undefined;
-      if (data) {
-        setCrosshair({ time: toSeconds(param.time), open: data.open, high: data.high, low: data.low, close: data.close });
-        return;
-      }
-      // Candle series is hidden in line-chart mode — only its close value is available.
-      const lineData = param.seriesData.get(closeLineSeries) as { value: number } | undefined;
-      if (!lineData) {
-        setCrosshair(null);
-        return;
-      }
-      setCrosshair({ time: toSeconds(param.time), open: lineData.value, high: lineData.value, low: lineData.value, close: lineData.value });
+      hoveringRef.current = true;
+      setCrosshair(readoutAt(index, index === barsRef.current.length - 1));
     });
+
+    // Dragging a pane separator changes pane heights without resizing the
+    // container — re-measure the in-pane legends once the drag ends.
+    const onPointerUp = () => measurePanes();
+    container.addEventListener("pointerup", onPointerUp);
 
     let lastWidth = container.clientWidth;
     const resizeObserver = new ResizeObserver((entries) => {
@@ -281,6 +335,7 @@ export function useTradingViewChart(containerRef: React.RefObject<HTMLDivElement
 
     return () => {
       resizeObserver.disconnect();
+      container.removeEventListener("pointerup", onPointerUp);
       chart.remove();
       chartRef.current = null;
       candleSeriesRef.current = null;
@@ -456,15 +511,18 @@ export function useTradingViewChart(containerRef: React.RefObject<HTMLDivElement
     closeLineSeriesRef.current?.applyOptions({ visible: isLine });
   }, [options.chartType]);
 
-  const setData = (bars: OHLCBar[]): void => {
+  /** `fit: false` keeps the user's current zoom/scroll — used for live-tick
+   *  updates, which must never snap the view back to "fit all". */
+  const setData = (bars: OHLCBar[], { fit = true }: { fit?: boolean } = {}): void => {
     barsRef.current = bars;
+    barIndexRef.current = new Map(bars.map((bar, index) => [bar.time, index]));
     candleSeriesRef.current?.setData(bars.map((bar) => ({ time: bar.time as Time, open: bar.open, high: bar.high, low: bar.low, close: bar.close })));
     closeLineSeriesRef.current?.setData(bars.map((bar) => ({ time: bar.time as Time, value: bar.close })));
     if (volumeSeriesRef.current) {
       const colors = getChartThemeColors();
       volumeSeriesRef.current.setData(bars.map((bar) => toVolumePoint(bar, colors)));
     }
-    chartRef.current?.timeScale().fitContent();
+    if (fit) chartRef.current?.timeScale().fitContent();
     recalcIndicators();
     applyCupStructure();
   };
@@ -473,7 +531,7 @@ export function useTradingViewChart(containerRef: React.RefObject<HTMLDivElement
     chartRef.current?.timeScale().fitContent();
   };
 
-  return { crosshair, setData, fitContent, bollingerLatest, rsiLatest };
+  return { crosshair, setData, fitContent, bollingerLatest, rsiLatest, paneTops };
 }
 
 /**
