@@ -53,6 +53,14 @@ class AngelOneProvider:
         """Forces the next request to re-authenticate — call after credentials change."""
         self._session = None
 
+    async def get_session(self) -> AngelOneSession:
+        """Public accessor for the SAME session every REST call already
+        uses — added 2026-09-25 for backend/live/market_data_service.py's
+        WebSocket handshake (Authorization/x-api-key/x-client-code/
+        x-feed-token), so the live engine never creates a second
+        authentication path."""
+        return await self._ensure_session()
+
     async def get_intraday_ohlc(
         self, exch_seg: str, symbol_token: str, interval: AngelOneInterval, days_back: int = 5
     ) -> pd.DataFrame:

@@ -12,6 +12,7 @@ from backend.api import config as config_api
 from backend.api import expiry as expiry_api
 from backend.api import expiry_level_5 as expiry_level_5_api
 from backend.api import history as history_api
+from backend.api import live as live_api
 from backend.api import logs as logs_api
 from backend.api import ranking as ranking_api
 from backend.api import scan as scan_api
@@ -71,6 +72,7 @@ app.include_router(tradingview_api.router)
 app.include_router(logs_api.router)
 app.include_router(chart_api.router)
 app.include_router(top_bottom_api.router)
+app.include_router(live_api.router)
 
 
 @app.get("/api/health")
