@@ -1,10 +1,28 @@
 from __future__ import annotations
 import pandas as pd
 from backend.config.multi_strategy_config import ValueBuyConfig
-from backend.indicators.resample import to_weekly
+from backend.indicators.resample import to_monthly, to_weekly
+from backend.indicators.rsi import rsi
 from backend.screeners.stock_analysis import StockAnalysisResult
 from backend.strategies.types import StrategySignal
 from backend.trendlines.engine import detect_key_reversal, detect_trendline_breakout
+LIVE_MONTH_RSI_LEVEL = 40.0
+
+
+def _live_month_rsi(daily_ohlcv: pd.DataFrame) -> tuple[float | None, float | None, bool]:
+    """(live RSI at current price, live RSI at the month's high, current month green)."""
+    monthly = to_monthly(daily_ohlcv, include_partial=True)
+    if len(monthly) < 15:
+        return None, None, False
+    last = monthly.iloc[-1]
+    closes = monthly["close"].astype(float)
+    live = float(rsi(closes, 14).iloc[-1])
+    peak_closes = closes.copy()
+    peak_closes.iloc[-1] = float(last["high"])
+    peak = float(rsi(peak_closes, 14).iloc[-1])
+    return live, max(live, peak), bool(last["close"] > last["open"])
+
+
 def evaluate_value_buy(
     result: StockAnalysisResult, daily_ohlcv: pd.DataFrame, config: ValueBuyConfig
 ) -> StrategySignal:
@@ -16,14 +34,23 @@ def evaluate_value_buy(
         last_week = weekly_df.iloc[-1]
         weekly_green = bool(last_week["close"] > last_week["open"])
 
-    monthly_in_support = m is not None and config.monthly_rsi_support_min <= m <= config.monthly_rsi_support_max
+    # LIVE MONTH rule (2026-09-25, per user): use the current, still-forming
+    # monthly candle. Passes when that candle is green (price > month open)
+    # AND live monthly RSI touched/crossed 40 at any point this month —
+    # approximated by the RSI the month's HIGH would give (the most RSI
+    # reached intramonth). Same RSI formula; only the input series differs.
+    live = _live_month_rsi(daily_ohlcv)
+    live_rsi, live_rsi_peak, live_month_green = live
+    monthly_in_support = (
+        live_month_green and live_rsi_peak is not None and live_rsi_peak >= LIVE_MONTH_RSI_LEVEL
+    )
 
     key_reversal = detect_key_reversal(daily_ohlcv)
     trendline_breakout = detect_trendline_breakout(daily_ohlcv, config.trendline_swing_lookback)
     daily_trigger = key_reversal.detected or trendline_breakout.detected
 
     conditions = {
-        "monthly_rsi_in_support_zone": monthly_in_support,
+        "live_month_green_and_rsi_crossed_40": monthly_in_support,
         "latest_confirmed_weekly_candle_green": weekly_green,
         "key_reversal_or_trendline_breakout": daily_trigger,
     }
@@ -32,8 +59,8 @@ def evaluate_value_buy(
     if qualifies:
         trigger_desc = "a key reversal" if key_reversal.detected else "a trendline breakout"
         explanation = (
-            f"Value Buy qualified: Monthly RSI {m:.1f} is in the "
-            f"{config.monthly_rsi_support_min}-{config.monthly_rsi_support_max} support zone, "
+            f"Value Buy qualified (LIVE MONTH): current month candle is green and live monthly RSI "
+            f"reached {live_rsi_peak:.1f} (>= {LIVE_MONTH_RSI_LEVEL}, now {live_rsi:.1f}), "
             f"the latest confirmed weekly candle closed green, and the daily chart confirmed {trigger_desc}."
         )
     else:
@@ -55,5 +82,10 @@ def evaluate_value_buy(
             "trendline_breakout_detected": trendline_breakout.detected,
             "trendline_breakout_price": trendline_breakout.breakout_price,
             "trendline_price_at_breakout": trendline_breakout.trendline_price_at_breakout,
+            "live_month": True,
+            "live_monthly_rsi": live_rsi,
+            "live_monthly_rsi_peak": live_rsi_peak,
+            "live_month_green": live_month_green,
+            "confirmed_monthly_rsi": m,
         },
     )

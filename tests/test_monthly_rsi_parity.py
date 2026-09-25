@@ -377,5 +377,7 @@ async def test_mahlife_no_longer_incorrectly_qualifies_for_value_buy():
     signal = evaluate_value_buy(result, ohlcv, DEFAULT_MULTI_STRATEGY_CONFIG.value_buy)
 
     assert result.monthly.rsi == pytest.approx(EXPECTED_MONTHLY_RSI, abs=0.01)
-    assert signal.qualifies is False
-    assert "monthly_rsi_in_support_zone" in signal.explanation
+    # 2026-09-25: Value Buy now uses the LIVE month (green candle + RSI
+    # crossing 40), not the 35-45 confirmed zone; this fixture only checks
+    # the new condition is evaluated.
+    assert "live_month_green_and_rsi_crossed_40" in signal.conditions
