@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { STRATEGY_NAMES, strategyDisplayName, type StockResult, type StrategyName, type StrategySignal } from "../services/api";
 import { TopRankedCandidates } from "../components/TopRankedCandidates";
 import { useChart } from "../chart/ChartContext";
@@ -21,6 +21,19 @@ const TAB_NAMES: TabName[] = [
 type SortKey = "symbol" | "daily_rsi" | "weekly_rsi" | "monthly_rsi" | "score" | "price";
 
 const PAGE_SIZE = 10;
+
+// Presentation only: each strategy card's colour family + bias label.
+// NRD (negative reversal divergence) is the one bearish strategy; every
+// other strategy here is a long-side setup.
+const svgProps = { width: 18, height: 18, viewBox: "0 0 20 20", fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": true } as const;
+const STRATEGY_STYLE: Record<StrategyName, { tone: string; bias: "Bullish" | "Bearish"; icon: ReactNode }> = {
+  "Strategy One": { tone: "green", bias: "Bullish", icon: <svg {...svgProps}><path d="M4 10.5l4 4 8-9" /></svg> },
+  GFS: { tone: "blue", bias: "Bullish", icon: <svg {...svgProps}><path d="M3 15l4-5 3 3 7-8" /><path d="M13 5h4v4" /></svg> },
+  "Advanced GFS": { tone: "purple", bias: "Bullish", icon: <svg {...svgProps}><rect x="3" y="3" width="6" height="6" rx="1.5" /><rect x="11" y="3" width="6" height="6" rx="1.5" /><rect x="3" y="11" width="6" height="6" rx="1.5" /><rect x="11" y="11" width="6" height="6" rx="1.5" /></svg> },
+  PRD: { tone: "green", bias: "Bullish", icon: <svg {...svgProps}><path d="M10 16V4" /><path d="M5 9l5-5 5 5" /></svg> },
+  NRD: { tone: "red", bias: "Bearish", icon: <svg {...svgProps}><path d="M10 4v12" /><path d="M5 11l5 5 5-5" /></svg> },
+  "Value Buy": { tone: "teal", bias: "Bullish", icon: <svg {...svgProps}><path d="M3 8l7-5 7 5v8a1 1 0 01-1 1H4a1 1 0 01-1-1z" /><path d="M8 17v-5h4v5" /></svg> },
+};
 
 function fmt(value: number | null | undefined, digits = 1): string {
   return value === null || value === undefined || Number.isNaN(value) ? "N/A" : value.toFixed(digits);
@@ -190,6 +203,7 @@ export function Dashboard() {
   const [timeframeFilter, setTimeframeFilter] = useState<string>("all");
   const [symbolSearch, setSymbolSearch] = useState("");
   const [page, setPage] = useState(1);
+  const tabsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => setPage(1), [activeStrategy, sourceFilter, timeframeFilter, symbolSearch]);
 
@@ -391,15 +405,36 @@ export function Dashboard() {
       )}
 
       {latest && (
-        <div className="scan-meta card">
-          <div>
-            Data as of <strong>{new Date(latest.finished_at).toLocaleString()}</strong>
+        <div className="card dash-summary">
+          <div className="dash-summary-status">
+            <span className="dash-status-icon" aria-hidden="true">
+              <svg width="22" height="22" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M4 10.5l4 4 8-9" />
+              </svg>
+            </span>
+            <div>
+              <div className="dash-status-title">Scan Completed</div>
+              <div className="dash-status-sub">Total scan time: {latest.execution_seconds.toFixed(1)}s</div>
+            </div>
           </div>
-          <div>
-            A Group universe: {latest.universe_returned}/{latest.universe_requested} (all strategies)
+          <div className="dash-summary-stats">
+            <div className="dash-stat dash-stat-total">
+              <span className="dash-stat-label">Total Signals</span>
+              <span className="dash-stat-value">{totalSignals}</span>
+            </div>
+            {STRATEGY_NAMES.map((name) => (
+              <div className={`dash-stat tone-${STRATEGY_STYLE[name].tone}`} key={name}>
+                <span className="dash-stat-label">{strategyDisplayName(name)}</span>
+                <span className="dash-stat-value">{latest.strategies?.[name]?.length ?? 0}</span>
+              </div>
+            ))}
           </div>
-          <div>Stocks scanned: {latest.stocks_scanned} · failed: {latest.stocks_failed}</div>
-          <div>Execution time: {latest.execution_seconds.toFixed(1)}s</div>
+          <div className="dash-summary-meta">
+            <span>Data as of <strong>{new Date(latest.finished_at).toLocaleString()}</strong></span>
+            <span>Universe {latest.universe_returned}/{latest.universe_requested}</span>
+            <span>Scanned {latest.stocks_scanned}</span>
+            <span className={latest.stocks_failed > 0 ? "dash-meta-warn" : undefined}>Failed {latest.stocks_failed}</span>
+          </div>
         </div>
       )}
 
@@ -412,49 +447,54 @@ export function Dashboard() {
       )}
 
       {latest && (
-        <>
-          <div className="summary-grid">
-            <div className="summary-card">
-              <div className="summary-card-top">
-                <span className="summary-icon summary-icon-accent">Σ</span>
-                <span className="summary-label">Total Signals</span>
-              </div>
-              <span className="summary-value">{totalSignals}</span>
-            </div>
-          </div>
-
+        <div className="dash-layout">
+        <div className="dash-main">
           {/* All 6 active strategies, driven entirely from latest.strategies
-              (real backend counts) — no hardcoded values. Previously this
-              grid only surfaced PRD/NRD/Value Buy; System One/GFS/Advanced
-              GFS had no summary card even though the data was already
-              present in the API response. */}
-          <div className="summary-grid strategy-summary-grid">
+              (real backend counts) — no hardcoded values. Clicking a card
+              opens that strategy's tab in the table below. */}
+          <div className="dash-strategy-grid">
             {STRATEGY_NAMES.map((name) => {
               const count = latest.strategies?.[name]?.length ?? 0;
               const breakdown =
                 name === "PRD" ? prdBreakdown : name === "NRD" ? nrdBreakdown : null;
+              const style = STRATEGY_STYLE[name];
+              const isActive = activeStrategy === name;
               return (
-                <div className="summary-card" key={name}>
-                  <div className="summary-card-top">
-                    <span className="summary-label">{strategyDisplayName(name)}</span>
-                  </div>
-                  <span className="summary-value">{count}</span>
-                  {breakdown && (
-                    <span className="summary-breakdown">
-                      Daily: <b>{breakdown.daily}</b> | Weekly: <b>{breakdown.weekly}</b> | Monthly:{" "}
-                      <b>{breakdown.monthly}</b>
+                <button
+                  type="button"
+                  className={`dash-strategy-card tone-${style.tone}${isActive ? " active" : ""}`}
+                  key={name}
+                  aria-pressed={isActive}
+                  onClick={() => {
+                    setActiveStrategy(name);
+                    tabsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+                  }}
+                >
+                  <span className="dash-strategy-head">
+                    <span className="dash-strategy-icon">{style.icon}</span>
+                    <span className="dash-strategy-name">{strategyDisplayName(name)}</span>
+                    <span className={`dash-bias dash-bias-${style.bias === "Bullish" ? "up" : "down"}`}>{style.bias}</span>
+                  </span>
+                  <span className="dash-strategy-count">{count}</span>
+                  {breakdown ? (
+                    <span className="dash-strategy-breakdown">
+                      <span>Daily <b>{breakdown.daily}</b></span>
+                      <span>Weekly <b>{breakdown.weekly}</b></span>
+                      <span>Monthly <b>{breakdown.monthly}</b></span>
+                    </span>
+                  ) : (
+                    <span className="dash-strategy-breakdown">
+                      <span>{count === 1 ? "1 signal" : `${count} signals`}</span>
                     </span>
                   )}
-                </div>
+                </button>
               );
             })}
           </div>
 
-          <TopRankedCandidates refreshKey={latest.finished_at} />
-
           {activeStrategy === "Strategy One" && <BestStockCard stock={latest.best} />}
 
-          <div className="tabs">
+          <div className="tabs" ref={tabsRef}>
             {TAB_NAMES.map((name) => (
               <button
                 key={name}
@@ -673,7 +713,11 @@ export function Dashboard() {
               )}
             </div>
           )}
-        </>
+        </div>
+        <aside className="dash-rail">
+          <TopRankedCandidates refreshKey={latest.finished_at} />
+        </aside>
+        </div>
       )}
 
       {selected && (
