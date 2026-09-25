@@ -29,6 +29,20 @@
   --sidebar-width: 232px;
   --header-height: 64px;
 
+  /* ---- Gain/loss gradient accents (2026-09-25) ----------------------------
+     UI chrome only (badges/chips/cards/buttons) — resolved from the SAME
+     --success/--danger tokens the chart already uses, so the chart's own
+     candle/series colors (getChartThemeColors) are never touched by this.
+     Kept low-saturation/low-opacity on purpose: an accent wash, not a
+     flashy fill. Defined once here (not per theme) since var(--success)/
+     var(--danger) already resolve to the active theme's value. */
+  --success-wash: linear-gradient(135deg, color-mix(in srgb, var(--success) 16%, var(--bg-surface)) 0%, var(--bg-surface) 75%);
+  --danger-wash: linear-gradient(135deg, color-mix(in srgb, var(--danger) 16%, var(--bg-surface)) 0%, var(--bg-surface) 75%);
+  --success-border: color-mix(in srgb, var(--success) 38%, transparent);
+  --danger-border: color-mix(in srgb, var(--danger) 38%, transparent);
+  --success-glow: 0 0 0 1px var(--success-border), 0 3px 12px color-mix(in srgb, var(--success) 18%, transparent);
+  --danger-glow: 0 0 0 1px var(--danger-border), 0 3px 12px color-mix(in srgb, var(--danger) 18%, transparent);
+
   /* ---- Typography tokens (one scale for the whole app) ---- */
   --font-sans: "Inter", -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -67,9 +81,9 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg-page: #0b0f16;
+    --bg-page: #090c11;
     --bg-surface: #121826;
-    --bg-sidebar: #10151f;
+    --bg-sidebar: #0c1017;
     --bg-hover: #1a2233;
     --bg-header: #10151f;
     --border: #232c3d;
@@ -91,13 +105,19 @@
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
     --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.35);
     --shadow-hover: 0 10px 28px rgba(0, 0, 0, 0.45);
+    /* Very low-opacity green/red wash top-left/bottom-right on an
+       otherwise near-black page — a "premium terminal" backdrop, never
+       loud enough to compete with actual data. */
+    --page-vignette:
+      radial-gradient(1100px 700px at 8% -8%, color-mix(in srgb, var(--success) 7%, transparent), transparent 60%),
+      radial-gradient(1100px 700px at 100% 108%, color-mix(in srgb, var(--danger) 6%, transparent), transparent 60%);
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --bg-page: #0b0f16;
+  --bg-page: #090c11;
   --bg-surface: #121826;
-  --bg-sidebar: #10151f;
+  --bg-sidebar: #0c1017;
   --bg-hover: #1a2233;
   --bg-header: #10151f;
   --border: #232c3d;
@@ -119,6 +139,9 @@
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.35);
   --shadow-hover: 0 10px 28px rgba(0, 0, 0, 0.45);
+  --page-vignette:
+    radial-gradient(1100px 700px at 8% -8%, color-mix(in srgb, var(--success) 7%, transparent), transparent 60%),
+    radial-gradient(1100px 700px at 100% 108%, color-mix(in srgb, var(--danger) 6%, transparent), transparent 60%);
   color-scheme: dark;
 }
 
@@ -141,6 +164,8 @@ html, body {
 body {
   margin: 0;
   background: var(--bg-page);
+  background-image: var(--page-vignette, none);
+  background-attachment: fixed;
   color: var(--text-primary);
   font-family: var(--font-sans);
   font-size: var(--fs-md);
@@ -437,8 +462,9 @@ table, .scan-meta, .active-scan-meta, .num-cell, .ohlc-readout, .chart-indicator
 .secondary-button:disabled { opacity: 0.55; cursor: default; }
 
 .error-banner {
-  background: var(--danger-soft);
-  border: 1px solid var(--danger);
+  background: var(--danger-wash);
+  border: 1px solid var(--danger-border);
+  box-shadow: var(--danger-glow);
   color: var(--danger);
   padding: 12px 16px;
   border-radius: var(--radius-sm);
@@ -475,14 +501,13 @@ table, .scan-meta, .active-scan-meta, .num-cell, .ohlc-readout, .chart-indicator
   line-height: 1.4;
   letter-spacing: 0.02em;
   margin-right: 6px;
+  border: 1px solid transparent;
 }
-.badge-strong { background: var(--success-soft); color: var(--success); }
-.badge-good { background: var(--success-soft); color: var(--success); }
+.badge-strong, .badge-good, .badge-bullish { background: var(--success-wash); color: var(--success); border-color: var(--success-border); }
 .badge-moderate { background: var(--warning-soft); color: var(--warning); }
 .badge-weak { background: var(--bg-hover); color: var(--text-muted); }
-.badge-bullish { background: var(--success-soft); color: var(--success); }
 .badge-neutral { background: var(--bg-hover); color: var(--text-muted); }
-.badge-highrisk { background: var(--danger-soft); color: var(--danger); }
+.badge-highrisk { background: var(--danger-wash); color: var(--danger); border-color: var(--danger-border); }
 
 /* ---------- Data-source badges ---------- */
 
@@ -510,9 +535,10 @@ table, .scan-meta, .active-scan-meta, .num-cell, .ohlc-readout, .chart-indicator
   font-size: 0.7rem;
   font-weight: 700;
   letter-spacing: 0.02em;
+  border: 1px solid transparent;
 }
-.divergence-badge-prd { background: var(--success-soft); color: var(--success); }
-.divergence-badge-nrd { background: var(--danger-soft); color: var(--danger); }
+.divergence-badge-prd { background: var(--success-wash); color: var(--success); border-color: var(--success-border); }
+.divergence-badge-nrd { background: var(--danger-wash); color: var(--danger); border-color: var(--danger-border); }
 
 .timeframe-chip {
   display: inline-flex;
@@ -558,8 +584,8 @@ table, .scan-meta, .active-scan-meta, .num-cell, .ohlc-readout, .chart-indicator
   flex-shrink: 0;
 }
 .summary-icon-accent { background: var(--accent-soft); color: var(--accent); }
-.summary-icon-success { background: var(--success-soft); color: var(--success); }
-.summary-icon-danger { background: var(--danger-soft); color: var(--danger); }
+.summary-icon-success { background: var(--success-wash); color: var(--success); box-shadow: var(--success-glow); }
+.summary-icon-danger { background: var(--danger-wash); color: var(--danger); box-shadow: var(--danger-glow); }
 .summary-icon-purple { background: var(--purple-soft); color: var(--purple); }
 
 .summary-label { font-size: 0.78rem; color: var(--text-muted); font-weight: 600; }
@@ -642,7 +668,7 @@ tbody tr { animation: row-fade-in var(--dur-slow) var(--ease-out); }
 td .symbol-cell { font-weight: var(--fw-semibold); color: var(--text-primary); }
 .num-cell { text-align: right; font-variant-numeric: tabular-nums; }
 
-.row-highlight td { background: var(--success-soft); }
+.row-highlight td { background: var(--success-wash); box-shadow: inset 2px 0 0 var(--success-border); }
 
 .table-pagination {
   display: flex;
@@ -728,7 +754,7 @@ td .symbol-cell { font-weight: var(--fw-semibold); color: var(--text-primary); }
   font-weight: 600;
   color: var(--success);
 }
-.strategy-status .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--success); }
+.strategy-status .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--success); box-shadow: 0 0 6px color-mix(in srgb, var(--success) 55%, transparent); }
 .strategy-signal-count { font-size: 0.8rem; color: var(--text-muted); }
 .strategy-signal-count b { color: var(--text-primary); font-size: 0.95rem; }
 
@@ -791,8 +817,8 @@ td .symbol-cell { font-weight: var(--fw-semibold); color: var(--text-primary); }
   background: var(--bg-hover);
   color: var(--text-secondary);
 }
-.chip-pass { background: var(--success-soft); color: var(--success); }
-.chip-fail { background: var(--danger-soft); color: var(--danger); }
+.chip-pass { background: var(--success-wash); color: var(--success); border: 1px solid var(--success-border); }
+.chip-fail { background: var(--danger-wash); color: var(--danger); border: 1px solid var(--danger-border); }
 
 .clickable-row { cursor: pointer; }
 .explanation-cell { white-space: normal; max-width: 360px; font-size: 0.8rem; color: var(--text-muted); }
@@ -1565,7 +1591,7 @@ td .symbol-cell { font-weight: var(--fw-semibold); color: var(--text-primary); }
 .instrument-badge-equity { background: rgba(100, 116, 139, 0.14); color: #64748b; border: 1px solid rgba(100, 116, 139, 0.3); }
 
 .live-results { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; max-height: 96px; overflow: auto; }
-.live-result-chip { font-size: 12px; padding: 2px 8px; border-radius: 6px; background: rgba(34, 197, 94, 0.12); border: 1px solid rgba(34, 197, 94, 0.3); }
+.live-result-chip { font-size: 12px; padding: 2px 8px; border-radius: 6px; background: var(--success-wash); border: 1px solid var(--success-border); color: var(--text-primary); }
 
 /* Dashboard side-by-side panels: clean header/subtitle, equal height, scrollable lists */
 .panel-head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
@@ -1576,8 +1602,8 @@ td .symbol-cell { font-weight: var(--fw-semibold); color: var(--text-primary); }
 .ranked-panel .ranked-list { max-height: 420px; overflow-y: auto; padding-right: 4px; }
 .prd-forming-list { max-height: 420px; }
 
-.stop-scan-button { border-color: rgba(220, 38, 38, 0.45); color: #dc2626; }
-.stop-scan-button:hover { background: rgba(220, 38, 38, 0.08); }
+.stop-scan-button { border-color: var(--danger-border); color: var(--danger); background: var(--danger-wash); }
+.stop-scan-button:hover { box-shadow: var(--danger-glow); }
 
 .checkbox-row { display: flex; align-items: center; gap: 8px; font-size: 13px; margin: 10px 0; }
 .checkbox-row input { width: auto; margin: 0; }
@@ -1606,8 +1632,6 @@ td .symbol-cell { font-weight: var(--fw-semibold); color: var(--text-primary); }
 
 @media (max-width: 720px) {
   :root { --header-height: 56px; }
-
-  body { background: #f4f6f9; }
 
   .app-content { padding: 12px 14px 84px; } /* bottom padding clears the fixed bottom nav */
 
@@ -1730,9 +1754,9 @@ td .symbol-cell { font-weight: var(--fw-semibold); color: var(--text-primary); }
 .history-scan-stats { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-left: auto; font-size: 0.8rem; color: var(--text-secondary); }
 .history-stat { display: flex; align-items: center; gap: 6px; }
 .history-stat-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-muted); display: inline-block; }
-.history-stat-pass .history-stat-dot { background: var(--success); }
+.history-stat-pass .history-stat-dot { background: var(--success); box-shadow: 0 0 6px color-mix(in srgb, var(--success) 55%, transparent); }
 .history-stat-fail { color: var(--danger); }
-.history-stat-fail .history-stat-dot { background: var(--danger); }
+.history-stat-fail .history-stat-dot { background: var(--danger); box-shadow: 0 0 6px color-mix(in srgb, var(--danger) 55%, transparent); }
 
 .history-scan-body { border-top: 1px solid var(--border); padding: 16px; }
 .history-scan-body-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; }
@@ -1751,9 +1775,9 @@ td .symbol-cell { font-weight: var(--fw-semibold); color: var(--text-primary); }
   font-weight: 700; white-space: nowrap; background: var(--accent-soft); color: var(--accent-soft-text);
 }
 .strategy-badge-agroup { background: var(--accent-soft); color: var(--accent-soft-text); }
-.strategy-badge-prd { background: var(--success-soft); color: var(--success); }
+.strategy-badge-prd { background: var(--success-wash); color: var(--success); border: 1px solid var(--success-border); }
 .strategy-badge-prd-forming { background: var(--warning-soft); color: var(--warning); }
-.strategy-badge-nrd { background: var(--danger-soft); color: var(--danger); }
+.strategy-badge-nrd { background: var(--danger-wash); color: var(--danger); border: 1px solid var(--danger-border); }
 .strategy-badge-nrd-forming { background: var(--warning-soft); color: var(--warning); }
 .strategy-badge-gfs,
 .strategy-badge-advanced-gfs { background: var(--accent-soft); color: var(--accent-soft-text); }
