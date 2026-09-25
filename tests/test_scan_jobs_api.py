@@ -269,3 +269,27 @@ def test_progress_endpoint_returns_every_processed_stock(client, monkeypatch):
 def test_progress_endpoint_404_for_unknown_job(client):
     resp = client.get("/api/scan/jobs/does-not-exist/progress")
     assert resp.status_code == 404
+
+
+def test_a_group_finalize_does_not_write_scan_history_to_the_server_database(monkeypatch):
+    """2026-09-25: A Group results used to be inserted into scanner.db on
+    Render on every scan and never deleted (unbounded server storage, never
+    read by the UI - Scan History is device-local IndexedDB). Finalizing a
+    scan must no longer touch the server database at all."""
+    from backend.services import history_service
+
+    def _fail(*a, **kw):
+        raise AssertionError("A Group finalize must not persist scan history on the server")
+
+    monkeypatch.setattr(history_service, "persist_scan", _fail)
+
+    class _FakeResult:
+        scan_id = None
+
+        def model_dump(self, mode="json"):
+            return {"scan_id": self.scan_id, "top10": []}
+
+    monkeypatch.setattr(scan_jobs_module.serializers, "scan_outcome_out", lambda outcome: _FakeResult())
+
+    payload = scan_jobs_module._finalize_a_group(object())
+    assert payload["scan_id"] is None

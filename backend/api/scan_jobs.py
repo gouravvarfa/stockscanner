@@ -40,11 +40,10 @@ from pydantic import BaseModel
 # backend/api/expiry_level_5.py already use to shape their responses.
 from backend.api.expiry import _signal_out as _expiry_l1_signal_out
 from backend.api.expiry_level_5 import _signal_out as _expiry_l5_signal_out
-from backend.core.database import SessionLocal
 from backend.schemas.expiry import ExpiryLevel1ResultOut
 from backend.schemas.expiry_level_5 import ExpiryLevel5ResultOut
 from backend.config.cup_config import DEFAULT_CUP_CONFIG
-from backend.services import config_store, history_service, serializers
+from backend.services import config_store, serializers
 from backend.services.cup_scan_service import run_cup_scan
 from backend.services.expiry_level_5_scan_service import run_expiry_level_5_scan
 from backend.services.expiry_scan_service import run_expiry_level_1_scan
@@ -126,19 +125,16 @@ async def _run_cup_breakout_job(job: ScanJob) -> dict:
 
 
 def _finalize_a_group(outcome) -> dict:
+    # 2026-09-25: no longer persisted to the server database. Every A Group
+    # run used to insert a ScanRun + its result rows (full signal detail
+    # JSON) into scanner.db on Render and nothing ever deleted them, so
+    # server storage grew with every scan — while the UI never read them
+    # (Scan History is device-local IndexedDB since the 2026-09-22
+    # architecture decision; api.listHistory has no callers). Per explicit
+    # user direction ("render par kuch store nahi karna, sab local device
+    # par"), scan results now live only on the device. scan_id stays None;
+    # every reader already treats it as optional.
     result = serializers.scan_outcome_out(outcome)
-
-    # A dedicated session opened/closed entirely within this background
-    # task — a session obtained from the POST /start request's dependency
-    # would already be closed by the time this runs (the HTTP response
-    # returns immediately; it does not wait for the scan to finish).
-    db = SessionLocal()
-    try:
-        run = history_service.persist_scan(db, "manual", result)
-        result.scan_id = run.id
-    finally:
-        db.close()
-
     payload = result.model_dump(mode="json")
     set_cached_result("a_group", payload)
     return payload
