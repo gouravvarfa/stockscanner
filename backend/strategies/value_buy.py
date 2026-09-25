@@ -6,7 +6,9 @@ from backend.indicators.rsi import rsi
 from backend.screeners.stock_analysis import StockAnalysisResult
 from backend.strategies.types import StrategySignal
 from backend.trendlines.engine import detect_key_reversal, detect_trendline_breakout
-LIVE_MONTH_RSI_LEVEL = 40.0
+
+LIVE_MONTH_RSI_LOW = 38.0
+LIVE_MONTH_RSI_HIGH = 45.0
 
 
 def _live_month_rsi(daily_ohlcv: pd.DataFrame) -> tuple[float | None, float | None, bool]:
@@ -34,15 +36,18 @@ def evaluate_value_buy(
         last_week = weekly_df.iloc[-1]
         weekly_green = bool(last_week["close"] > last_week["open"])
 
-    # LIVE MONTH rule (2026-09-25, per user): use the current, still-forming
-    # monthly candle. Passes when that candle is green (price > month open)
-    # AND live monthly RSI touched/crossed 40 at any point this month —
-    # approximated by the RSI the month's HIGH would give (the most RSI
-    # reached intramonth). Same RSI formula; only the input series differs.
+    # LIVE MONTH rule (final): use the current, still-forming monthly
+    # candle. Passes when that candle is green (price > month open) AND
+    # the live monthly RSI peak (approximated using the month's HIGH as
+    # the close) falls inside the 38-45 zone. This upper bound is
+    # intentional — it keeps overbought names (RSI 50/60/70+) out of
+    # Value Buy. Same RSI formula; only the input series differs.
     live = _live_month_rsi(daily_ohlcv)
     live_rsi, live_rsi_peak, live_month_green = live
     monthly_in_support = (
-        live_month_green and live_rsi_peak is not None and live_rsi_peak >= LIVE_MONTH_RSI_LEVEL
+        live_month_green
+        and live_rsi_peak is not None
+        and LIVE_MONTH_RSI_LOW <= live_rsi_peak <= LIVE_MONTH_RSI_HIGH
     )
 
     key_reversal = detect_key_reversal(daily_ohlcv)
@@ -50,7 +55,7 @@ def evaluate_value_buy(
     daily_trigger = key_reversal.detected or trendline_breakout.detected
 
     conditions = {
-        "live_month_green_and_rsi_crossed_40": monthly_in_support,
+        "live_month_green_and_rsi_in_38_45_zone": monthly_in_support,
         "latest_confirmed_weekly_candle_green": weekly_green,
         "key_reversal_or_trendline_breakout": daily_trigger,
     }
@@ -60,8 +65,9 @@ def evaluate_value_buy(
         trigger_desc = "a key reversal" if key_reversal.detected else "a trendline breakout"
         explanation = (
             f"Value Buy qualified (LIVE MONTH): current month candle is green and live monthly RSI "
-            f"reached {live_rsi_peak:.1f} (>= {LIVE_MONTH_RSI_LEVEL}, now {live_rsi:.1f}), "
-            f"the latest confirmed weekly candle closed green, and the daily chart confirmed {trigger_desc}."
+            f"peak is {live_rsi_peak:.1f} (within {LIVE_MONTH_RSI_LOW}-{LIVE_MONTH_RSI_HIGH}, "
+            f"now {live_rsi:.1f}), the latest confirmed weekly candle closed green, and the daily "
+            f"chart confirmed {trigger_desc}."
         )
     else:
         missing = [k for k, v in conditions.items() if not v]
