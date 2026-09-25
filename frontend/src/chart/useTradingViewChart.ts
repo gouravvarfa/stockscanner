@@ -14,11 +14,12 @@ import {
   type Time,
 } from "lightweight-charts";
 import {
+  MAX_RSI_PANE_HEIGHT,
+  MAX_VOLUME_PANE_HEIGHT,
+  MIN_PRICE_PANE_HEIGHT,
   MIN_RSI_PANE_HEIGHT,
   MIN_VOLUME_PANE_HEIGHT,
-  RSI_PANE_INDEX,
   RSI_PANE_RATIO,
-  VOLUME_PANE_INDEX,
   VOLUME_PANE_RATIO,
 } from "./chartConfig";
 import { calculateBollingerBands, calculateRSI } from "./chartStudies";
@@ -79,17 +80,49 @@ export function useTradingViewChart(containerRef: React.RefObject<HTMLDivElement
   const [bollingerLatest, setBollingerLatest] = useState<BollingerLatest | null>(null);
   const [rsiLatest, setRsiLatest] = useState<number | null>(null);
 
+  // Pane layout: price (0), then volume (if on), then RSI (if on) — each in
+  // its OWN pane. Positions are derived from what's actually enabled, so
+  // turning volume off/on can never put volume into RSI's pane (the old
+  // fixed indices 1/2 did exactly that once an empty pane got cleaned up).
+  const volumePaneIndex = (): number => 1;
+  const rsiPaneIndex = (): number => (volumeSeriesRef.current ? 2 : 1);
+
+  const arrangePanes = (): void => {
+    const chart = chartRef.current;
+    if (!chart) return;
+    volumeSeriesRef.current?.moveToPane(volumePaneIndex());
+    rsiSeriesRef.current?.moveToPane(rsiPaneIndex());
+    // Drop any pane left empty by a toggle, highest index first.
+    const panes = chart.panes();
+    for (let i = panes.length - 1; i >= 1; i--) {
+      if (panes[i].getSeries().length === 0) chart.removePane(i);
+    }
+    syncPaneHeights();
+  };
+
   const syncPaneHeights = (): void => {
     const chart = chartRef.current;
     const container = containerRef.current;
     if (!chart || !container) return;
     const total = container.clientHeight;
-    const volumeHeight = volumeSeriesRef.current ? Math.max(MIN_VOLUME_PANE_HEIGHT, Math.round(total * VOLUME_PANE_RATIO)) : 0;
-    const rsiHeight = rsiSeriesRef.current ? Math.max(MIN_RSI_PANE_HEIGHT, Math.round(total * RSI_PANE_RATIO)) : 0;
-    const priceHeight = Math.max(240, total - volumeHeight - rsiHeight);
-    chart.panes()[0]?.setHeight(priceHeight);
-    if (volumeSeriesRef.current) chart.panes()[VOLUME_PANE_INDEX]?.setHeight(volumeHeight);
-    if (rsiSeriesRef.current) chart.panes()[RSI_PANE_INDEX]?.setHeight(rsiHeight);
+    const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, Math.round(value)));
+    let volumeHeight = volumeSeriesRef.current ? clamp(total * VOLUME_PANE_RATIO, MIN_VOLUME_PANE_HEIGHT, MAX_VOLUME_PANE_HEIGHT) : 0;
+    let rsiHeight = rsiSeriesRef.current ? clamp(total * RSI_PANE_RATIO, MIN_RSI_PANE_HEIGHT, MAX_RSI_PANE_HEIGHT) : 0;
+    // Very short containers (phone landscape): shrink indicators
+    // proportionally rather than squeezing price below its minimum.
+    const available = total - MIN_PRICE_PANE_HEIGHT;
+    const indicators = volumeHeight + rsiHeight;
+    if (indicators > 0 && available < indicators) {
+      const scale = Math.max(available, 0) / indicators;
+      volumeHeight = Math.round(volumeHeight * scale);
+      rsiHeight = Math.round(rsiHeight * scale);
+    }
+    // Stretch factors (applied together) rather than sequential setHeight()
+    // calls — each setHeight() takes space from a neighbouring pane, so the
+    // last call used to squeeze volume down to ~30px.
+    chart.panes()[0]?.setStretchFactor(Math.max(total - volumeHeight - rsiHeight, 1));
+    if (volumeSeriesRef.current) volumeSeriesRef.current.getPane().setStretchFactor(Math.max(volumeHeight, 1));
+    if (rsiSeriesRef.current) rsiSeriesRef.current.getPane().setStretchFactor(Math.max(rsiHeight, 1));
   };
 
   const recalcIndicators = (): void => {
@@ -179,7 +212,10 @@ export function useTradingViewChart(containerRef: React.RefObject<HTMLDivElement
 
     const colors = getChartThemeColors();
     const chart = createChart(container, {
-      layout: { background: { color: colors.background }, textColor: colors.text, fontFamily: "inherit" },
+      layout: {
+        background: { color: colors.background }, textColor: colors.text, fontFamily: "inherit",
+        panes: { separatorColor: colors.border, separatorHoverColor: colors.grid, enableResize: true },
+      },
       grid: { vertLines: { color: colors.grid }, horzLines: { color: colors.grid } },
       rightPriceScale: { borderColor: colors.border },
       timeScale: { borderColor: colors.border, timeVisible: true },
@@ -297,7 +333,7 @@ export function useTradingViewChart(containerRef: React.RefObject<HTMLDivElement
       if (!chart) return;
       const colors = getChartThemeColors();
       chart.applyOptions({
-        layout: { background: { color: colors.background }, textColor: colors.text },
+        layout: { background: { color: colors.background }, textColor: colors.text, panes: { separatorColor: colors.border, separatorHoverColor: colors.grid } },
         grid: { vertLines: { color: colors.grid }, horzLines: { color: colors.grid } },
         rightPriceScale: { borderColor: colors.border },
         timeScale: { borderColor: colors.border },
@@ -320,12 +356,19 @@ export function useTradingViewChart(containerRef: React.RefObject<HTMLDivElement
       return;
     }
     const colors = getChartThemeColors();
-    const volumeSeries = chart.addSeries(HistogramSeries, { priceFormat: { type: "volume" }, color: colors.muted }, VOLUME_PANE_INDEX);
+    // Added at the end, then arrangePanes() moves it directly under price
+    // and pushes RSI (if present) below it — never shares RSI's pane.
+    const volumeSeries = chart.addSeries(
+      HistogramSeries,
+      { priceFormat: { type: "volume" }, color: colors.muted, lastValueVisible: false, priceLineVisible: false },
+      chart.panes().length,
+    );
+    volumeSeries.priceScale().applyOptions({ scaleMargins: { top: 0.15, bottom: 0 } });
     volumeSeriesRef.current = volumeSeries;
     if (barsRef.current.length > 0) {
       volumeSeries.setData(barsRef.current.map((bar) => toVolumePoint(bar, colors)));
     }
-    syncPaneHeights();
+    arrangePanes();
     return () => {
       try {
         chart.removeSeries(volumeSeries);
@@ -333,6 +376,7 @@ export function useTradingViewChart(containerRef: React.RefObject<HTMLDivElement
         // chart already disposed
       }
       volumeSeriesRef.current = null;
+      if (chartRef.current) arrangePanes();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [options.indicators.volume]);
@@ -376,7 +420,8 @@ export function useTradingViewChart(containerRef: React.RefObject<HTMLDivElement
       return;
     }
     const colors = getChartThemeColors();
-    const rsiSeries = chart.addSeries(LineSeries, { color: colors.purple, lineWidth: 2 }, RSI_PANE_INDEX);
+    const rsiSeries = chart.addSeries(LineSeries, { color: colors.purple, lineWidth: 2 }, chart.panes().length);
+    rsiSeries.priceScale().applyOptions({ scaleMargins: { top: 0.1, bottom: 0.1 } });
     rsiSeriesRef.current = rsiSeries;
     rsiPriceLinesRef.current = [
       rsiSeries.createPriceLine({
@@ -389,7 +434,7 @@ export function useTradingViewChart(containerRef: React.RefObject<HTMLDivElement
       }),
     ];
     recalcIndicators();
-    syncPaneHeights();
+    arrangePanes();
     return () => {
       try {
         chart.removeSeries(rsiSeries);
@@ -398,6 +443,7 @@ export function useTradingViewChart(containerRef: React.RefObject<HTMLDivElement
       }
       rsiSeriesRef.current = null;
       rsiPriceLinesRef.current = [];
+      if (chartRef.current) arrangePanes();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [options.indicators.rsi, options.indicators.rsiPeriod, options.indicators.rsiUpper, options.indicators.rsiLower]);
