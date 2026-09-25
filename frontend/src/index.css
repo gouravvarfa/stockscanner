@@ -164,8 +164,6 @@ html, body {
 body {
   margin: 0;
   background: var(--bg-page);
-  background-image: var(--page-vignette, none);
-  background-attachment: fixed;
   color: var(--text-primary);
   font-family: var(--font-sans);
   font-size: var(--fs-md);
@@ -177,6 +175,18 @@ body {
   overscroll-behavior-y: none; /* stops the whole page "rubber-banding" past the top/bottom on trackpads/Chrome; native touch bounce on mobile Safari is untouched (that's overscroll-behavior on the scrolling *element*, not this) */
 }
 
+/* Dark-theme vignette on its own fixed, composited layer. It used to be
+   `background-attachment: fixed` on <body>, which makes Chromium repaint
+   the whole viewport on every scroll frame (the choppy wheel scrolling).
+   A fixed pseudo-element is composited once and never repainted. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: var(--page-vignette, none);
+}
 /* Desktop/laptop: a slim, unobtrusive scrollbar instead of the default
    chunky one — mobile/touch keeps the OS's native scrollbar untouched. */
 @media (pointer: fine) {
@@ -199,12 +209,13 @@ body {
 .logs-panel-body,
 .chart-panel-body,
 .tb-search-dropdown,
-.active-scans-panel,
-.live-results,
-.ranked-panel .ranked-list {
+.active-scans-panel {
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
 }
+/* Small in-page lists (NOT overlays): once they hit their end the wheel
+   hands off to the page instead of dead-stopping under the cursor. */
+.live-results { -webkit-overflow-scrolling: touch; }
 
 /* Tables scroll horizontally in their own container only — the page's
    vertical scroll is never nested inside a table's own scrollbar. */
@@ -591,8 +602,26 @@ table, .scan-meta, .active-scan-meta, .num-cell, .ohlc-readout, .chart-indicator
 .summary-label { font-size: 0.78rem; color: var(--text-muted); font-weight: 600; }
 .summary-value { font-size: 1.6rem; font-weight: 800; letter-spacing: -0.02em; line-height: 1; }
 .summary-delta { font-size: 0.75rem; color: var(--success); font-weight: 600; }
-.summary-breakdown { font-size: 0.75rem; color: var(--text-muted); display: flex; gap: 10px; flex-wrap: wrap; }
-.summary-breakdown b { color: var(--text-secondary); font-weight: 600; }
+.summary-breakdown { font-size: 0.75rem; color: var(--text-muted); display: flex; gap: 4px 14px; flex-wrap: wrap; }
+.summary-breakdown > span { white-space: nowrap; }
+.summary-breakdown b { color: var(--text-secondary); font-weight: 600; margin-left: 2px; }
+
+/* Total Signals: one compact row (label left, number right) instead of a
+   tall, mostly-empty full-width card. */
+.summary-card-total {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  margin-bottom: 16px;
+}
+
+/* Six strategy cards: an even 3 x 2 grid (was auto-fit, which left a
+   4 + 2 layout with a gap), every card the same height. */
+.strategy-summary-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: stretch; }
+@media (max-width: 720px) {
+  .strategy-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+}
 
 /* ---------- Best-stock / trade-setup blocks ---------- */
 
@@ -1614,7 +1643,9 @@ td .symbol-cell { font-weight: var(--fw-semibold); color: var(--text-primary); }
 .panel-sub { font-size: 12px; opacity: 0.7; margin: 0 0 12px; line-height: 1.45; }
 .dash-side-by-side { align-items: stretch; }
 .dash-side-by-side > .card { margin: 0; display: flex; flex-direction: column; min-width: 0; }
-.ranked-panel .ranked-list { max-height: 420px; overflow-y: auto; padding-right: 4px; }
+/* No inner scroll box: the ranked list flows with the page, so the wheel
+   never gets captured by a nested scroller mid-page. */
+.ranked-panel .ranked-list { max-height: none; overflow: visible; }
 .prd-forming-list { max-height: 420px; }
 
 .stop-scan-button { border-color: var(--danger-border); color: var(--danger); background: var(--danger-wash); }
@@ -1906,10 +1937,9 @@ td .symbol-cell { font-weight: var(--fw-semibold); color: var(--text-primary); }
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
-/* Clickable (non-content) cards get a light lift — transform only. */
-.summary-card,
+/* Strategy directory cards get a light lift — transform only. Dashboard
+   summary cards are static (not clickable), so they don't move. */
 .strategy-card { transition: transform var(--dur-base) var(--ease-out), border-color var(--dur-base) var(--ease-out); }
-.summary-card:hover,
 .strategy-card:hover { transform: translateY(-2px); border-color: var(--border-strong); }
 
 /* Chart drawer exit (ChartDrawer keeps it mounted for 180ms while this runs). */
@@ -1927,166 +1957,3 @@ td .symbol-cell { font-weight: var(--fw-semibold); color: var(--text-primary); }
   color: var(--text-muted);
   margin-top: 2px;
 }
-
-/* =========================================================================
-   Dashboard layout (2026-09-25): scan summary strip, toned strategy cards,
-   main + right rail. Presentation only: every number comes from the
-   existing scan result.
-   ========================================================================= */
-
-/* Per-strategy colour family, consumed as var(--tone). */
-.tone-green { --tone: var(--success); }
-.tone-red { --tone: var(--danger); }
-.tone-blue { --tone: var(--accent); }
-.tone-purple { --tone: var(--purple); }
-.tone-teal { --tone: #0d9488; }
-:root[data-theme="dark"] .tone-teal { --tone: #2dd4bf; }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .tone-teal { --tone: #2dd4bf; }
-}
-
-/* ---- Scan summary strip ---- */
-.dash-summary {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 14px 24px;
-  align-items: center;
-  padding: 16px 20px;
-  border-color: color-mix(in srgb, var(--success) 24%, var(--border));
-  background: linear-gradient(115deg, color-mix(in srgb, var(--success) 12%, var(--bg-surface)) 0%, var(--bg-surface) 42%);
-}
-.dash-summary-status { display: flex; align-items: center; gap: 12px; padding-right: 24px; border-right: 1px solid var(--border); }
-.dash-status-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  flex-shrink: 0;
-  color: #fff;
-  background: linear-gradient(135deg, color-mix(in srgb, var(--success) 75%, white), var(--success));
-  box-shadow: 0 0 0 5px color-mix(in srgb, var(--success) 16%, transparent), 0 6px 16px color-mix(in srgb, var(--success) 28%, transparent);
-}
-.dash-status-title { font-weight: var(--fw-semibold); color: var(--success); white-space: nowrap; }
-.dash-status-sub { font-size: var(--fs-xs); color: var(--text-muted); white-space: nowrap; }
-.dash-summary-stats { display: flex; flex-wrap: wrap; row-gap: 10px; min-width: 0; }
-.dash-stat { display: flex; flex-direction: column; gap: 2px; padding: 0 clamp(10px, 1.2vw, 18px); border-left: 1px solid var(--border); }
-.dash-stat:first-child { border-left: none; padding-left: 0; }
-.dash-stat-label { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-xs); font-weight: var(--fw-medium); color: var(--text-muted); white-space: nowrap; }
-.dash-stat[class*="tone-"] .dash-stat-label::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--tone); }
-.dash-stat-value { font-size: 1.35rem; font-weight: var(--fw-bold); letter-spacing: -0.02em; line-height: 1.2; color: var(--text-primary); font-variant-numeric: tabular-nums; }
-.dash-stat-total .dash-stat-value { color: var(--success); }
-.dash-summary-meta {
-  grid-column: 1 / -1;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 18px;
-  padding-top: 10px;
-  border-top: 1px dashed var(--border);
-  font-size: var(--fs-xs);
-  color: var(--text-muted);
-}
-.dash-summary-meta strong { color: var(--text-secondary); font-weight: var(--fw-semibold); }
-.dash-meta-warn { color: var(--danger); }
-
-/* ---- Main + right rail ---- */
-.dash-layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 20px; align-items: start; }
-.dash-main { min-width: 0; }
-.dash-rail { position: sticky; top: calc(var(--header-height) + 16px); min-width: 0; }
-.dash-rail > .card { margin-bottom: 0; }
-@media (max-width: 1280px) {
-  .dash-layout { grid-template-columns: minmax(0, 1fr); }
-  .dash-rail { position: static; }
-}
-
-/* ---- Strategy cards ---- */
-.dash-strategy-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-bottom: 20px; } /* 6 strategies = a clean 3x2 */
-.dash-strategy-card {
-  position: relative;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 16px;
-  text-align: left;
-  font: inherit;
-  color: inherit;
-  cursor: pointer;
-  border-radius: var(--radius-lg);
-  border: 1px solid color-mix(in srgb, var(--tone) 24%, var(--border));
-  background: linear-gradient(150deg, color-mix(in srgb, var(--tone) 15%, var(--bg-surface)) 0%, var(--bg-surface) 72%);
-  box-shadow: var(--shadow-sm);
-  transition: transform var(--dur-base) var(--ease-out), border-color var(--dur-base) var(--ease-out);
-}
-/* Soft colour bloom in the corner. */
-.dash-strategy-card::after {
-  content: "";
-  position: absolute;
-  right: -40px;
-  bottom: -50px;
-  width: 160px;
-  height: 160px;
-  border-radius: 50%;
-  background: radial-gradient(closest-side, color-mix(in srgb, var(--tone) 22%, transparent), transparent);
-  pointer-events: none;
-}
-.dash-strategy-card:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--tone) 50%, var(--border)); }
-.dash-strategy-card:active { transform: translateY(0) scale(0.99); }
-.dash-strategy-card.active {
-  border-color: var(--tone);
-  box-shadow: 0 0 0 1px var(--tone), 0 8px 22px color-mix(in srgb, var(--tone) 22%, transparent);
-}
-.dash-strategy-card:focus-visible { outline: 2px solid var(--tone); outline-offset: 2px; }
-.dash-strategy-head { display: flex; align-items: center; gap: 10px; min-width: 0; }
-.dash-strategy-icon {
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  flex-shrink: 0;
-  color: #fff;
-  background: var(--tone);
-  box-shadow: 0 4px 12px color-mix(in srgb, var(--tone) 35%, transparent);
-}
-.dash-strategy-name { flex: 1; min-width: 0; font-weight: var(--fw-semibold); color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.dash-bias { flex-shrink: 0; font-size: var(--fs-2xs); font-weight: var(--fw-semibold); padding: 2px 8px; border-radius: var(--radius-full); border: 1px solid transparent; }
-.dash-bias-up { background: var(--success-wash); color: var(--success); border-color: var(--success-border); }
-.dash-bias-down { background: var(--danger-wash); color: var(--danger); border-color: var(--danger-border); }
-.dash-strategy-count { position: relative; font-size: 2rem; font-weight: var(--fw-bold); letter-spacing: -0.03em; line-height: 1.1; color: var(--text-primary); font-variant-numeric: tabular-nums; }
-.dash-strategy-breakdown { position: relative; display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: var(--fs-xs); color: var(--text-muted); }
-.dash-strategy-breakdown b { color: var(--text-secondary); font-weight: var(--fw-semibold); }
-
-@media (max-width: 720px) {
-  .dash-summary { grid-template-columns: minmax(0, 1fr); padding: 14px; }
-  .dash-summary-status { border-right: none; padding-right: 0; }
-  .dash-summary-stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 10px; }
-  .dash-stat, .dash-stat:first-child { border-left: none; padding: 0; }
-  .dash-strategy-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-  .dash-strategy-card { padding: 12px; }
-  .dash-strategy-count { font-size: 1.6rem; }
-  .dash-bias { display: none; } /* colour + icon already carry it on narrow cards */
-}
-
-/* ---- Sidebar: Scan Engine widget ---- */
-.scan-engine {
-  margin: auto 12px 14px;
-  padding: 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: linear-gradient(160deg, color-mix(in srgb, var(--success) 9%, var(--bg-surface)) 0%, var(--bg-surface) 65%);
-  font-size: var(--fs-xs);
-}
-.scan-engine-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
-.scan-engine-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; background: var(--success); box-shadow: 0 0 0 4px color-mix(in srgb, var(--success) 18%, transparent); }
-@keyframes scan-engine-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
-.scan-engine-running .scan-engine-dot { animation: scan-engine-pulse 1.6s ease-in-out infinite; }
-.scan-engine-title { font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--text-primary); }
-.scan-engine-state { color: var(--success); }
-.scan-engine-bar-row { display: flex; align-items: center; gap: 8px; }
-.scan-engine-bar { flex: 1; margin: 0; }
-.scan-engine-bar .active-scan-bar-fill { background: linear-gradient(90deg, color-mix(in srgb, var(--success) 65%, white), var(--success)); }
-.scan-engine-pct { color: var(--text-secondary); font-variant-numeric: tabular-nums; }
-.scan-engine-stats { display: grid; grid-template-columns: 1fr auto; gap: 4px 8px; margin: 10px 0 0; }
-.scan-engine-stats dt { color: var(--text-muted); }
-.scan-engine-stats dd { margin: 0; text-align: right; color: var(--text-primary); font-variant-numeric: tabular-nums; }
