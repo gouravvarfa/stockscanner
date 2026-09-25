@@ -179,7 +179,7 @@ export function ActiveScansPanel() {
               {job.status === "running" ? (
                 <>
                   <div className="active-scan-bar">
-                    <div className="active-scan-bar-fill" style={{ width: `${Math.min(job.percentage, 100)}%` }} />
+                    <div className="active-scan-bar-fill" style={{ transform: `scaleX(${Math.min(job.percentage, 100) / 100})` }} />
                   </div>
                   <div className="active-scan-meta">
                     {job.processed} / {job.total || "?"} stocks

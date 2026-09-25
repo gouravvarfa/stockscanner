@@ -244,7 +244,7 @@ export function CupBreakoutPage() {
             <div className="muted small">{job.processed} / {job.total || "?"} ({job.percentage.toFixed(1)}%)</div>
           </div>
           <div className="active-scan-bar" style={{ marginTop: 8 }}>
-            <div className="active-scan-bar-fill" style={{ width: `${Math.min(job.percentage, 100)}%` }} />
+            <div className="active-scan-bar-fill" style={{ transform: `scaleX(${Math.min(job.percentage, 100) / 100})` }} />
           </div>
           <p className="muted small" style={{ marginTop: 6 }}>
             Elapsed {fmtDuration(job.elapsed_seconds)} · ETA {job.eta_seconds === null ? "Estimating…" : fmtDuration(job.eta_seconds)} ·{" "}

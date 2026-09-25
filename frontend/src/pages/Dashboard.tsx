@@ -262,6 +262,17 @@ export function Dashboard() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
   const pageRows = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  // Identity-based row keys (not position-based): re-sorting or a new
+  // result arriving must not remount — and re-animate — every row.
+  const pageRowKeys = (() => {
+    const seen = new Map<string, number>();
+    return pageRows.map((s) => {
+      const base = `${s.strategy}-${s.qualifies ? "c" : "f"}-${s.symbol}`;
+      const n = seen.get(base) ?? 0;
+      seen.set(base, n + 1);
+      return n === 0 ? base : `${base}-${n}`;
+    });
+  })();
 
   function sortBy(key: SortKey) {
     if (key === sortKey) setAsc(!asc);
@@ -309,7 +320,7 @@ export function Dashboard() {
               </span>
             </div>
             <div className="active-scan-bar">
-              <div className="active-scan-bar-fill" style={{ width: `${Math.min(progress.percentage, 100)}%` }} />
+              <div className="active-scan-bar-fill" style={{ transform: `scaleX(${Math.min(progress.percentage, 100) / 100})` }} />
             </div>
             <div style={{ fontSize: 12, opacity: 0.7, marginTop: 6 }}>
               Signals found {progress.signalsFound} · Failed {progress.failed} · Elapsed {Math.floor(progress.elapsedSeconds / 60)}m {Math.round(progress.elapsedSeconds % 60)}s · ETA{" "}
@@ -546,7 +557,7 @@ export function Dashboard() {
                       const source = s.extra.data_source as string | undefined;
                       const isForming = Boolean(detail?.status.endsWith("_FORMING"));
                       return (
-                        <tr key={`${s.strategy}-${s.qualifies ? "c" : "f"}-${s.symbol}-${rowIndex}`} onClick={() => setSelected(s)} className="clickable-row">
+                        <tr key={pageRowKeys[rowIndex]} onClick={() => setSelected(s)} className="clickable-row">
                           <td className="symbol-cell">{s.symbol}<InstrumentBadge type={s.instrument_type} /></td>
                           {isDivergenceTab && (
                             <td>

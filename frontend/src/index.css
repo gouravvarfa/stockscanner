@@ -28,8 +28,41 @@
   --radius-md: 10px;
   --sidebar-width: 232px;
   --header-height: 64px;
+
+  /* ---- Typography tokens (one scale for the whole app) ---- */
+  --font-sans: "Inter", -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --fs-2xs: 0.6875rem;  /* 11px — badges, table headers */
+  --fs-xs: 0.75rem;     /* 12px — meta, captions */
+  --fs-sm: 0.8125rem;   /* 13px — table cells, secondary text */
+  --fs-md: 0.875rem;    /* 14px — body, buttons, nav */
+  --fs-lg: 1rem;        /* 16px — section titles */
+  --fs-xl: 1.125rem;    /* 18px */
+  --fs-2xl: 1.5rem;     /* 24px — page titles */
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+  --fw-bold: 700;
+  --lh-tight: 1.25;
+  --lh-normal: 1.5;
+
+  /* ---- Spacing / radius / motion tokens ---- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --radius-lg: 14px;
+  --radius-full: 999px;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --dur-fast: 120ms;
+  --dur-base: 180ms;
+  --dur-slow: 260ms;
+
   color-scheme: light;
-  font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-family: var(--font-sans);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -99,11 +132,23 @@ html {
   scroll-behavior: smooth;
 }
 
+html, body {
+  /* `clip`, not `hidden`: prevents stray horizontal page scroll without
+     creating a scroll container (which would break the sticky sidebar). */
+  overflow-x: clip;
+}
+
 body {
   margin: 0;
   background: var(--bg-page);
   color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: var(--fs-md);
+  line-height: var(--lh-normal);
+  font-feature-settings: "cv11", "ss03"; /* Inter: cleaner 1/l/a, no effect on fallback fonts */
+  text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   overscroll-behavior-y: none; /* stops the whole page "rubber-banding" past the top/bottom on trackpads/Chrome; native touch bounce on mobile Safari is untouched (that's overscroll-behavior on the scrolling *element*, not this) */
 }
 
@@ -211,15 +256,24 @@ a { color: inherit; }
   border-radius: var(--radius-sm);
   color: var(--text-secondary);
   text-decoration: none;
-  font-size: 0.88rem;
-  font-weight: 500;
+  font-size: var(--fs-md);
+  font-weight: var(--fw-medium);
+  transition:
+    background-color var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out);
 }
-.sidebar-link svg { flex-shrink: 0; opacity: 0.85; }
+.sidebar-link svg {
+  flex-shrink: 0;
+  opacity: 0.85;
+  transition: transform var(--dur-base) var(--ease-out), opacity var(--dur-fast) var(--ease-out);
+}
 .sidebar-link:hover { background: var(--bg-hover); color: var(--text-primary); }
+.sidebar-link:hover svg { transform: translateX(1px); opacity: 1; }
+.sidebar-link:active { background: var(--accent-soft); }
 .sidebar-link.active {
   background: var(--accent-soft);
   color: var(--accent-soft-text);
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
 }
 .sidebar-link.active svg { opacity: 1; }
 
@@ -314,12 +368,20 @@ a { color: inherit; }
   gap: 12px;
 }
 
-h1 { font-size: 1.5rem; margin: 0 0 4px; letter-spacing: -0.015em; font-weight: 700; }
-h2 { font-size: 1.05rem; margin: 0; font-weight: 700; }
-h3 { font-size: 0.95rem; margin: 0 0 10px; font-weight: 700; }
-h4 { font-size: 0.78rem; margin: 16px 0 8px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; }
+h1 { font-size: var(--fs-2xl); line-height: var(--lh-tight); margin: 0 0 4px; letter-spacing: -0.022em; font-weight: var(--fw-bold); }
+h2 { font-size: var(--fs-lg); line-height: var(--lh-tight); margin: 0; letter-spacing: -0.012em; font-weight: var(--fw-semibold); }
+h3 { font-size: var(--fs-md); line-height: var(--lh-tight); margin: 0 0 10px; font-weight: var(--fw-semibold); }
+h4 { font-size: var(--fs-2xs); margin: 16px 0 8px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; font-weight: var(--fw-semibold); }
 
-.page-subtitle { color: var(--text-muted); font-size: 0.88rem; margin: 0; }
+.page-subtitle { color: var(--text-muted); font-size: var(--fs-md); margin: 0; }
+
+/* Form controls don't inherit the page font by default. */
+button, input, select, textarea { font-family: inherit; }
+
+/* Prices, RSI, counts, ETAs: fixed-width digits so live-updating numbers
+   never make neighbouring text jitter sideways. */
+table, .scan-meta, .active-scan-meta, .num-cell, .ohlc-readout, .chart-indicator-legend,
+.strategy-signal-count, .tb-summary-value { font-variant-numeric: tabular-nums; }
 
 .muted { color: var(--text-muted); }
 .small { font-size: 0.8rem; }
@@ -331,36 +393,48 @@ h4 { font-size: 0.78rem; margin: 16px 0 8px; color: var(--text-muted); text-tran
   padding: 18px 20px;
   margin-bottom: 16px;
   box-shadow: var(--shadow-sm);
-  transition: box-shadow 0.18s ease, transform 0.18s ease;
+  /* Border-only hover: big content cards (tables, charts) shouldn't lift or
+     re-render a large shadow every hover — cheap and calm. */
+  transition: border-color var(--dur-base) var(--ease-out);
 }
-.card:hover {
-  box-shadow: var(--shadow-hover);
-  transform: translateY(-1px);
+.card:hover { border-color: var(--border-strong); }
+
+.primary-button,
+.secondary-button {
+  padding: 9px 18px;
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-md);
+  font-weight: var(--fw-medium);
+  line-height: 1.2;
+  cursor: pointer;
+  transition:
+    background-color var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out),
+    opacity var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
 }
+.primary-button:active:not(:disabled),
+.secondary-button:active:not(:disabled) { transform: scale(0.97); }
+.primary-button:focus-visible,
+.secondary-button:focus-visible,
+.icon-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 .primary-button {
   background: var(--accent);
   color: white;
-  border: none;
-  padding: 9px 18px;
-  border-radius: var(--radius-sm);
-  font-weight: 600;
-  font-size: 0.85rem;
-  cursor: pointer;
+  border: 1px solid var(--accent);
+  font-weight: var(--fw-semibold);
 }
-.primary-button:hover { filter: brightness(1.06); }
-.primary-button:disabled { opacity: 0.55; cursor: default; filter: none; }
+.primary-button:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 88%, black); }
+.primary-button:disabled { opacity: 0.55; cursor: default; }
 
 .secondary-button {
   background: var(--bg-surface);
   color: var(--text-primary);
   border: 1px solid var(--border-strong);
-  padding: 9px 18px;
-  border-radius: var(--radius-sm);
-  font-size: 0.85rem;
-  cursor: pointer;
 }
-.secondary-button:hover { background: var(--bg-hover); }
+.secondary-button:hover:not(:disabled) { background: var(--bg-hover); }
+.secondary-button:disabled { opacity: 0.55; cursor: default; }
 
 .error-banner {
   background: var(--danger-soft);
@@ -395,9 +469,10 @@ h4 { font-size: 0.78rem; margin: 16px 0 8px; color: var(--text-muted); text-tran
 .badge {
   display: inline-block;
   padding: 3px 10px;
-  border-radius: 999px;
-  font-size: 0.7rem;
-  font-weight: 700;
+  border-radius: var(--radius-full);
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-semibold);
+  line-height: 1.4;
   letter-spacing: 0.02em;
   margin-right: 6px;
 }
@@ -542,16 +617,17 @@ h4 { font-size: 0.78rem; margin: 16px 0 8px; color: var(--text-muted); text-tran
   box-shadow: var(--shadow-sm);
 }
 
-table { width: 100%; border-collapse: collapse; font-size: 0.83rem; white-space: nowrap; }
+table { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); line-height: var(--lh-tight); white-space: nowrap; }
 th, td { padding: 11px 14px; text-align: left; border-bottom: 1px solid var(--border); }
-th:not(:first-child), td:not(:first-child) { }
+td { transition: background-color var(--dur-fast) var(--ease-out); }
 th {
   background: var(--bg-header);
   color: var(--text-secondary);
-  font-weight: 600;
-  font-size: 0.72rem;
+  font-weight: var(--fw-semibold);
+  font-size: var(--fs-2xs);
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
+  transition: color var(--dur-fast) var(--ease-out);
   cursor: pointer;
   user-select: none;
   white-space: nowrap;
@@ -559,9 +635,11 @@ th {
 th:hover { color: var(--text-primary); }
 tbody tr:last-child td { border-bottom: none; }
 tbody tr:hover td { background: var(--bg-hover); }
+/* Runs only when a row is first MOUNTED (rows use stable identity keys),
+   so a newly-arrived result eases in while existing rows stay still. */
 @keyframes row-fade-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
-tbody tr { animation: row-fade-in 0.2s ease-out; }
-td .symbol-cell { font-weight: 700; color: var(--text-primary); }
+tbody tr { animation: row-fade-in var(--dur-slow) var(--ease-out); }
+td .symbol-cell { font-weight: var(--fw-semibold); color: var(--text-primary); }
 .num-cell { text-align: right; font-variant-numeric: tabular-nums; }
 
 .row-highlight td { background: var(--success-soft); }
@@ -747,13 +825,14 @@ td .symbol-cell { font-weight: 700; color: var(--text-primary); }
 .skeleton-bar {
   height: 12px;
   border-radius: 4px;
-  background: linear-gradient(90deg, var(--bg-hover) 25%, var(--border) 37%, var(--bg-hover) 63%);
-  background-size: 400% 100%;
-  animation: skeleton-shimmer 1.4s ease infinite;
+  background: var(--border);
+  /* Opacity pulse (compositor-only) instead of an animated gradient
+     background-position, which repainted every bar every frame. */
+  animation: skeleton-pulse 1.4s ease-in-out infinite;
 }
-@keyframes skeleton-shimmer {
-  0% { background-position: 100% 50%; }
-  100% { background-position: 0 50%; }
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
 }
 
 /* ---------- Detail drawer ---------- */
@@ -1387,8 +1466,11 @@ td .symbol-cell { font-weight: 700; color: var(--text-primary); }
 }
 .active-scan-bar-fill {
   height: 100%;
+  width: 100%;
   background: var(--accent);
-  transition: width 0.4s ease;
+  transform-origin: left center;
+  transition: transform 0.45s var(--ease-out);
+  will-change: transform;
 }
 .active-scan-meta { font-size: 0.75rem; color: var(--text-muted); line-height: 1.5; }
 .active-scan-warn { color: var(--danger, #dc2626); }
@@ -1665,3 +1747,85 @@ td .symbol-cell { font-weight: 700; color: var(--text-primary); }
 }
 
 .sidebar-brand-logo { object-fit: cover; border-radius: var(--radius-sm); background: var(--accent-soft); }
+
+/* =========================================================================
+   Motion & micro-interactions (2026-09-25 UI polish)
+   Only transform/opacity/colour are animated — nothing that triggers
+   layout. The global prefers-reduced-motion rule near the top of this file
+   collapses every animation/transition below to ~0ms.
+   ========================================================================= */
+
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fade-slide-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes pop-in { from { opacity: 0; transform: scale(0.94); } to { opacity: 1; transform: scale(1); } }
+@keyframes dropdown-in { from { opacity: 0; transform: translateY(-4px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+
+/* Page content eases in on route change instead of snapping. */
+.app-content > * { animation: fade-slide-in var(--dur-slow) var(--ease-out); }
+
+/* Banners / states appear softly rather than popping in. */
+.error-banner,
+.notice-banner,
+.chart-status-overlay,
+.best-stock-card.empty { animation: fade-in var(--dur-base) var(--ease-out); }
+
+/* Live scan: each newly-qualified stock chip pops in (keyed by seq, so
+   only the NEW chip animates — existing ones never re-run it). */
+.live-result-chip { animation: pop-in var(--dur-base) var(--ease-out); }
+
+/* Dropdowns / floating panels. */
+.chart-dropdown-panel,
+.tb-search-dropdown,
+.active-scans-panel { animation: dropdown-in var(--dur-base) var(--ease-out); transform-origin: top; }
+
+/* Expandable Scan History sections. */
+.history-scan-body { animation: fade-slide-in var(--dur-slow) var(--ease-out); }
+.history-scan-card { transition: border-color var(--dur-base) var(--ease-out); }
+.history-scan-header { transition: background-color var(--dur-fast) var(--ease-out); }
+
+/* Small controls: consistent quick feedback. */
+.icon-button,
+.chart-toolbar-btn,
+.timeframe-pill,
+.pagination-controls button,
+.chip,
+.timeframe-chip {
+  transition:
+    background-color var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
+}
+.icon-button:active,
+.chart-toolbar-btn:active,
+.timeframe-pill:active,
+.pagination-controls button:active:not(:disabled) { transform: scale(0.94); }
+
+/* Inputs / selects: soft focus ring instead of the harsh default outline. */
+.filters-row input,
+.filters-row select,
+.settings-grid input,
+.history-toolbar-search {
+  transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
+}
+.filters-row input:focus,
+.filters-row select:focus,
+.settings-grid input:focus,
+.history-toolbar-search:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+/* Clickable (non-content) cards get a light lift — transform only. */
+.summary-card,
+.strategy-card { transition: transform var(--dur-base) var(--ease-out), border-color var(--dur-base) var(--ease-out); }
+.summary-card:hover,
+.strategy-card:hover { transform: translateY(-2px); border-color: var(--border-strong); }
+
+/* Chart drawer exit (ChartDrawer keeps it mounted for 180ms while this runs). */
+@keyframes chart-drawer-out { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(24px); } }
+@keyframes chart-drawer-fade-out { from { opacity: 1; } to { opacity: 0; } }
+.chart-drawer-closing { animation: chart-drawer-fade-out 180ms var(--ease-in) forwards; pointer-events: none; }
+.chart-drawer-closing .chart-drawer-wrap { animation: chart-drawer-out 180ms var(--ease-in) forwards; }
+.chart-drawer-wrap { will-change: transform, opacity; }

@@ -57,6 +57,10 @@ export function useLiveChart(symbol: string, enabled: boolean) {
       }
     });
 
+    // Connected but no tick yet (e.g. market closed): the chart is showing
+    // the last close, not "reconnecting".
+    source.onopen = () => setStatus((prev) => (prev === "CONNECTED" ? prev : "OFF"));
+
     source.onerror = () => {
       // Browser's EventSource auto-reconnects on its own; this just
       // reflects that state in the UI without any custom retry logic.
