@@ -1957,3 +1957,5 @@ td .symbol-cell { font-weight: var(--fw-semibold); color: var(--text-primary); }
   color: var(--text-muted);
   margin-top: 2px;
 }
+
+.sector-chip { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px; font-size: 0.66rem; font-weight: 500; color: var(--text-secondary); background: var(--bg-hover); border: 1px solid var(--border); white-space: nowrap; vertical-align: middle; }

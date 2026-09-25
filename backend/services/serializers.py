@@ -13,6 +13,7 @@ from backend.screeners.stock_analysis import StockAnalysisResult, TimeframeReadi
 from backend.services.scan_service import ScanOutcome, UniverseStockEntry
 from backend.strategies.trade_setup import TradeSetup, calculate_trade_setup
 from backend.strategies.types import StrategySignal
+from backend.services.sectors import sector_for
 
 
 def _timeframe_out(reading: TimeframeReading) -> TimeframeReadingOut:
@@ -119,7 +120,7 @@ def strategy_signal_out(signal: StrategySignal) -> StrategySignalOut:
         monthly_rsi=signal.monthly_rsi,
         conditions=signal.conditions,
         explanation=signal.explanation,
-        extra=_json_safe(signal.extra),
+        extra={**_json_safe(signal.extra), "sector": sector_for(signal.symbol)},
     )
 
 

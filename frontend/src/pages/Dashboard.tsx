@@ -557,7 +557,7 @@ export function Dashboard() {
                       const isForming = Boolean(detail?.status.endsWith("_FORMING"));
                       return (
                         <tr key={pageRowKeys[rowIndex]} onClick={() => setSelected(s)} className="clickable-row">
-                          <td className="symbol-cell">{s.symbol}<InstrumentBadge type={s.instrument_type} /></td>
+                          <td className="symbol-cell">{s.symbol}<InstrumentBadge type={s.instrument_type} />{typeof s.extra.sector === "string" && s.extra.sector && <span className="sector-chip">{s.extra.sector}</span>}</td>
                           {isDivergenceTab && (
                             <td>
                               <span className={`divergence-badge divergence-badge-${(isAbTab ? abBadgeLabel : activeStrategy).toLowerCase()}`}>
