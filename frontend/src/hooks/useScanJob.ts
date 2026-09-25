@@ -8,8 +8,15 @@ import {
   type ScanJobOut,
   type ScanType,
 } from "../services/scanJobsApi";
+import { deleteLocalScanCache, getLocalScanCache, putLocalScanCache } from "../services/localHistoryDb";
 
 const POLL_INTERVAL_MS = 1500;
+
+/** Device-local cache (IndexedDB, 24h) for a result this device just received. */
+function saveLocal<T>(scanType: ScanType, result: T, completedAt: string | null | undefined, provider = "angel_one"): void {
+  const at = completedAt && !Number.isNaN(Date.parse(completedAt)) ? completedAt : new Date().toISOString();
+  void putLocalScanCache(scanType, { scan_type: scanType, result, data_timestamp: at, completed_at: at, provider });
+}
 
 // A Render restart (deploy, OOM recovery, or the free instance waking from
 // sleep) can leave the backend unreachable for tens of seconds. A single
@@ -169,6 +176,7 @@ export function useScanJob<T = unknown>(scanType: ScanType): UseScanJobResult<T>
               if (activeJobId.current === jobId && pollGeneration.current === myGeneration) {
                 setResult(r);
                 setCache(null); // freshly computed, not from the pre-existing cache envelope
+                saveLocal(scanType, r, latest.completion_time);
               }
             } catch (e) {
               setIssueKind("error");
@@ -216,12 +224,22 @@ export function useScanJob<T = unknown>(scanType: ScanType): UseScanJobResult<T>
       };
       void tick();
     },
-    [stopPolling],
+    [stopPolling, scanType],
   );
 
   const run = useCallback(async () => {
     setError(null);
     setIssueKind(null);
+    // Normal Scan: a valid (<24h) result already on THIS device is used
+    // directly — no network call, works even while Render is restarting.
+    const local = await getLocalScanCache<T>(scanType);
+    if (local) {
+      setResult(local.result);
+      setCache(local as CacheEnvelope<T>);
+      setJob(null);
+      setRunning(false);
+      return;
+    }
     try {
       const res = await withColdStartRetry(() => scanJobsApi.start<T>(scanType));
       if (res.status === "cached") {
@@ -229,6 +247,7 @@ export function useScanJob<T = unknown>(scanType: ScanType): UseScanJobResult<T>
         setCache(res.cache);
         setJob(null);
         setRunning(false);
+        saveLocal(scanType, res.cache.result, res.cache.completed_at, res.cache.provider);
       } else {
         setJob(res.job);
         setRunning(true);
@@ -263,6 +282,9 @@ export function useScanJob<T = unknown>(scanType: ScanType): UseScanJobResult<T>
   const runFresh = useCallback(async () => {
     setError(null);
     setIssueKind(null);
+    // Fresh Scan invalidates this device's cached result up front; the new
+    // result replaces it once the job completes.
+    await deleteLocalScanCache(scanType);
     try {
       const res = await withColdStartRetry(() => scanJobsApi.fresh<T>(scanType));
       if (res.status === "started") {
@@ -300,7 +322,17 @@ export function useScanJob<T = unknown>(scanType: ScanType): UseScanJobResult<T>
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      // 1) This device's own cache first: shown immediately, before (and
+      //    regardless of) any backend round-trip — survives refreshes and
+      //    Render restarts/cold starts.
+      const local = await getLocalScanCache<T>(scanType);
+      if (cancelled) return;
+      if (local) {
+        setResult(local.result);
+        setCache(local as CacheEnvelope<T>);
+      }
       try {
+        // 2) A scan still running for this device takes over the view.
         const jobs = await scanJobsApi.listJobs();
         const inFlight = jobs.find((j) => j.scan_type === scanType && j.status === "running");
         if (cancelled) return;
@@ -310,6 +342,8 @@ export function useScanJob<T = unknown>(scanType: ScanType): UseScanJobResult<T>
           pollJob(inFlight.job_id);
           return;
         }
+        if (local) return; // valid local cache — no need to download it again
+        // 3) Cache miss: fetch from the backend, then keep a local copy.
         const mostRecent = jobs.find((j) => j.scan_type === scanType && j.status === "completed");
         if (mostRecent) {
           try {
@@ -317,6 +351,7 @@ export function useScanJob<T = unknown>(scanType: ScanType): UseScanJobResult<T>
             if (!cancelled) {
               setResult(r);
               setJob(mostRecent);
+              saveLocal(scanType, r, mostRecent.completion_time);
             }
             return;
           } catch {
@@ -327,6 +362,7 @@ export function useScanJob<T = unknown>(scanType: ScanType): UseScanJobResult<T>
         if (!cancelled && cached) {
           setResult(cached.result);
           setCache(cached);
+          saveLocal(scanType, cached.result, cached.completed_at, cached.provider);
         }
       } catch {
         // Best-effort restore only — a failure here just means the page

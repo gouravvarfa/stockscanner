@@ -25,9 +25,12 @@ const DB_NAME = "scanner_local_history";
 // stock (page refresh re-fetching the same partial/progress items, a
 // retried poll, etc.) overwrites its own row instead of creating a
 // duplicate — required for "reconnect/retry cannot create duplicates".
-const DB_VERSION = 2;
+// v3: + SCAN_CACHE_STORE (device-local 24h scan-result cache, see
+// getLocalScanCache below). Additive — v2 stores are untouched.
+const DB_VERSION = 3;
 const SNAPSHOTS_STORE = "snapshots"; // one row per scan (metadata)
 const RESULTS_STORE = "results"; // many rows per scan (one per stock/strategy/timeframe row)
+const SCAN_CACHE_STORE = "scan_cache"; // one row per scan type: its latest full result, 24h TTL
 
 /** Deterministic per-row key: same (scan, symbol, strategy, timeframe, A
  *  date) always maps to the same IndexedDB row, so `putResults` is a true
@@ -114,8 +117,20 @@ function openDb(): Promise<IDBDatabase> {
         res.createIndex("byLocalId", "localId");
         res.createIndex("bySymbol", "symbol");
       }
+      if (!db.objectStoreNames.contains(SCAN_CACHE_STORE)) {
+        db.createObjectStore(SCAN_CACHE_STORE, { keyPath: "scanType" });
+      }
     };
-    req.onsuccess = () => resolve(req.result);
+    req.onsuccess = () => {
+      const opened = req.result;
+      // Another tab upgrading the schema: release this connection so the
+      // upgrade isn't blocked; the next call here reopens at the new version.
+      opened.onversionchange = () => {
+        opened.close();
+        dbPromise = null;
+      };
+      resolve(opened);
+    };
     req.onerror = () => reject(req.error);
   });
 }
@@ -237,4 +252,90 @@ export async function storageStats(): Promise<{ scans: number; stocks: number; e
     estimatedBytes = null;
   }
   return { scans: snapshots.length, stocks: results as number, estimatedBytes };
+}
+
+// ---------------------------------------------------------------------------
+// Device-local scan-result cache (2026-09-25)
+//
+// The browser's own copy of each scan type's latest full result, with the
+// same 24h lifetime as the backend's cache. Read FIRST on page load and on a
+// normal Scan, so a refresh — or a Render restart/cold start — never loses
+// the last result on this device. IndexedDB is per-browser-profile, so every
+// device keeps its own independent cache. Large results never go to
+// localStorage. Anything unreadable/expired is deleted and treated as a miss.
+// ---------------------------------------------------------------------------
+
+export const LOCAL_SCAN_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+
+/** Same shape as the backend's CacheEnvelope (services/scanJobsApi.ts). */
+export interface LocalScanCacheEnvelope<T = unknown> {
+  scan_type: string;
+  result: T;
+  data_timestamp: string;
+  completed_at: string;
+  provider: string;
+}
+
+interface LocalScanCacheRow {
+  scanType: string;
+  envelope: LocalScanCacheEnvelope;
+  savedAt: string;
+}
+
+function isValidRow(row: unknown, scanType: string): row is LocalScanCacheRow {
+  if (!row || typeof row !== "object") return false;
+  const r = row as Partial<LocalScanCacheRow>;
+  const env = r.envelope as Partial<LocalScanCacheEnvelope> | undefined;
+  return (
+    r.scanType === scanType &&
+    !!env &&
+    typeof env === "object" &&
+    env.result !== undefined &&
+    env.result !== null &&
+    typeof env.completed_at === "string" &&
+    !Number.isNaN(Date.parse(env.completed_at))
+  );
+}
+
+/** Valid (<24h old, well-formed) cached envelope for `scanType`, or null.
+ *  Never throws: IndexedDB unavailable, corrupt or expired all mean "miss"
+ *  (corrupt/expired rows are deleted so they can't be served later). */
+export async function getLocalScanCache<T = unknown>(
+  scanType: string,
+  now: number = Date.now(),
+): Promise<LocalScanCacheEnvelope<T> | null> {
+  try {
+    const row = await tx([SCAN_CACHE_STORE], "readonly", (t) => reqToPromise(t.objectStore(SCAN_CACHE_STORE).get(scanType)));
+    if (row === undefined) return null;
+    if (!isValidRow(row, scanType) || now - Date.parse(row.envelope.completed_at) >= LOCAL_SCAN_CACHE_TTL_MS) {
+      await deleteLocalScanCache(scanType);
+      return null;
+    }
+    return row.envelope as LocalScanCacheEnvelope<T>;
+  } catch {
+    return null;
+  }
+}
+
+/** Upserts `scanType`'s cached result (one row per type — a new save replaces the old). */
+export async function putLocalScanCache(scanType: string, envelope: LocalScanCacheEnvelope): Promise<void> {
+  try {
+    const row: LocalScanCacheRow = { scanType, envelope, savedAt: new Date().toISOString() };
+    await tx([SCAN_CACHE_STORE], "readwrite", (t) => {
+      t.objectStore(SCAN_CACHE_STORE).put(row);
+    });
+  } catch {
+    // Best-effort: a failed local save (quota, private mode) just means the
+    // next load falls back to the backend, exactly as before.
+  }
+}
+
+export async function deleteLocalScanCache(scanType: string): Promise<void> {
+  try {
+    await tx([SCAN_CACHE_STORE], "readwrite", (t) => {
+      t.objectStore(SCAN_CACHE_STORE).delete(scanType);
+    });
+  } catch {
+    // nothing to clean up
+  }
 }
