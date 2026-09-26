@@ -34,4 +34,9 @@ def evaluate_gfs(result: StockAnalysisResult, config: GFSConfig) -> StrategySign
         monthly_rsi=m,
         conditions=conditions,
         explanation=explanation,
+        extra={
+            "previous_daily_rsi": result.daily.previous_rsi,
+            "previous_weekly_rsi": result.weekly.previous_rsi,
+            "previous_monthly_rsi": result.monthly.previous_rsi,
+        },
     )

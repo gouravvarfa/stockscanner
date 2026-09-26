@@ -19,15 +19,24 @@ from backend.ranking.scorer import ScoreBreakdown, compute_score
 
 @dataclass
 class TimeframeReading:
+    # 2026-09-26 (master RSI-freshness change): `rsi` is now the LATEST/LIVE
+    # value — for weekly/monthly this includes the current still-forming
+    # period (see analyze_stock's live_weekly_df/live_monthly_df), matching
+    # what the chart itself shows for the same stock/timeframe (same
+    # to_weekly/to_monthly(include_partial=True) + same Wilder RSI(14)).
+    # `previous_rsi` is the prior CONFIRMED value (completed periods only) —
+    # kept for reference/API exposure, never used for qualification.
     rsi: float | None
     divergences: list[DivergenceSignal]
     has_bearish_divergence: bool
-    # Index of the latest bar in the series this reading was computed from
-    # (i.e. len(close) - 1) — used by PRD/NRD to measure how many bars ago
-    # a divergence's confirming pivot occurred (freshness), independent of
-    # any absolute date. Defaults to 0 so existing test fixtures that
-    # construct a TimeframeReading directly without this field keep working.
+    # Index of the latest bar in the CONFIRMED series this reading's
+    # divergence structure was computed from (i.e. len(close) - 1) — used by
+    # PRD/NRD to measure how many bars ago a divergence's confirming pivot
+    # occurred (freshness), independent of any absolute date. Divergence
+    # structure/A-B pivots are deliberately computed from confirmed
+    # (non-live) data only — see module docstring note in analyze_stock.
     last_bar_index: int = 0
+    previous_rsi: float | None = None
 
 
 @dataclass
@@ -54,14 +63,31 @@ class StockAnalysisResult:
 
 
 def _timeframe_reading(
-    close: pd.Series, high: pd.Series, low: pd.Series, config: StrategyConfig
+    close: pd.Series, high: pd.Series, low: pd.Series, config: StrategyConfig,
+    live_close: pd.Series | None = None,
 ) -> TimeframeReading:
+    """
+    `close`/`high`/`low` are the CONFIRMED (completed-periods-only) series —
+    divergence/pivot structure is always computed from these, unchanged.
+    `live_close`, when given, is the SAME timeframe's close series but
+    including the current still-forming period (e.g.
+    to_monthly(daily_ohlcv, include_partial=True)) — used ONLY to compute
+    the latest/live RSI value now exposed as `.rsi` (2026-09-26). Never
+    fed into divergence detection, so PRD/NRD structural confirmation and
+    A/B pivot RSI values are completely unaffected by this.
+    """
     r = rsi(close, period=14)
     signals = detect_divergences(high, low, close, r, config.divergence)
     bearish = has_significant_bearish_divergence(signals)
-    last_rsi = float(r.iloc[-1]) if len(r) and not pd.isna(r.iloc[-1]) else None
+    confirmed_rsi = float(r.iloc[-1]) if len(r) and not pd.isna(r.iloc[-1]) else None
+    latest_rsi = confirmed_rsi
+    if live_close is not None and len(live_close) >= len(close):
+        live_r = rsi(live_close, period=14)
+        if len(live_r) and not pd.isna(live_r.iloc[-1]):
+            latest_rsi = float(live_r.iloc[-1])
     return TimeframeReading(
-        rsi=last_rsi,
+        rsi=latest_rsi,
+        previous_rsi=confirmed_rsi,
         divergences=signals,
         has_bearish_divergence=bearish,
         last_bar_index=len(close) - 1,
@@ -148,15 +174,31 @@ def analyze_stock(
     close, high, low = daily_ohlcv["close"], daily_ohlcv["high"], daily_ohlcv["low"]
     weekly_df = to_weekly(daily_ohlcv)
     monthly_df = to_monthly(daily_ohlcv)
+    # Live/latest RSI inputs (2026-09-26): the SAME resample, just keeping
+    # the current still-forming week/month instead of dropping it — same
+    # to_weekly/to_monthly this file already used, same include_partial
+    # flag the chart/Value Buy already rely on. Daily has no separate live
+    # variant here: `daily_ohlcv` is already "the latest available daily
+    # data" (Angel One's own daily fetch only ever returns completed days —
+    # a true intraday-forming daily candle is the live tick engine's
+    # concern, backend/live/candle_builder.py, not this batch-scan path).
+    live_weekly_df = to_weekly(daily_ohlcv, include_partial=True)
+    live_monthly_df = to_monthly(daily_ohlcv, include_partial=True)
 
     daily_reading = _timeframe_reading(close, high, low, config)
     weekly_reading = (
-        _timeframe_reading(weekly_df["close"], weekly_df["high"], weekly_df["low"], config)
+        _timeframe_reading(
+            weekly_df["close"], weekly_df["high"], weekly_df["low"], config,
+            live_close=live_weekly_df["close"],
+        )
         if len(weekly_df) >= 20
         else TimeframeReading(None, [], False)
     )
     monthly_reading = (
-        _timeframe_reading(monthly_df["close"], monthly_df["high"], monthly_df["low"], config)
+        _timeframe_reading(
+            monthly_df["close"], monthly_df["high"], monthly_df["low"], config,
+            live_close=live_monthly_df["close"],
+        )
         if len(monthly_df) >= 20
         else TimeframeReading(None, [], False)
     )

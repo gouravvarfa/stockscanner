@@ -27,5 +27,10 @@ def evaluate_strategy_one(result: StockAnalysisResult) -> StrategySignal:
         monthly_rsi=result.monthly.rsi,
         conditions=conditions,
         explanation="; ".join(result.score.explanation),
-        extra={"score": result.score.total_score, "classification": result.score.classification},
+        extra={
+            "score": result.score.total_score, "classification": result.score.classification,
+            "previous_daily_rsi": result.daily.previous_rsi,
+            "previous_weekly_rsi": result.weekly.previous_rsi,
+            "previous_monthly_rsi": result.monthly.previous_rsi,
+        },
     )

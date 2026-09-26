@@ -305,5 +305,8 @@ def evaluate_prd(result: StockAnalysisResult, daily_ohlcv: pd.DataFrame, config:
         conditions=conditions,
         explanation=explanation,
         extra={"divergences": matches, "divergence_timeframes": confirmed_timeframes, "status": status, "forming": forming_details,
-            "timeframes": timeframe_status},
+            "timeframes": timeframe_status,
+            "previous_daily_rsi": result.daily.previous_rsi,
+            "previous_weekly_rsi": result.weekly.previous_rsi,
+            "previous_monthly_rsi": result.monthly.previous_rsi},
     )
