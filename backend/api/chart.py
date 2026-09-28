@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import pandas as pd
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Response
 
 from backend.providers.market_data_router import DataUnavailableError
 from backend.schemas.chart import ChartCandleOut, ChartCandlesResponse
@@ -12,7 +12,17 @@ router = APIRouter(prefix="/api/chart", tags=["chart"])
 
 
 @router.get("/candles", response_model=ChartCandlesResponse)
-async def get_candles(symbol: str, timeframe: str = "1D", long_history: bool = False) -> ChartCandlesResponse:
+async def get_candles(
+    response: Response, symbol: str, timeframe: str = "1D", long_history: bool = False,
+) -> ChartCandlesResponse:
+    # 2026-09-28 (ACC/ABFRL chart-frozen bug): this response had no
+    # Cache-Control header at all, which left it eligible for the calling
+    # browser/webview's OWN heuristic HTTP disk cache — a layer BELOW the
+    # frontend's in-memory chart cache (chartDatafeed.ts), invisible to it,
+    # and NOT cleared by a normal page refresh or even a full app restart.
+    # 1D/1W/1M now carry a live, continuously-changing current candle, so
+    # this endpoint must never be served from any HTTP-level cache.
+    response.headers["Cache-Control"] = "no-store"
     symbol = symbol.strip().upper()
     if not symbol:
         raise HTTPException(status_code=400, detail="symbol is required")

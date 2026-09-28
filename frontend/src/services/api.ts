@@ -372,8 +372,13 @@ export const api = {
   listTradingViewSignals: (limit = 200) => request<TradingViewSignal[]>(`/api/tradingview/signals?limit=${limit}`),
   getLogs: (sinceId = 0, limit = 200) => request<LogEntry[]>(`/api/logs?since_id=${sinceId}&limit=${limit}`),
   getChartCandles: (symbol: string, timeframe: string, signal?: AbortSignal, longHistory = false) =>
+    // cache: "no-store" (2026-09-28) belt-and-braces alongside the backend's
+    // own Cache-Control: no-store — 1D/1W/1M carry a live current candle,
+    // so this request must never be satisfied by the browser/webview's own
+    // HTTP disk cache (the actual cause of a real chart-frozen bug: neither
+    // a page refresh nor a full app restart cleared that cache layer).
     request<ChartCandlesResponse>(
       `/api/chart/candles?symbol=${encodeURIComponent(symbol)}&timeframe=${timeframe}${longHistory ? "&long_history=true" : ""}`,
-      { signal },
+      { signal, cache: "no-store" },
     ),
 };
