@@ -148,7 +148,23 @@ export function signalToRows(
   if (strategyName === "PRD Forming" || strategyName === "NRD Forming") {
     const status = strategyName === "NRD Forming" ? "NRD_FORMING" : "PRD_FORMING";
     const forming = Array.isArray(extra.forming) ? (extra.forming as Record<string, unknown>[]) : [];
-    return forming.map((f) =>
+    // The backend (backend/strategies/prd.py/nrd.py's _developing_structures)
+    // deliberately returns every valid A-pivot candidate for the SAME latest
+    // (B) candle — that's correct/needed data, but showing all of them as
+    // separate Scan History rows for one symbol+timeframe reads as the same
+    // signal "duplicated" (2026-09-28 user report). Per timeframe, keep only
+    // the single freshest candidate (smallest A-B distance = the most recent
+    // formation) — same "closest/most-relevant wins" tie-break already used
+    // for Cup Breakout's multi-candidate selection.
+    const byTimeframe = new Map<string, Record<string, unknown>>();
+    for (const f of forming) {
+      const tf = str(f.timeframe) ?? "";
+      const existing = byTimeframe.get(tf);
+      const dist = typeof f.ab_distance === "number" ? f.ab_distance : Infinity;
+      const existingDist = existing && typeof existing.ab_distance === "number" ? existing.ab_distance : Infinity;
+      if (!existing || dist < existingDist) byTimeframe.set(tf, f);
+    }
+    return Array.from(byTimeframe.values()).map((f) =>
       withId({
         ...base(),
         timeframe: str(f.timeframe)?.toUpperCase() ?? null,

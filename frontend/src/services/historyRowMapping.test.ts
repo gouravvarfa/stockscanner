@@ -115,4 +115,70 @@ describe("historyRowMapping", () => {
     const rows2 = mapPartialSignalsToRows("a_group:job:scan_1", partial);
     expect(rows1[0].id).toBe(rows2[0].id); // same key both times -> IndexedDB put() upserts, never duplicates
   });
+
+  it("collapses multiple PRD/NRD Forming candidates on the same timeframe to the single freshest one (2026-09-28 duplicate-rows report)", () => {
+    const partial: PartialResult = {
+      seq: 1,
+      symbol: "AEGISLOG",
+      instrument_type: "EQUITY",
+      strategies: ["PRD Forming"],
+      signals: [
+        {
+          strategy: "PRD Forming",
+          symbol: "AEGISLOG",
+          instrument_type: "EQUITY",
+          qualifies: false,
+          daily_rsi: 60, weekly_rsi: 63.6, monthly_rsi: 61,
+          explanation: "developing",
+          extra: {
+            current_price: 1309.7,
+            // Same B candle, three different valid A pivots — exactly what
+            // the backend's _developing_structures legitimately returns.
+            forming: [
+              { timeframe: "weekly", a_date: "2026-07-17", a_low: 1200, a_rsi: 70, b_date: "2026-09-25", b_low: 1309.7, b_rsi: 63.6, ab_distance: 10 },
+              { timeframe: "weekly", a_date: "2026-07-31", a_low: 1210, a_rsi: 68, b_date: "2026-09-25", b_low: 1309.7, b_rsi: 63.6, ab_distance: 8 },
+              { timeframe: "weekly", a_date: "2026-08-14", a_low: 1220, a_rsi: 66, b_date: "2026-09-25", b_low: 1309.7, b_rsi: 63.6, ab_distance: 6 },
+            ],
+          },
+        },
+      ],
+    };
+    const rows = mapPartialSignalsToRows("a_group:job:scan_1", partial);
+    expect(rows).toHaveLength(1); // not 3
+    expect(rows[0].abDistance).toBe(6); // the freshest (smallest A-B distance) candidate wins
+    expect(rows[0].aDate).toBe("2026-08-14");
+  });
+
+  it("keeps one row PER timeframe when Forming candidates span multiple timeframes", () => {
+    const partial: PartialResult = {
+      seq: 1,
+      symbol: "AHLUCONT",
+      instrument_type: "EQUITY",
+      strategies: ["NRD Forming"],
+      signals: [
+        {
+          strategy: "NRD Forming",
+          symbol: "AHLUCONT",
+          instrument_type: "EQUITY",
+          qualifies: false,
+          daily_rsi: 27.8, weekly_rsi: 30, monthly_rsi: 35,
+          explanation: "developing",
+          extra: {
+            current_price: 567.1,
+            forming: [
+              { timeframe: "daily", a_date: "2026-09-04", a_low: 600, a_rsi: 40, b_date: "2026-09-28", b_low: 567.1, b_rsi: 27.8, ab_distance: 15 },
+              { timeframe: "daily", a_date: "2026-09-09", a_low: 590, a_rsi: 38, b_date: "2026-09-28", b_low: 567.1, b_rsi: 27.8, ab_distance: 12 },
+              { timeframe: "weekly", a_date: "2026-07-01", a_low: 620, a_rsi: 45, b_date: "2026-09-25", b_low: 570, b_rsi: 30, ab_distance: 9 },
+            ],
+          },
+        },
+      ],
+    };
+    const rows = mapPartialSignalsToRows("a_group:job:scan_1", partial);
+    expect(rows).toHaveLength(2); // one daily + one weekly, not three
+    const daily = rows.find((r) => r.timeframe === "DAILY");
+    expect(daily?.abDistance).toBe(12); // freshest of the two daily candidates
+    const weekly = rows.find((r) => r.timeframe === "WEEKLY");
+    expect(weekly?.abDistance).toBe(9);
+  });
 });
