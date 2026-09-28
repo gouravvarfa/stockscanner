@@ -97,11 +97,23 @@ async def get_candles(angelone: AngelOneProvider, symbol: str, timeframe: str, l
 
     days = _LOOKBACK_DAYS[timeframe]
 
+    # 1D shows today's still-forming candle live (2026-09-28) — real ticks
+    # Angel One already has, never fabricated; every OTHER caller of
+    # get_intraday_ohlc (the scanner, Expiry Level 1/5) omits this and
+    # keeps seeing confirmed-only candles, unaffected.
     if timeframe in _NATIVE_INTERVAL:
-        return await angelone.get_intraday_ohlc(match.exch_seg, match.token, _NATIVE_INTERVAL[timeframe], days)
+        return await angelone.get_intraday_ohlc(
+            match.exch_seg, match.token, _NATIVE_INTERVAL[timeframe], days,
+            include_partial=(timeframe == "1D"),
+        )
 
     base_interval, rule = _AGGREGATE_FROM[timeframe]
-    base_bars = await angelone.get_intraday_ohlc(match.exch_seg, match.token, base_interval, days)
+    # Only the 1W/1M base fetch (ONE_DAY) needs today's live day — 4H's own
+    # base fetch (ONE_HOUR) is untouched, since 4H has no "current period"
+    # concept for this chart (see the include_partial note below).
+    base_bars = await angelone.get_intraday_ohlc(
+        match.exch_seg, match.token, base_interval, days, include_partial=(base_interval == "ONE_DAY"),
+    )
     if base_bars.empty:
         return base_bars
 

@@ -62,13 +62,22 @@ class AngelOneProvider:
         return await self._ensure_session()
 
     async def get_intraday_ohlc(
-        self, exch_seg: str, symbol_token: str, interval: AngelOneInterval, days_back: int = 5
+        self, exch_seg: str, symbol_token: str, interval: AngelOneInterval, days_back: int = 5,
+        include_partial: bool = False,
     ) -> pd.DataFrame:
         """
         Returns a DataFrame of ONLY fully-closed candles (the still-forming
         current bar, if any, is dropped) — this is what makes "use only
         confirmed candles" true regardless of when during the session this
         is called.
+
+        include_partial=True (2026-09-28, chart-only) keeps that still-
+        forming current bar instead of dropping it — Angel One's own
+        historical-candle endpoint already returns it (built from real
+        completed ticks up to now, never fabricated); every OTHER caller
+        (the scanner's daily fetch via market_data_router.py, Expiry Level
+        1/5) omits this and is completely unaffected — they still only ever
+        see confirmed candles, exactly as before.
         """
         session = await self._ensure_session()
         now_ist = dt.datetime.now(IST)
@@ -107,10 +116,11 @@ class AngelOneProvider:
         df = df.set_index("date").sort_index()
 
         now_naive = now_ist.replace(tzinfo=None)
-        if interval == "ONE_DAY":
-            df = drop_incomplete_trailing_daily_bar(df, now_naive)
-        else:
-            df = drop_incomplete_trailing_bars(df, INTERVAL_MINUTES[interval], now_naive)
+        if not include_partial:
+            if interval == "ONE_DAY":
+                df = drop_incomplete_trailing_daily_bar(df, now_naive)
+            else:
+                df = drop_incomplete_trailing_bars(df, INTERVAL_MINUTES[interval], now_naive)
 
         return df[["open", "high", "low", "close", "volume"]].astype(float)
 

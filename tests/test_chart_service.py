@@ -35,7 +35,7 @@ class FakeAngelOneProvider:
             return None
         return FakeScripMatch(token="TOK-1", trading_symbol=symbol)
 
-    async def get_intraday_ohlc(self, exch_seg, symbol_token, interval, days_back):
+    async def get_intraday_ohlc(self, exch_seg, symbol_token, interval, days_back, include_partial=False):
         self.requested_intervals.append(interval)
         return self.bars_by_interval.get(interval, pd.DataFrame(columns=["open", "high", "low", "close", "volume"]))
 
@@ -184,3 +184,17 @@ async def test_aplapollo_style_1m_live_rsi_and_bollinger_source_includes_current
     df = await chart_service.get_candles(provider, "APLAPOLLO", "1M")
     now = pd.Timestamp.now()
     assert (df.index[-1].year, df.index[-1].month) == (now.year, now.month)
+
+
+async def test_1d_chart_includes_todays_still_forming_candle():
+    """Regression (2026-09-28, ACC): the 1D chart must show today's live
+    candle (Angel One already returns it — real completed ticks up to now,
+    never fabricated), even though the scanner's own daily fetch (via
+    market_data_router, a completely separate call path) must keep
+    dropping it for confirmed-only strategy evaluation."""
+    provider = FakeAngelOneProvider({"ONE_DAY": _bars(5, "B")})
+    df = await chart_service.get_candles(provider, "ACC", "1D")
+    assert len(df) == 5  # nothing dropped
+    assert provider.requested_intervals == ["ONE_DAY"]
+
+

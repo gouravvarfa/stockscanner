@@ -307,7 +307,7 @@ class _FakeAngelOneProvider:
 
         return _Match()
 
-    async def get_intraday_ohlc(self, exch_seg, symbol_token, interval, days_back):
+    async def get_intraday_ohlc(self, exch_seg, symbol_token, interval, days_back, include_partial=False):
         return self._df
 
 

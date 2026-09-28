@@ -129,3 +129,30 @@ async def test_relogin_reuses_ensure_session_and_persists_new_session(monkeypatc
     # no further login should happen.
     await provider.get_intraday_ohlc("NSE", "9999", "ONE_DAY", days_back=5)
     assert login_calls["count"] == 2
+
+
+async def test_include_partial_keeps_todays_still_forming_daily_bar(monkeypatch):
+    """2026-09-28 (chart-only live 1D): the default (include_partial=False,
+    every existing caller — the scanner via market_data_router, Expiry
+    Level 1/5) must keep dropping today's still-forming daily bar exactly
+    as before; only an explicit include_partial=True (chart_service.py's
+    1D/1W/1M paths) keeps it."""
+    today_ist = dt.datetime.now(angelone_provider_module.IST)
+    today_row_date = today_ist.strftime("%Y-%m-%dT09:15:00") + "+05:30"
+    rows = [_SAMPLE_ROW, [today_row_date, 5.0, 6.0, 4.5, 5.5, 200]]
+
+    async def fake_get_candle_data(session, **kw):
+        return rows
+
+    async def fake_login(*a, **kw):
+        return _session("s")
+
+    monkeypatch.setattr(angelone_provider_module, "login", fake_login)
+    monkeypatch.setattr(angelone_provider_module, "get_candle_data", fake_get_candle_data)
+
+    provider = AngelOneProvider()
+    confirmed_only = await provider.get_intraday_ohlc("NSE", "3045", "ONE_DAY", days_back=5)
+    with_today = await provider.get_intraday_ohlc("NSE", "3045", "ONE_DAY", days_back=5, include_partial=True)
+
+    assert len(with_today) == len(confirmed_only) + 1
+    assert float(with_today["close"].iloc[-1]) == 5.5
