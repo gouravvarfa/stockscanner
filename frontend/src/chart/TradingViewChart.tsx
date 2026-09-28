@@ -119,6 +119,12 @@ export function TradingViewChart({ symbol, signalContext, isMaximized, onToggleM
   const containerRef = useRef<HTMLDivElement>(null);
   const requestIdRef = useRef(0);
   const barsRef = useRef<OHLCBar[]>([]);
+  // Which symbol+timeframe barsRef currently holds — guards the live-merge
+  // effect below against a real race: a live tick for the NEW symbol can
+  // arrive over SSE before the new symbol's historical fetch resolves,
+  // which would otherwise merge a live candle onto the PREVIOUS symbol's
+  // (still in barsRef) bars — out of order, crashing lightweight-charts.
+  const barsOwnerRef = useRef<string | null>(null);
   // Chart open -> live subscribe; chart close/unmount -> auto-unsubscribe
   // (see useLiveChart.ts's cleanup and backend/api/live.py's stream
   // lifetime) — the whole point of the 2026-09-25 "chart open flow" spec.
@@ -152,6 +158,7 @@ export function TradingViewChart({ symbol, signalContext, isMaximized, onToggleM
           return;
         }
         barsRef.current = bars;
+        barsOwnerRef.current = `${symbol}:${timeframe}`;
         setData(bars);
         setStatus("ready");
       })
@@ -171,6 +178,10 @@ export function TradingViewChart({ symbol, signalContext, isMaximized, onToggleM
     // touched, so this can never retroactively change a confirmed bar.
     const liveKey = LIVE_TIMEFRAME_KEY[timeframe];
     if (!liveKey || !liveCandles || barsRef.current.length === 0) return;
+    // A live tick for a symbol/timeframe whose historical fetch hasn't
+    // landed in barsRef yet (still holding the PREVIOUS chart's bars) must
+    // be dropped, not merged — see barsOwnerRef's comment above.
+    if (barsOwnerRef.current !== `${symbol}:${timeframe}`) return;
     const live = liveCandles[liveKey];
     if (!live) return;
 
