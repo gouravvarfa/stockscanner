@@ -270,7 +270,12 @@ export function useTradingViewChart(containerRef: React.RefObject<HTMLDivElement
       },
       grid: { vertLines: { color: colors.grid }, horzLines: { color: colors.grid } },
       rightPriceScale: { borderColor: colors.border },
-      timeScale: { borderColor: colors.border, timeVisible: true },
+      // fixRightEdge (2026-09-28): without it the time scale can be
+      // scrolled/zoomed PAST the newest candle, leaving a large blank area
+      // on the right that reads as "the latest candles are missing" — a
+      // real, repeated user report. The newest bar now always stays pinned
+      // to the right edge, so the live candle is never off-screen.
+      timeScale: { borderColor: colors.border, timeVisible: true, fixRightEdge: true, rightOffset: 0 },
       crosshair: {
         mode: 0,
         vertLine: { color: colors.muted, width: 1, style: 3, labelBackgroundColor: colors.text },

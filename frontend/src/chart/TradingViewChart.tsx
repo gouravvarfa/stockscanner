@@ -5,7 +5,7 @@ import { OHLCReadout, fmtVolume } from "./OHLCReadout";
 import { TimeframeSelector } from "./TimeframeSelector";
 import { DEFAULT_INDICATOR_SETTINGS, type ChartDataStatus, type ChartSignalContext, type IndicatorSettings, type OHLCBar, type Timeframe } from "./chartTypes";
 import { useTradingViewChart, type ChartSeriesType } from "./useTradingViewChart";
-import { useLiveChart } from "./useLiveChart";
+import { useLiveChart, type LiveCandle } from "./useLiveChart";
 import { INDICATOR_PREFS_STORAGE_KEY } from "./chartConfig";
 
 // Live engine (backend/live/candle_builder.py) only builds these five
@@ -39,6 +39,27 @@ function fmtRsi(value: number | null | undefined): string {
 }
 
 const INTRADAY = new Set<Timeframe>(["1m", "5m", "15m", "30m", "1H", "4H"]);
+
+/**
+ * One bar for the current, still-forming period. When the fetched series
+ * already has a bar for this period, that bar is authoritative for the
+ * period's open and for the high/low reached BEFORE the live feed
+ * subscribed — the tick only contributes the latest close (and its
+ * cumulative volume), and can extend the high/low.
+ */
+function sameperiodBar(last: OHLCBar | undefined, live: LiveCandle, samePeriod: boolean): OHLCBar {
+  if (!samePeriod || !last) {
+    return { time: live.time, open: live.open, high: live.high, low: live.low, close: live.close, volume: live.volume };
+  }
+  return {
+    time: last.time,
+    open: last.open,
+    high: Math.max(last.high, live.high, live.close),
+    low: Math.min(last.low, live.low, live.close),
+    close: live.close,
+    volume: Math.max(last.volume ?? 0, live.volume),
+  };
+}
 
 /** Hovered bar's date (and time, on intraday) for the legend. Bar times are UTC-labelled wall-clock. */
 function fmtLegendTime(seconds: number, timeframe: Timeframe): string {
@@ -155,8 +176,15 @@ export function TradingViewChart({ symbol, signalContext, isMaximized, onToggleM
 
     const bars = barsRef.current;
     const last = bars[bars.length - 1];
-    const liveBar: OHLCBar = { time: live.time, open: live.open, high: live.high, low: live.low, close: live.close, volume: live.volume };
-    const merged = last && last.time === live.time ? [...bars.slice(0, -1), liveBar] : [...bars, liveBar];
+    const sameperiod = last && last.time === live.time;
+    // The live engine only sees ticks from the moment it SUBSCRIBED, so its
+    // open/high/low cover just that slice of the period — the fetched bar
+    // holds the real period open and the true high/low so far (verified
+    // live 2026-09-28 on ABFRL: REST O 49.24 H 49.60 L 47.25 vs live
+    // O 47.64 H 47.70 L 47.32). So take the period's open from the fetched
+    // bar and extend its high/low, and take only close/volume from the tick.
+    const liveBar: OHLCBar = sameperiodBar(last, live, sameperiod);
+    const merged = sameperiod ? [...bars.slice(0, -1), liveBar] : [...bars, liveBar];
     barsRef.current = merged;
     setData(merged, { fit: false }); // live tick: keep the user's zoom/scroll
     // eslint-disable-next-line react-hooks/exhaustive-deps
