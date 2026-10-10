@@ -475,6 +475,15 @@ def detect_cup(
             breakout_idx = cup_low_idx + 1 + offset
             break
 
+    # Today's still-forming month, used both by the stale-breakout "live
+    # relapse" guard just below and by the BREAKOUT_FORMING check further
+    # down — computed once, informational only (never used to set
+    # BREAKOUT_CONFIRMED; see module docstring / no-lookahead).
+    current_month_daily = daily_ohlcv[
+        (daily_ohlcv.index.year == now.year) & (daily_ohlcv.index.month == now.month)
+    ]
+    live_price = float(current_month_daily["close"].iloc[-1]) if not current_month_daily.empty else latest_close
+
     if breakout_idx is not None:
         months_since = b_idx - breakout_idx
         breakout_price = float(monthly["close"].iloc[breakout_idx])
@@ -522,16 +531,42 @@ def detect_cup(
             result["rejection_reason"] = result["invalidation_reason"]
             return result
 
+        # The completed-month pullback above is genuine, but a stale breakout
+        # whose LIVE (still-forming) price has already surged back out well
+        # beyond the old level isn't a fresh re-test either — it's the same
+        # already-played-out move noisily resurfacing. Reuses near_breakout_pct
+        # (no new config threshold) as "how far past the level still counts
+        # as a tight, legitimate re-test".
+        live_relapse_pct = (live_price - breakout_level) / breakout_level * 100.0
+        if live_relapse_pct > config.near_breakout_pct:
+            result["status"] = STATUS_NO_SIGNAL
+            result["invalidation_reason"] = "stale_breakout_price_already_moved_away"
+            result["rejection_reason"] = result["invalidation_reason"]
+            return result
+
     # BREAKOUT_FORMING: today's still-forming month is already testing/above
     # the level, but no COMPLETED month has confirmed it yet. Informational
     # only — never sets BREAKOUT_CONFIRMED (see module docstring / no-lookahead).
-    current_month_daily = daily_ohlcv[
-        (daily_ohlcv.index.year == now.year) & (daily_ohlcv.index.month == now.month)
-    ]
+    # Live finding, 2026-10-10 (AFFLE): breakout_level 1511.00, the latest
+    # COMPLETED month closed exactly AT the level (0% distance), but the
+    # still-forming current month had already traded up to 1930.60 (+27.8%)
+    # — reported as BREAKOUT_FORMING as if it were a fresh, tight,
+    # about-to-confirm breakout, when the move had actually already run far
+    # away without any completed-candle confirmation. Only call it FORMING
+    # while the live price is still within a reasonable (near_breakout_pct)
+    # reach of the level; a bigger unconfirmed run is not an actionable
+    # fresh candidate (same "don't show an already-broken-away cup as fresh"
+    # rule as the stale-breakout relapse check above).
     if not current_month_daily.empty:
         live_high = float(current_month_daily["high"].max())
         if live_high >= breakout_level and latest_close <= breakout_level:
-            result["status"] = STATUS_BREAKOUT_FORMING
+            live_overrun_pct = (live_price - breakout_level) / breakout_level * 100.0
+            if live_overrun_pct <= config.near_breakout_pct:
+                result["status"] = STATUS_BREAKOUT_FORMING
+                return result
+            result["status"] = STATUS_NO_SIGNAL
+            result["invalidation_reason"] = "live_price_already_far_past_breakout"
+            result["rejection_reason"] = result["invalidation_reason"]
             return result
 
     # Inverted cup / rounding-top: recovered toward the rim then rolled over

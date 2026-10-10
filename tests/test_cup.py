@@ -264,6 +264,42 @@ def test_stale_breakout_with_price_pulled_back_can_still_be_near_breakout():
     assert result["status"] == "NEAR_BREAKOUT"
 
 
+def test_stale_breakout_with_live_price_surged_far_past_level_is_no_signal():
+    """2026-10-10 live finding (AFFLE): a completed month pulled back to/
+    below an old, stale breakout level (the one legitimate fall-through
+    case per test_stale_breakout_with_price_pulled_back_can_still_be_near_breakout
+    above) — but the CURRENT, still-forming month has already surged far
+    past that level again. This must NOT be reported as a fresh
+    BREAKOUT_FORMING/NEAR_BREAKOUT candidate; the old breakout already
+    played out and price never came back down far enough for this to be a
+    genuine re-test."""
+    specs, (y, m) = _cup_specs(left_rim=1000.0, cup_low=600.0, recovery_close=950.0)
+    specs.append((y, m, 1000.0, 1060.0, 995.0, 1040.0, 3000.0))  # breakout month
+    m += 1
+    if m > 12:
+        m, y = 1, y + 1
+    # Several completed months later, price pulled back below the level
+    # (well past recent_breakout_months) — same as the legitimate-pullback test.
+    for i in range(6):
+        specs.append((y, m, 1000.0, 1010.0, 940.0, 960.0, 2000.0))
+        m += 1
+        if m > 12:
+            m, y = 1, y + 1
+    df = _monthly_frame(specs, stub_next=False)
+    last_completed = df.index.max()
+    # Today's incomplete month: price has already run up ~28% past the
+    # breakout level (1000), matching AFFLE's reported +27.8%.
+    forming_day = last_completed + pd.Timedelta(days=10)
+    extra = pd.DataFrame(
+        [{"open": 1000.0, "high": 1290.0, "low": 990.0, "close": 1278.0, "volume": 500.0}],
+        index=[forming_day],
+    )
+    df = pd.concat([df, extra])
+    result = detect_cup(df, DEFAULT_CONFIG, now=dt.datetime(forming_day.year, forming_day.month, forming_day.day))
+    assert result["status"] == "NO_SIGNAL"
+    assert result["invalidation_reason"] == "stale_breakout_price_already_moved_away"
+
+
 def test_price_too_far_from_resistance_is_early_cup_not_near_breakout():
     specs, (y, m) = _cup_specs(left_rim=1000.0, cup_low=600.0, recovery_close=850.0)  # distance 15% > 10%
     df = _monthly_frame(specs)
@@ -349,19 +385,42 @@ def test_breakout_distance_for_price_above_breakout():
 
 def test_current_incomplete_month_ignored_for_confirmed_status():
     # Completed months never close above the level; only the IN-PROGRESS
-    # month (today) trades above it -> must NOT be BREAKOUT_CONFIRMED.
+    # month (today) trades above it, and only modestly (within
+    # near_breakout_pct) -> must NOT be BREAKOUT_CONFIRMED, but is a
+    # genuine tight BREAKOUT_FORMING.
     specs, (y, m) = _cup_specs(left_rim=1000.0, cup_low=600.0, recovery_close=950.0)
     df = _monthly_frame(specs, stub_next=False)
     last_completed = df.index.max()
     forming_day = last_completed + pd.Timedelta(days=10)
     extra = pd.DataFrame(
-        [{"open": 990.0, "high": 1200.0, "low": 985.0, "close": 1150.0, "volume": 500.0}],
+        [{"open": 990.0, "high": 1040.0, "low": 985.0, "close": 1030.0, "volume": 500.0}],
         index=[forming_day],
     )
     df = pd.concat([df, extra])
     result = detect_cup(df, DEFAULT_CONFIG, now=dt.datetime(forming_day.year, forming_day.month, forming_day.day))
     assert result["status"] != "BREAKOUT_CONFIRMED"
     assert result["status"] == "BREAKOUT_FORMING"
+
+
+def test_incomplete_month_already_far_past_breakout_is_no_signal_not_forming():
+    """2026-10-10 live finding (AFFLE-style): no completed month has EVER
+    closed above the breakout level yet, but the still-forming current
+    month has already traded WAY above it (here +20%, beyond
+    near_breakout_pct) — this is not a tight, about-to-confirm breakout,
+    it's an unconfirmed move that already ran away. Must not be shown as a
+    fresh actionable BREAKOUT_FORMING candidate."""
+    specs, (y, m) = _cup_specs(left_rim=1000.0, cup_low=600.0, recovery_close=950.0)
+    df = _monthly_frame(specs, stub_next=False)
+    last_completed = df.index.max()
+    forming_day = last_completed + pd.Timedelta(days=10)
+    extra = pd.DataFrame(
+        [{"open": 990.0, "high": 1250.0, "low": 985.0, "close": 1200.0, "volume": 500.0}],
+        index=[forming_day],
+    )
+    df = pd.concat([df, extra])
+    result = detect_cup(df, DEFAULT_CONFIG, now=dt.datetime(forming_day.year, forming_day.month, forming_day.day))
+    assert result["status"] == "NO_SIGNAL"
+    assert result["invalidation_reason"] == "live_price_already_far_past_breakout"
 
 
 def test_no_lookahead_left_rim_never_uses_future_bars():
