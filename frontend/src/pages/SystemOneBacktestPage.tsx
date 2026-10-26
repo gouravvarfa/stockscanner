@@ -90,7 +90,11 @@ export function SystemOneBacktestPage() {
       <div className="page-header">
         <div>
           <Link to="/strategies" className="so-back-link">
-            ← Strategies
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M19 12H5" />
+              <path d="m12 19-7-7 7-7" />
+            </svg>
+            Strategies
           </Link>
           <h1>System One</h1>
           <p className="page-subtitle">
