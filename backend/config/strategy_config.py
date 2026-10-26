@@ -80,3 +80,26 @@ class StrategyConfig(BaseModel):
 
 
 DEFAULT_STRATEGY_CONFIG = StrategyConfig()
+
+
+class SystemOneBacktestConfig(BaseModel):
+    """System One trade backtest (backend/strategies/system_one_backtest.py).
+
+    Deliberately NOT a field of StrategyConfig: that model is the live scan
+    config exposed through the config API, and this backtest must not change
+    what the scan or any other strategy sees.
+    """
+
+    # Everything runs on WEEKLY candles (RSI, 20 MA, entry and exit).
+    rsi_period: int = 14
+    rsi_entry_level: float = 60.0  # buy when RSI freshly crosses ABOVE this
+    ma_period: int = 20  # simple moving average; also the exit/stop reference
+    reference_capital: float = 1_000_000.0  # Rs. 10 lakh
+    risk_per_trade_pct: float = 1.0  # percent of reference_capital risked per trade
+
+    @property
+    def risk_per_trade(self) -> float:
+        return self.reference_capital * self.risk_per_trade_pct / 100.0
+
+
+DEFAULT_SYSTEM_ONE_BACKTEST_CONFIG = SystemOneBacktestConfig()
