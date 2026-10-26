@@ -27,7 +27,7 @@ from backend.indicators.rsi import rsi
 from backend.main import app
 from backend.services import angelone_credential_store, system_one_backtest_service
 from backend.services.top_bottom_backtest_service import ResolvedInstrument
-from backend.strategies.system_one_backtest import run_system_one_backtest
+from backend.strategies.system_one_backtest import SystemOneBacktestResult, SystemOneTrade, run_system_one_backtest
 
 FLAT = [100, 101, 100, 99] * 7 + [100, 101]  # 30 weeks
 RALLY = [104, 108, 112, 116, 120, 124, 126, 128]
@@ -232,6 +232,60 @@ def test_candles_after_to_date_are_dropped_so_trade_stays_open():
     assert result.trades[0].status == "OPEN"
 
 
+# ---- chart series and summary statistics --------------------------------------
+
+def test_series_covers_every_candle_with_indicator_values_and_none_during_warmup():
+    df = weekly(WINNER)
+    series = run_system_one_backtest(df).series
+    assert len(series) == len(df)
+    assert series[0].rsi is None and series[0].ma is None  # not enough history yet
+    s31 = series[ENTRY_IDX]
+    assert s31.close == 108.0
+    assert s31.ma == pytest.approx(100.65)  # the same 20 SMA the stop loss was taken from
+    assert s31.rsi == pytest.approx(rsi(df["close"], 14).iloc[ENTRY_IDX])
+
+
+def test_series_is_limited_to_the_requested_window():
+    df = weekly(WINNER)
+    from_date = df.index[20].to_pydatetime()
+    to_date = df.index[45].to_pydatetime()
+    series = run_system_one_backtest(df, from_date=from_date, to_date=to_date).series
+    assert series[0].date == df.index[20]
+    assert series[-1].date == df.index[45]
+    assert len(series) == 26
+    assert series[0].ma is not None  # warm-up candles before the window still feed the 20 SMA
+
+
+def _closed(n: int, pnl: float) -> SystemOneTrade:
+    ts = pd.Timestamp("2024-01-05")
+    return SystemOneTrade(
+        trade_number=n, signal_date=ts, entry_date=ts, entry_price=100.0, stop_loss=90.0, risk_per_share=10.0,
+        risk_per_trade=10_000.0, quantity=1, status="CLOSED", exit_date=ts, exit_price=100.0, pnl_amount=pnl,
+    )
+
+
+def test_summary_statistics_from_mixed_trades():
+    open_trade = _closed(4, 0.0)
+    open_trade.status, open_trade.exit_price, open_trade.exit_date, open_trade.pnl_amount = "OPEN", None, None, None
+    s = SystemOneBacktestResult(trades=[_closed(1, 300.0), _closed(2, -100.0), _closed(3, 100.0), open_trade]).summary()
+    assert (s.total_trades, s.closed_trades, s.open_trades) == (4, 3, 1)
+    assert s.win_rate == pytest.approx(200 / 3)
+    assert s.average_win == pytest.approx(200.0)
+    assert s.average_loss == pytest.approx(-100.0)
+    assert s.profit_factor == pytest.approx(4.0)  # 400 gross profit / 100 gross loss
+    assert (s.best_trade, s.worst_trade) == (300.0, -100.0)
+    assert s.net_realized_pnl == pytest.approx(300.0)
+
+
+def test_summary_statistics_are_none_not_zero_when_there_is_nothing_to_compute():
+    s = run_system_one_backtest(weekly(NO_SIGNAL)).summary()
+    assert s.win_rate is None and s.profit_factor is None and s.best_trade is None
+    only_win = run_system_one_backtest(weekly(WINNER)).summary()
+    assert only_win.win_rate == 100.0 and only_win.average_loss is None and only_win.profit_factor is None
+    only_open = run_system_one_backtest(weekly(STILL_OPEN)).summary()
+    assert only_open.win_rate is None
+
+
 # ---- API + Excel -----------------------------------------------------------------
 
 @pytest.fixture()
@@ -276,6 +330,17 @@ def test_api_returns_real_trade_rows(client, monkeypatch):
     assert t["pnl_amount"] == pytest.approx(23_120)
     assert body["summary"]["net_realized_pnl"] == pytest.approx(23_120)
     assert "gross" in body["note"]
+
+
+def test_api_returns_chart_candles_and_summary_stats(client, monkeypatch):
+    _patch_data(monkeypatch, WINNER)
+    body = client.post("/api/system-one/backtest", json=_BODY).json()
+    assert len(body["candles"]) == len(WINNER)
+    first, entry = body["candles"][0], body["candles"][ENTRY_IDX]
+    assert first["rsi"] is None and first["ma"] is None  # JSON null, not NaN
+    assert entry["close"] == 108.0 and entry["ma"] == pytest.approx(100.65)
+    assert body["summary"]["win_rate"] == 100.0
+    assert body["summary"]["profit_factor"] is None
 
 
 def test_api_open_trade_has_null_exit_fields(client, monkeypatch):

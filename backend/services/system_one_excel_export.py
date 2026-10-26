@@ -91,6 +91,12 @@ def build_excel(stored: StoredSystemOneBacktest) -> bytes:
         ("Winning Trades", s.winning_trades),
         ("Losing Trades", s.losing_trades),
         ("Net Realised P&L (closed trades only)", s.net_realized_pnl),
+        ("Win Rate % (closed trades)", s.win_rate),
+        ("Average Win", s.average_win),
+        ("Average Loss", s.average_loss),
+        ("Profit Factor", s.profit_factor if s.profit_factor is not None else "N/A"),
+        ("Best Trade", s.best_trade),
+        ("Worst Trade", s.worst_trade),
         ("Note", PNL_NOTE),
     ]
     for label, value in rows:

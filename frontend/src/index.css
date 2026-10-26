@@ -1959,3 +1959,13 @@ td .symbol-cell { font-weight: var(--fw-semibold); color: var(--text-primary); }
 }
 
 .sector-chip { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px; font-size: 0.66rem; font-weight: 500; color: var(--text-secondary); background: var(--bg-hover); border: 1px solid var(--border); white-space: nowrap; vertical-align: middle; }
+
+/* System One backtest page + clickable strategy card */
+.strategy-card-link { cursor: pointer; text-decoration: none; color: inherit; }
+.strategy-card-link:focus-visible { outline: 2px solid var(--accent, #2563eb); outline-offset: 2px; }
+.strategy-card-cta { font-size: 0.8rem; font-weight: 600; color: var(--accent, #2563eb); }
+.so-back-link { display: inline-block; font-size: 0.82rem; color: var(--text-muted); text-decoration: none; margin-bottom: 4px; }
+.so-back-link:hover { color: var(--text-primary, inherit); }
+.so-chart { width: 100%; height: 520px; }
+.so-chart-legend { font-size: 12px; opacity: 0.75; margin: 0 0 8px; }
+@media (max-width: 720px) { .so-chart { height: 400px; } }

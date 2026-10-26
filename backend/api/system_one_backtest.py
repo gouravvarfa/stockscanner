@@ -6,6 +6,7 @@ from fastapi.responses import Response
 from backend.schemas.system_one_backtest import (
     SystemOneBacktestOut,
     SystemOneBacktestRequest,
+    SystemOneCandleOut,
     SystemOneSkippedOut,
     SystemOneSummaryOut,
     SystemOneTradeOut,
@@ -39,7 +40,19 @@ def _serialize(stored: service.StoredSystemOneBacktest) -> SystemOneBacktestOut:
             winning_trades=summary.winning_trades,
             losing_trades=summary.losing_trades,
             net_realized_pnl=summary.net_realized_pnl,
+            win_rate=summary.win_rate,
+            average_win=summary.average_win,
+            average_loss=summary.average_loss,
+            profit_factor=summary.profit_factor,
+            best_trade=summary.best_trade,
+            worst_trade=summary.worst_trade,
         ),
+        candles=[
+            SystemOneCandleOut(
+                date=c.date.to_pydatetime(), open=c.open, high=c.high, low=c.low, close=c.close, rsi=c.rsi, ma=c.ma,
+            )
+            for c in result.series
+        ],
         trades=[
             SystemOneTradeOut(
                 trade_number=t.trade_number,

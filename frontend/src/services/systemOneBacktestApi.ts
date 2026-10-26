@@ -15,6 +15,16 @@ export interface SystemOneTrade {
   status: "OPEN" | "CLOSED";
 }
 
+export interface SystemOneCandle {
+  date: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  rsi: number | null;
+  ma: number | null;
+}
+
 export interface SystemOneSkippedSignal {
   signal_date: string;
   reason: string;
@@ -38,8 +48,15 @@ export interface SystemOneBacktest {
     winning_trades: number;
     losing_trades: number;
     net_realized_pnl: number;
+    win_rate: number | null;
+    average_win: number | null;
+    average_loss: number | null;
+    profit_factor: number | null;
+    best_trade: number | null;
+    worst_trade: number | null;
   };
   trades: SystemOneTrade[];
+  candles: SystemOneCandle[];
   skipped_signals: SystemOneSkippedSignal[];
   warnings: string[];
   note: string;

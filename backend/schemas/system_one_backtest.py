@@ -38,6 +38,22 @@ class SystemOneSummaryOut(BaseModel):
     winning_trades: int
     losing_trades: int
     net_realized_pnl: float
+    win_rate: float | None
+    average_win: float | None
+    average_loss: float | None
+    profit_factor: float | None
+    best_trade: float | None
+    worst_trade: float | None
+
+
+class SystemOneCandleOut(BaseModel):
+    date: dt.datetime
+    open: float
+    high: float
+    low: float
+    close: float
+    rsi: float | None
+    ma: float | None
 
 
 class SystemOneBacktestOut(BaseModel):
@@ -53,6 +69,7 @@ class SystemOneBacktestOut(BaseModel):
     risk_per_trade: float
     summary: SystemOneSummaryOut
     trades: list[SystemOneTradeOut]
+    candles: list[SystemOneCandleOut]
     skipped_signals: list[SystemOneSkippedOut]
     warnings: list[str]
     note: str

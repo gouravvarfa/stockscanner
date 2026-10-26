@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { api, STRATEGY_NAMES, strategyDisplayName, type StrategyDescriptor } from "../services/api";
 import { useScan } from "../context/ScanContext";
-import { SystemOneBacktest } from "../components/SystemOneBacktest";
 
 export function Strategies() {
   const { latest } = useScan();
@@ -43,8 +43,8 @@ export function Strategies() {
           {STRATEGY_NAMES.map((name) => {
             const descriptor = descriptors.find((d) => d.name === name);
             const count = latest?.strategies?.[name]?.length;
-            return (
-              <div key={name} className="strategy-card">
+            const body = (
+              <>
                 <div className="strategy-card-top">
                   <span className="strategy-card-name">{strategyDisplayName(name)}</span>
                 </div>
@@ -63,13 +63,27 @@ export function Strategies() {
                     )}
                   </span>
                 </div>
+              </>
+            );
+            // System One opens its backtest page; the other cards are info-only.
+            return name === "Strategy One" ? (
+              <Link
+                key={name}
+                to="/strategies/system-one"
+                className="strategy-card strategy-card-link"
+                aria-label="Open System One backtest"
+              >
+                {body}
+                <span className="strategy-card-cta">Open backtest →</span>
+              </Link>
+            ) : (
+              <div key={name} className="strategy-card">
+                {body}
               </div>
             );
           })}
         </div>
       )}
-
-      <SystemOneBacktest />
     </div>
   );
 }

@@ -66,6 +66,28 @@ class SystemOneSummary:
     winning_trades: int
     losing_trades: int
     net_realized_pnl: float  # closed trades only
+    # The fields below are all about CLOSED trades; None when there is nothing
+    # to compute them from (never a fabricated 0).
+    win_rate: float | None = None  # percent of closed trades that made money
+    average_win: float | None = None
+    average_loss: float | None = None  # negative number
+    profit_factor: float | None = None  # gross profit / gross loss; None without a loss
+    best_trade: float | None = None
+    worst_trade: float | None = None
+
+
+@dataclass
+class SeriesPoint:
+    """One weekly candle plus the indicator values the strategy used on it —
+    exactly what the chart draws, so the chart can never disagree with the
+    trades."""
+    date: pd.Timestamp
+    open: float
+    high: float
+    low: float
+    close: float
+    rsi: float | None
+    ma: float | None
 
 
 @dataclass
@@ -74,17 +96,26 @@ class SystemOneBacktestResult:
     skipped: list[SkippedSignal] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     candles_used: int = 0
+    series: list[SeriesPoint] = field(default_factory=list)  # candles inside the requested window
 
     def summary(self) -> SystemOneSummary:
         closed = [t for t in self.trades if t.status == "CLOSED"]
         pnls = [t.pnl_amount for t in closed if t.pnl_amount is not None]
+        wins = [p for p in pnls if p > 0]
+        losses = [p for p in pnls if p < 0]
         return SystemOneSummary(
             total_trades=len(self.trades),
             closed_trades=len(closed),
             open_trades=len(self.trades) - len(closed),
-            winning_trades=sum(1 for p in pnls if p > 0),
-            losing_trades=sum(1 for p in pnls if p < 0),
+            winning_trades=len(wins),
+            losing_trades=len(losses),
             net_realized_pnl=float(sum(pnls)),
+            win_rate=len(wins) / len(pnls) * 100.0 if pnls else None,
+            average_win=sum(wins) / len(wins) if wins else None,
+            average_loss=sum(losses) / len(losses) if losses else None,
+            profit_factor=sum(wins) / -sum(losses) if losses else None,
+            best_trade=max(pnls) if pnls else None,
+            worst_trade=min(pnls) if pnls else None,
         )
 
 
@@ -129,6 +160,20 @@ def run_system_one_backtest(
 
     n = len(df)
     risk_per_trade = config.risk_per_trade
+
+    def _col(name: str) -> list[float]:
+        return df[name].astype(float).tolist() if name in df.columns else closes
+
+    opens, highs, lows = _col("open"), _col("high"), _col("low")
+    result.series = [
+        SeriesPoint(
+            date=dates[k], open=opens[k], high=highs[k], low=lows[k], close=closes[k],
+            rsi=None if _is_missing(rsi_values[k]) else rsi_values[k],
+            ma=None if _is_missing(ma_values[k]) else ma_values[k],
+        )
+        for k in range(n)
+        if from_date is None or dates[k] >= from_date
+    ]
     i = 1
     while i < n:
         if from_date is not None and dates[i] < from_date:
