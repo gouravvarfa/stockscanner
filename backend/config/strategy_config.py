@@ -90,7 +90,8 @@ class SystemOneBacktestConfig(BaseModel):
     what the scan or any other strategy sees.
     """
 
-    # Everything runs on WEEKLY candles (RSI, 20 MA, entry and exit).
+    # RSI, 20 MA, entry and exit all run on the SAME candle series — whichever
+    # timeframe the user picks (1H / 4H / 1D / 1W, default weekly).
     rsi_period: int = 14
     rsi_entry_level: float = 60.0  # buy when RSI freshly crosses ABOVE this
     ma_period: int = 20  # simple moving average; also the exit/stop reference

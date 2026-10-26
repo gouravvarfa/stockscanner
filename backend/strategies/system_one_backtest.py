@@ -1,12 +1,12 @@
 """
-System One trade backtest (weekly candles).
+System One trade backtest (any single timeframe: 1H, 4H, 1D or 1W).
 
 This is separate from the System One *screener* in strategy_one.py (weekly /
 monthly RSI band) — that one only says "does this stock qualify today"; this
 one simulates the actual trades. Pure logic only: no network, no I/O, so it
 can be tested with fixed candles.
 
-Rules (all on the SAME weekly candle series):
+Rules (all on the SAME candle series, whatever its timeframe):
   * Signal      : RSI(14) freshly crosses above 60 — previous candle's RSI <= 60
                   and this candle's RSI > 60.
   * Entry       : the CLOSE of the candle AFTER the signal candle.
@@ -78,7 +78,7 @@ class SystemOneSummary:
 
 @dataclass
 class SeriesPoint:
-    """One weekly candle plus the indicator values the strategy used on it —
+    """One candle plus the indicator values the strategy used on it —
     exactly what the chart draws, so the chart can never disagree with the
     trades."""
     date: pd.Timestamp
@@ -130,7 +130,7 @@ def run_system_one_backtest(
     to_date: dt.datetime | None = None,
 ) -> SystemOneBacktestResult:
     """
-    `ohlcv`: weekly candles, DatetimeIndex ascending, with a "close" column.
+    `ohlcv`: candles of one timeframe, DatetimeIndex ascending, with a "close" column.
 
     Candles before `from_date` are used only to warm up RSI and the 20 SMA —
     a signal is accepted only if its own candle is on/after `from_date`.
@@ -149,7 +149,7 @@ def run_system_one_backtest(
     min_candles = max(config.rsi_period + 2, config.ma_period + 1)
     if len(df) < min_candles:
         result.warnings.append(
-            f"Insufficient history: need at least {min_candles} weekly candles, found {len(df)}."
+            f"Insufficient history: need at least {min_candles} candles, found {len(df)}."
         )
         return result
 

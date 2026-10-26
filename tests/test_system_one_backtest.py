@@ -53,6 +53,12 @@ def weekly(closes: list[float], scale: float = 1.0) -> pd.DataFrame:
     return pd.DataFrame({"open": c, "high": c, "low": c, "close": c, "volume": 1000.0})
 
 
+def hourly(closes: list[float]) -> pd.DataFrame:
+    idx = pd.date_range("2024-01-05 09:15", periods=len(closes), freq="60min")
+    c = pd.Series(closes, index=idx, dtype=float)
+    return pd.DataFrame({"open": c, "high": c, "low": c, "close": c, "volume": 1000.0})
+
+
 def cross_indexes(df: pd.DataFrame, level: float = 60.0) -> list[int]:
     r = rsi(df["close"], 14)
     return [i for i in range(1, len(df)) if r.iloc[i - 1] <= level < r.iloc[i]]
@@ -85,6 +91,16 @@ def test_second_cross_while_trade_open_is_ignored():
     result = run_system_one_backtest(df)
     assert len(result.trades) == 1
     assert result.trades[0].status == "OPEN"
+
+
+def test_engine_gives_identical_trade_numbers_on_any_candle_series():
+    # Same closes, hourly stamps instead of weekly: the rules only look at the
+    # candle sequence, so entry/stop/quantity/P&L must not change.
+    t = run_system_one_backtest(hourly(WINNER)).trades[0]
+    assert (t.entry_price, t.quantity, t.exit_price) == (108.0, 1360, 125.0)
+    assert t.stop_loss == pytest.approx(100.65)
+    assert t.pnl_amount == pytest.approx(23_120)
+    assert t.entry_date == hourly(WINNER).index[ENTRY_IDX]
 
 
 # ---- entry ------------------------------------------------------------------
@@ -295,7 +311,7 @@ def client(monkeypatch, tmp_path):
         yield c
 
 
-def _patch_data(monkeypatch, closes):
+def _patch_data(monkeypatch, closes, frame=weekly, seen=None):
     async def fake_resolve(symbol, instrument_type, expiry):
         return ResolvedInstrument(
             underlying=symbol, trading_symbol=f"{symbol}-EQ", token="1", exch_seg="NSE",
@@ -303,8 +319,9 @@ def _patch_data(monkeypatch, closes):
         )
 
     async def fake_fetch(angelone, instrument, timeframe, from_date=None):
-        assert timeframe == "1W"
-        return weekly(closes)
+        if seen is not None:
+            seen.append(timeframe)
+        return frame(closes)
 
     monkeypatch.setattr(system_one_backtest_service, "_resolve_instrument", fake_resolve)
     monkeypatch.setattr(system_one_backtest_service, "_fetch_ohlcv", fake_fetch)
@@ -341,6 +358,36 @@ def test_api_returns_chart_candles_and_summary_stats(client, monkeypatch):
     assert entry["close"] == 108.0 and entry["ma"] == pytest.approx(100.65)
     assert body["summary"]["win_rate"] == 100.0
     assert body["summary"]["profit_factor"] is None
+
+
+def test_api_timeframe_defaults_to_weekly(client, monkeypatch):
+    seen: list[str] = []
+    _patch_data(monkeypatch, WINNER, seen=seen)
+    body = client.post("/api/system-one/backtest", json=_BODY).json()
+    assert seen == ["1W"] and body["timeframe"] == "1W"
+
+
+@pytest.mark.parametrize("tf", ["1H", "4H", "1D", "1W"])
+def test_api_passes_the_chosen_timeframe_to_the_data_fetch(client, monkeypatch, tf):
+    seen: list[str] = []
+    _patch_data(monkeypatch, WINNER, seen=seen)
+    body = client.post("/api/system-one/backtest", json={**_BODY, "timeframe": tf}).json()
+    assert seen == [tf] and body["timeframe"] == tf
+    assert body["trades"][0]["quantity"] == 1360
+
+
+@pytest.mark.parametrize("tf", ["1m", "15m", "1M", "2W", ""])
+def test_api_rejects_unsupported_timeframes_with_400(client, monkeypatch, tf):
+    _patch_data(monkeypatch, WINNER)
+    assert client.post("/api/system-one/backtest", json={**_BODY, "timeframe": tf}).status_code == 400
+
+
+def test_api_warns_when_data_starts_after_the_requested_from_date(client, monkeypatch):
+    _patch_data(monkeypatch, WINNER)
+    body = client.post("/api/system-one/backtest", json={**_BODY, "from_date": "2023-01-01T00:00:00"}).json()
+    assert any("only available from 2024-01-05" in w for w in body["warnings"])
+    ok = client.post("/api/system-one/backtest", json=_BODY).json()  # starts 2024-01-05, inside the slack
+    assert ok["warnings"] == []
 
 
 def test_api_open_trade_has_null_exit_fields(client, monkeypatch):
@@ -386,6 +433,19 @@ def test_excel_export_matches_ui_columns_and_values(client, monkeypatch):
     assert r[7].date() == weekly(WINNER).index[52].date()
     assert r[8] == pytest.approx(23_120)
     assert len(rows) == 2
+
+
+def test_excel_export_keeps_time_of_day_for_intraday_and_plain_dates_otherwise(client, monkeypatch):
+    _patch_data(monkeypatch, WINNER, frame=hourly)
+    bid = client.post("/api/system-one/backtest", json={**_BODY, "timeframe": "1H"}).json()["backtest_id"]
+    r = _export_rows(client, bid)[1]
+    assert r[0] == hourly(WINNER).index[ENTRY_IDX].to_pydatetime()
+    assert r[0].hour != 0 or r[0].minute != 0  # a real time of day, not midnight
+    assert r[7] == hourly(WINNER).index[52].to_pydatetime()
+
+    _patch_data(monkeypatch, WINNER, frame=weekly)
+    bid = client.post("/api/system-one/backtest", json={**_BODY, "timeframe": "1W"}).json()["backtest_id"]
+    assert _export_rows(client, bid)[1][0].hour == 0
 
 
 def test_excel_export_keeps_negative_pnl(client, monkeypatch):

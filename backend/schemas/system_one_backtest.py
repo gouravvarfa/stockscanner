@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 class SystemOneBacktestRequest(BaseModel):
     symbol: str
+    timeframe: str = "1W"  # 1H, 4H, 1D or 1W
     from_date: dt.datetime
     to_date: dt.datetime
 

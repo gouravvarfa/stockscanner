@@ -83,7 +83,7 @@ def _serialize(stored: service.StoredSystemOneBacktest) -> SystemOneBacktestOut:
 async def run_backtest(request: SystemOneBacktestRequest) -> SystemOneBacktestOut:
     try:
         stored = await service.run_for_symbol(
-            get_angelone_provider(), request.symbol, request.from_date, request.to_date
+            get_angelone_provider(), request.symbol, request.from_date, request.to_date, timeframe=request.timeframe
         )
     except TopBottomValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -102,5 +102,5 @@ async def export_backtest(backtest_id: str) -> Response:
     return Response(
         content=excel_export.build_excel(stored),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f'attachment; filename="system_one_{stored.symbol}_weekly.xlsx"'},
+        headers={"Content-Disposition": f'attachment; filename="system_one_{stored.symbol}_{stored.timeframe}.xlsx"'},
     )

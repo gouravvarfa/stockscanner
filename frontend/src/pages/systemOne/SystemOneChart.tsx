@@ -11,19 +11,30 @@ import {
   type ISeriesMarkersPluginApi,
   type SeriesMarker,
   type Time,
+  type UTCTimestamp,
 } from "lightweight-charts";
 import type { SystemOneBacktest } from "../../services/systemOneBacktestApi";
+import { isIntraday, timeframeNoun } from "./timeframes";
 
-// Weekly candles carry only a date, so the chart uses plain "YYYY-MM-DD"
-// times (no timezone shifting) and the markers use the same format.
-function day(iso: string): Time {
-  return iso.slice(0, 10) as Time;
+// Daily/weekly candles carry only a date, so they use plain "YYYY-MM-DD" times
+// (no timezone shifting). Hourly candles need a time of day: the backend sends
+// naive exchange-time stamps, which are read as-is (as UTC) so the axis shows
+// the same clock times as the table.
+function toTime(iso: string, intraday: boolean): Time {
+  return intraday
+    ? (Math.floor(Date.parse(`${iso.slice(0, 19)}Z`) / 1000) as UTCTimestamp)
+    : (iso.slice(0, 10) as Time);
 }
 
-function shiftDays(iso: string, days: number): Time {
+function shiftDays(iso: string, days: number, intraday: boolean): Time {
+  if (intraday) return ((toTime(iso, true) as number) + days * 86400) as UTCTimestamp;
   const d = new Date(`${iso.slice(0, 10)}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() + days);
   return d.toISOString().slice(0, 10) as Time;
+}
+
+function compareTime(a: Time, b: Time): number {
+  return typeof a === "number" && typeof b === "number" ? a - b : String(a).localeCompare(String(b));
 }
 
 function themeColors() {
@@ -45,6 +56,7 @@ interface Props {
  *  60 trigger line. Every series comes straight from the backtest response,
  *  so what is drawn is exactly what the strategy evaluated. */
 export function SystemOneChart({ result, focusedTradeNumber }: Props) {
+  const intraday = isIntraday(result.timeframe);
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candleRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
@@ -110,32 +122,37 @@ export function SystemOneChart({ result, focusedTradeNumber }: Props) {
     const chart = chartRef.current;
     if (!chart || !candleRef.current || !maRef.current || !rsiRef.current) return;
 
+    chart.applyOptions({ timeScale: { timeVisible: intraday, secondsVisible: false } });
     candleRef.current.setData(
-      result.candles.map((k) => ({ time: day(k.date), open: k.open, high: k.high, low: k.low, close: k.close })),
+      result.candles.map((k) => ({ time: toTime(k.date, intraday), open: k.open, high: k.high, low: k.low, close: k.close })),
     );
-    maRef.current.setData(result.candles.filter((k) => k.ma !== null).map((k) => ({ time: day(k.date), value: k.ma as number })));
-    rsiRef.current.setData(result.candles.filter((k) => k.rsi !== null).map((k) => ({ time: day(k.date), value: k.rsi as number })));
+    maRef.current.setData(
+      result.candles.filter((k) => k.ma !== null).map((k) => ({ time: toTime(k.date, intraday), value: k.ma as number })),
+    );
+    rsiRef.current.setData(
+      result.candles.filter((k) => k.rsi !== null).map((k) => ({ time: toTime(k.date, intraday), value: k.rsi as number })),
+    );
 
     const c = themeColors();
     const markers: SeriesMarker<Time>[] = [];
     for (const t of result.trades) {
       markers.push({
-        time: day(t.entry_date), position: "belowBar", color: c.up, shape: "arrowUp", text: `Entry ${t.entry_price.toFixed(2)}`,
+        time: toTime(t.entry_date, intraday), position: "belowBar", color: c.up, shape: "arrowUp", text: `Entry ${t.entry_price.toFixed(2)}`,
       });
       if (t.exit_date && t.exit_price !== null) {
         const won = (t.pnl_amount ?? 0) >= 0;
         markers.push({
-          time: day(t.exit_date), position: "aboveBar", color: won ? c.up : c.down, shape: "arrowDown",
+          time: toTime(t.exit_date, intraday), position: "aboveBar", color: won ? c.up : c.down, shape: "arrowDown",
           text: `Exit ${t.exit_price.toFixed(2)}`,
         });
       }
     }
-    // Markers must be ascending by time; an exit and the next entry can share a week.
-    markers.sort((a, b) => String(a.time).localeCompare(String(b.time)));
+    // Markers must be ascending by time; an exit and the next entry can share a candle.
+    markers.sort((a, b) => compareTime(a.time, b.time));
     markersRef.current?.setMarkers(markers);
 
     chart.timeScale().fitContent();
-  }, [result]);
+  }, [result, intraday]);
 
   // Focus effect: only moves the visible range; the full history stays loaded.
   useEffect(() => {
@@ -149,11 +166,16 @@ export function SystemOneChart({ result, focusedTradeNumber }: Props) {
     if (!trade) return;
     const end = trade.exit_date ?? result.candles[result.candles.length - 1]?.date ?? trade.entry_date;
     try {
-      chart.timeScale().setVisibleRange({ from: shiftDays(trade.entry_date, -70), to: shiftDays(end, 70) });
+      // About 10 weeks of context on a daily/weekly chart, 5 days on an intraday one.
+      const pad = intraday ? 5 : 70;
+      chart.timeScale().setVisibleRange({
+        from: shiftDays(trade.entry_date, -pad, intraday),
+        to: shiftDays(end, pad, intraday),
+      });
     } catch {
       // A range the library cannot satisfy must not take the page down.
     }
-  }, [focusedTradeNumber, result]);
+  }, [focusedTradeNumber, result, intraday]);
 
   if (result.candles.length === 0) {
     return <div className="state-subtitle">No candles to draw for this period.</div>;
@@ -162,8 +184,8 @@ export function SystemOneChart({ result, focusedTradeNumber }: Props) {
   return (
     <div>
       <p className="so-chart-legend">
-        <span style={{ color: "#f59e0b", fontWeight: 600 }}>Orange</span> = 20 MA (stop loss at entry, exit when a weekly
-        close falls below it) · <span style={{ color: "#7c3aed", fontWeight: 600 }}>Purple</span> = RSI(14), buy trigger
+        <span style={{ color: "#f59e0b", fontWeight: 600 }}>Orange</span> = 20 MA (stop loss at entry, exit when a {timeframeNoun(result.timeframe)}
+        candle closes below it) · <span style={{ color: "#7c3aed", fontWeight: 600 }}>Purple</span> = RSI(14), buy trigger
         when it crosses above the dashed 60 line.{" "}
         {focusedTradeNumber === null
           ? "Click a trade row to zoom to it."

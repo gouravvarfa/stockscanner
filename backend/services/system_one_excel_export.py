@@ -9,7 +9,7 @@ import openpyxl
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
-from backend.services.system_one_backtest_service import PNL_NOTE, StoredSystemOneBacktest
+from backend.services.system_one_backtest_service import INTRADAY_TIMEFRAMES, PNL_NOTE, StoredSystemOneBacktest
 
 HEADER_FILL = PatternFill("solid", fgColor="FFD966")
 HEADER_FONT = Font(bold=True)
@@ -20,6 +20,7 @@ RED_FONT = Font(color="9C0006")
 THIN_BORDER = Border(*(Side(style="thin", color="D9D9D9") for _ in range(4)))
 
 DATE_FORMAT = "dd-mmm-yyyy"
+DATETIME_FORMAT = "dd-mmm-yyyy hh:mm"
 MONEY_FORMAT = "#,##0.00"
 PNL_FORMAT = "#,##0.00;-#,##0.00"
 
@@ -42,6 +43,13 @@ def build_excel(stored: StoredSystemOneBacktest) -> bytes:
     # ---- Sheet 1: Trades — one row per trade, header on row 1 ---------------
     ws = wb.active
     ws.title = "Trades"
+    # Intraday candles keep their time of day; daily/weekly candles are plain dates.
+    intraday = stored.timeframe in INTRADAY_TIMEFRAMES
+    date_format = DATETIME_FORMAT if intraday else DATE_FORMAT
+
+    def _when(ts):
+        return None if ts is None else (ts.to_pydatetime() if intraday else ts.date())
+
     ws.append(TRADE_HEADERS)
     for c in range(1, len(TRADE_HEADERS) + 1):
         cell = ws.cell(row=1, column=c)
@@ -51,13 +59,13 @@ def build_excel(stored: StoredSystemOneBacktest) -> bytes:
     for t in stored.result.trades:
         # Open trades leave the exit cells empty — never 0.
         ws.append([
-            t.entry_date.date(), t.entry_price, t.stop_loss, t.risk_per_share, t.risk_per_trade,
-            t.quantity, t.exit_price, t.exit_date.date() if t.exit_date is not None else None,
+            _when(t.entry_date), t.entry_price, t.stop_loss, t.risk_per_share, t.risk_per_trade,
+            t.quantity, t.exit_price, _when(t.exit_date),
             t.pnl_amount, t.status,
         ])
         row = ws.max_row
-        for col, fmt in ((1, DATE_FORMAT), (2, MONEY_FORMAT), (3, MONEY_FORMAT), (4, MONEY_FORMAT),
-                         (5, MONEY_FORMAT), (6, "0"), (7, MONEY_FORMAT), (8, DATE_FORMAT), (9, PNL_FORMAT)):
+        for col, fmt in ((1, date_format), (2, MONEY_FORMAT), (3, MONEY_FORMAT), (4, MONEY_FORMAT),
+                         (5, MONEY_FORMAT), (6, "0"), (7, MONEY_FORMAT), (8, date_format), (9, PNL_FORMAT)):
             ws.cell(row=row, column=col).number_format = fmt
         for col in range(1, len(TRADE_HEADERS) + 1):
             ws.cell(row=row, column=col).border = THIN_BORDER
@@ -77,7 +85,7 @@ def build_excel(stored: StoredSystemOneBacktest) -> bytes:
         ("Strategy", "System One"),
         ("Symbol", stored.symbol),
         ("Trading Symbol", stored.trading_symbol),
-        ("Timeframe", "Weekly"),
+        ("Timeframe", stored.timeframe),
         ("From Date", stored.from_date.date()),
         ("To Date", stored.to_date.date()),
         ("Data Available From", stored.data_available_from.date()),
@@ -112,8 +120,8 @@ def build_excel(stored: StoredSystemOneBacktest) -> bytes:
         summary.append([])
         summary.append(["Skipped Signal Date", "Reason"])
         for sk in stored.result.skipped:
-            summary.append([sk.signal_date.date(), sk.reason])
-            summary.cell(row=summary.max_row, column=1).number_format = DATE_FORMAT
+            summary.append([_when(sk.signal_date), sk.reason])
+            summary.cell(row=summary.max_row, column=1).number_format = date_format
     _autosize(summary, max_width=90)
 
     buf = io.BytesIO()

@@ -65,6 +65,7 @@ export interface SystemOneBacktest {
 
 export async function runSystemOneBacktest(req: {
   symbol: string;
+  timeframe: string;
   from_date: string;
   to_date: string;
 }): Promise<SystemOneBacktest> {
