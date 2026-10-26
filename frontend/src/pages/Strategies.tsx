@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, STRATEGY_NAMES, strategyDisplayName, type StrategyDescriptor } from "../services/api";
 import { useScan } from "../context/ScanContext";
+import { SystemOneBacktest } from "../components/SystemOneBacktest";
 
 export function Strategies() {
   const { latest } = useScan();
@@ -67,6 +68,8 @@ export function Strategies() {
           })}
         </div>
       )}
+
+      <SystemOneBacktest />
     </div>
   );
 }
