@@ -99,8 +99,8 @@ export function SystemOneBacktestPage() {
           <h1>System One</h1>
           <p className="page-subtitle">
             Trend-following backtest on the timeframe you pick (default weekly). Buy when RSI(14) crosses above 60 and
-            enter at the next candle&apos;s close. Stop loss is the 20 MA at entry; exit when a candle closes below the
-            20 MA. Risk is 1% of ₹10,00,000 (₹10,000) per trade.
+            enter at the next candle&apos;s close. Stop loss is the 20 MA at entry (fixed); exit when price hits it. Every
+            new RSI cross is traded. Risk is 1% of ₹10,00,000 (₹10,000) per trade.
           </p>
         </div>
       </div>

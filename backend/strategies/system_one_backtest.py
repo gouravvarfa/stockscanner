@@ -20,7 +20,8 @@ Rules (all on the SAME candle series, whatever its timeframe):
                   can then exceed the planned risk).
   * No exit before the data ends -> the trade stays OPEN (no exit price, no
     realised P&L).
-  * One trade at a time: signals while a trade is open are ignored.
+  * Every fresh cross is traded: a new signal opens its own trade (with its
+    own stop) even if earlier trades are still open.
 """
 from __future__ import annotations
 
@@ -252,7 +253,7 @@ def run_system_one_backtest(
             trade.pnl_amount = (trade.exit_price - entry_price) * quantity
 
         result.trades.append(trade)
-        # Closed: look for the next signal after the exit candle. Open: nothing left to scan.
-        i = exit_idx + 1 if exit_idx is not None else n
+        # Every fresh cross opens its own trade, even while earlier ones are still open.
+        i += 1
 
     return result

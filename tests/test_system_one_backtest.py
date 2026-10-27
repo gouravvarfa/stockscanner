@@ -85,12 +85,13 @@ def test_no_signal_gives_no_trades_and_no_warning():
     assert result.warnings == []
 
 
-def test_second_cross_while_trade_open_is_ignored():
+def test_every_fresh_cross_opens_its_own_trade_even_while_one_is_open():
     df = weekly(SECOND_CROSS_WHILE_OPEN)
     assert len(cross_indexes(df)) == 2  # the fixture really has two fresh crosses
     result = run_system_one_backtest(df)
-    assert len(result.trades) == 1
-    assert result.trades[0].status == "OPEN"
+    assert len(result.trades) == 2
+    assert all(t.status == "OPEN" for t in result.trades)
+    assert result.trades[0].stop_loss != result.trades[1].stop_loss  # each keeps its own entry MA
 
 
 def test_engine_gives_identical_trade_numbers_on_any_candle_series():
