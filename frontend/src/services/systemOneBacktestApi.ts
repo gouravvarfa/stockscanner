@@ -13,6 +13,28 @@ export interface SystemOneTrade {
   exit_date: string | null;
   pnl_amount: number | null;
   status: "OPEN" | "CLOSED";
+  exit_reason: "STOP_AT_MA" | "GAP_OPEN_BELOW_MA" | "OPEN";
+  holding_periods: number;
+  pnl_pct: number | null;
+  r_multiple: number | null;
+  unrealized_pnl: number | null;
+  data_flag: string;
+}
+
+export interface SystemOneYear {
+  year: number;
+  trades: number;
+  wins: number;
+  losses: number;
+  gross_profit: number;
+  gross_loss: number;
+  net_pnl: number;
+}
+
+export interface SystemOneEquityPoint {
+  date: string;
+  trade_number: number;
+  cumulative_pnl: number;
 }
 
 export interface SystemOneCandle {
@@ -54,10 +76,15 @@ export interface SystemOneBacktest {
     profit_factor: number | null;
     best_trade: number | null;
     worst_trade: number | null;
+    max_drawdown: number;
+    longest_losing_streak: number;
+    unrealized_pnl: number;
   };
   trades: SystemOneTrade[];
   candles: SystemOneCandle[];
   skipped_signals: SystemOneSkippedSignal[];
+  yearly: SystemOneYear[];
+  equity_curve: SystemOneEquityPoint[];
   warnings: string[];
   note: string;
   created_at: string;

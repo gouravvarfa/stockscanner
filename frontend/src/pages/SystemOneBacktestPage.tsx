@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { EquitySearchBox } from "./topBottom/EquitySearchBox";
 import { SystemOneChart } from "./systemOne/SystemOneChart";
+import { EquityCurve } from "./systemOne/EquityCurve";
 import { DEFAULT_TIMEFRAME, SYSTEM_ONE_TIMEFRAMES, isIntraday, timeframeNoun } from "./systemOne/timeframes";
 import {
   runSystemOneBacktest,
@@ -99,8 +100,9 @@ export function SystemOneBacktestPage() {
           <h1>System One</h1>
           <p className="page-subtitle">
             Trend-following backtest on the timeframe you pick (default weekly). Buy when RSI(14) crosses above 60 and
-            enter at the next candle&apos;s close. Stop loss is the 20 MA at entry (fixed); exit when price hits it. Every
-            new RSI cross is traded. Risk is 1% of ₹10,00,000 (₹10,000) per trade.
+            enter at the next candle&apos;s close. The 20 MA on the entry candle sizes the trade. After entry the stop is the
+            previous candle&apos;s 20 MA: exit at the open if a candle opens below it, otherwise at the stop when the low
+            touches it. One trade at a time. Risk is 1% of ₹10,00,000 (₹10,000) per trade. All P&amp;L is gross.
           </p>
         </div>
       </div>
@@ -196,6 +198,9 @@ export function SystemOneBacktestPage() {
               <Tile label="Average Loss" value={fmtRupees(s.average_loss)} color={pnlColor(s.average_loss)} />
               <Tile label="Best Trade" value={fmtRupees(s.best_trade)} color={pnlColor(s.best_trade)} />
               <Tile label="Worst Trade" value={fmtRupees(s.worst_trade)} color={pnlColor(s.worst_trade)} />
+              <Tile label="Max Drawdown" value={fmtRupees(s.max_drawdown)} sub="realised, peak to trough" />
+              <Tile label="Longest Losing Streak" value={`${s.longest_losing_streak}`} />
+              <Tile label="Unrealised P&L (open)" value={fmtRupees(s.unrealized_pnl)} color={pnlColor(s.unrealized_pnl)} sub="not in realised total" />
             </div>
             {s.closed_trades > 0 && s.closed_trades < 30 && (
               <p className="tb-config-hint" style={{ marginBottom: 0 }}>
@@ -211,21 +216,70 @@ export function SystemOneBacktestPage() {
           </div>
 
           <div className="card">
+            <h2 style={{ marginTop: 0 }}>Equity Curve</h2>
+            <EquityCurve points={result.equity_curve} />
+          </div>
+
+          <div className="card">
+            <h2 style={{ marginTop: 0 }}>Year-wise (by exit year)</h2>
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Year</th>
+                    <th className="num-cell">Trades</th>
+                    <th className="num-cell">Wins</th>
+                    <th className="num-cell">Losses</th>
+                    <th className="num-cell">Gross Profit</th>
+                    <th className="num-cell">Gross Loss</th>
+                    <th className="num-cell">Net P&amp;L</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {result.yearly.map((y) => (
+                    <tr key={y.year}>
+                      <td>{y.year}</td>
+                      <td className="num-cell">{y.trades}</td>
+                      <td className="num-cell">{y.wins}</td>
+                      <td className="num-cell">{y.losses}</td>
+                      <td className="num-cell" style={{ color: pnlColor(y.gross_profit) }}>{fmtMoney(y.gross_profit)}</td>
+                      <td className="num-cell" style={{ color: pnlColor(y.gross_loss) }}>{fmtMoney(y.gross_loss)}</td>
+                      <td className="num-cell" style={{ color: pnlColor(y.net_pnl) }}>{fmtMoney(y.net_pnl)}</td>
+                    </tr>
+                  ))}
+                  {result.yearly.length === 0 && (
+                    <tr>
+                      <td colSpan={7} style={{ textAlign: "center", padding: 16, opacity: 0.7 }}>No closed trades.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="card">
             <h2 style={{ marginTop: 0 }}>Trades</h2>
             <div className="table-wrap">
               <table>
                 <thead>
                   <tr>
+                    <th>#</th>
+                    <th>Signal Date</th>
                     <th>Entry Date</th>
                     <th className="num-cell">Entry Price</th>
-                    <th className="num-cell">Stop Loss</th>
+                    <th className="num-cell">Initial Stop (MA)</th>
                     <th className="num-cell">Risk Per Share</th>
-                    <th className="num-cell">Risk Per Trade</th>
                     <th className="num-cell">Quantity</th>
-                    <th className="num-cell">Exit Price</th>
+                    <th className="num-cell">Planned Risk</th>
                     <th>Exit Date</th>
-                    <th className="num-cell">P&amp;L Amount</th>
-                    <th>Status</th>
+                    <th className="num-cell">Exit Price</th>
+                    <th>Exit Reason</th>
+                    <th className="num-cell">Weeks Held</th>
+                    <th className="num-cell">P&amp;L (₹)</th>
+                    <th className="num-cell">P&amp;L %</th>
+                    <th className="num-cell">R</th>
+                    <th className="num-cell">Unrealised (open)</th>
+                    <th>Data Flag</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -236,27 +290,38 @@ export function SystemOneBacktestPage() {
                       className={focusedTrade === t.trade_number ? "tb-row-focused" : ""}
                       style={{ cursor: "pointer" }}
                     >
+                      <td>{t.trade_number}</td>
+                      <td>{fmtWhen(t.signal_date, intraday)}</td>
                       <td>{fmtWhen(t.entry_date, intraday)}</td>
                       <td className="num-cell">{fmtMoney(t.entry_price)}</td>
                       <td className="num-cell">{fmtMoney(t.stop_loss)}</td>
                       <td className="num-cell">{fmtMoney(t.risk_per_share)}</td>
-                      <td className="num-cell">{fmtMoney(t.risk_per_trade)}</td>
                       <td className="num-cell">{t.quantity}</td>
-                      <td className="num-cell">{t.exit_price === null ? "—" : fmtMoney(t.exit_price)}</td>
+                      <td className="num-cell">{fmtMoney(t.risk_per_trade)}</td>
                       <td>{fmtWhen(t.exit_date, intraday)}</td>
+                      <td className="num-cell">{t.exit_price === null ? "—" : fmtMoney(t.exit_price)}</td>
+                      <td>
+                        <span className={`badge ${t.exit_reason === "OPEN" ? "badge-neutral" : "badge-good"}`}>{t.exit_reason}</span>
+                      </td>
+                      <td className="num-cell">{t.holding_periods}</td>
                       <td className="num-cell" style={{ color: pnlColor(t.pnl_amount) }}>
                         {t.pnl_amount === null ? "—" : fmtMoney(t.pnl_amount)}
                       </td>
-                      <td>
-                        <span className={`badge ${t.status === "OPEN" ? "badge-neutral" : "badge-good"}`}>
-                          {t.status === "OPEN" ? "Open" : "Closed"}
-                        </span>
+                      <td className="num-cell" style={{ color: pnlColor(t.pnl_pct) }}>
+                        {t.pnl_pct === null ? "—" : `${fmtMoney(t.pnl_pct)}%`}
                       </td>
+                      <td className="num-cell" style={{ color: pnlColor(t.r_multiple) }}>
+                        {t.r_multiple === null ? "—" : fmtMoney(t.r_multiple)}
+                      </td>
+                      <td className="num-cell" style={{ color: pnlColor(t.unrealized_pnl) }}>
+                        {t.unrealized_pnl === null ? "—" : fmtMoney(t.unrealized_pnl)}
+                      </td>
+                      <td style={{ fontSize: 12, opacity: 0.8 }}>{t.data_flag || "—"}</td>
                     </tr>
                   ))}
                   {result.trades.length === 0 && (
                     <tr>
-                      <td colSpan={10} style={{ textAlign: "center", padding: 16, opacity: 0.7 }}>
+                      <td colSpan={17} style={{ textAlign: "center", padding: 16, opacity: 0.7 }}>
                         No System One trades in this period.
                         {result.skipped_signals.length > 0 ? " Some signals were skipped — see below." : ""}
                       </td>
@@ -276,6 +341,10 @@ export function SystemOneBacktestPage() {
               </ul>
             )}
 
+            <p className="tb-config-hint">
+              Weekly candles hide whether the low or the high came first; a low that touches the stop is assumed to have
+              hit it.
+            </p>
             <p className="tb-config-hint" style={{ marginBottom: 0 }}>
               {result.note} {timeframeNoun(result.timeframe)} candles available {fmtWhen(result.data_available_from, intraday)} –{" "}
               {fmtWhen(result.data_available_to, intraday)}; the candle still in progress is not used. Open trades show “—”

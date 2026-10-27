@@ -24,11 +24,17 @@ DATETIME_FORMAT = "dd-mmm-yyyy hh:mm"
 MONEY_FORMAT = "#,##0.00"
 PNL_FORMAT = "#,##0.00;-#,##0.00"
 
-# Same order as the table in the UI (frontend SystemOneBacktest.tsx).
+# Same order as the table in the UI (frontend SystemOneBacktestPage.tsx).
 TRADE_HEADERS = [
-    "Entry Date", "Entry Price", "Stop Loss", "Risk Per Share", "Risk Per Trade",
-    "Quantity", "Exit Price", "Exit Date", "P&L Amount", "Status",
+    "Trade #", "Signal Date", "Entry Date", "Entry Price", "Initial Stop (MA at entry)", "Risk Per Share",
+    "Quantity", "Planned Risk (Rs)", "Exit Date", "Exit Price", "Exit Reason", "Holding Weeks",
+    "P&L (Rs)", "P&L % of Entry", "R-Multiple", "Unrealised P&L (open)", "Data-Quality Flag",
 ]
+_PNL_COL = TRADE_HEADERS.index("P&L (Rs)") + 1
+
+
+def file_name(stored: StoredSystemOneBacktest) -> str:
+    return f"system_one_{stored.symbol}_{stored.timeframe}_{stored.from_date:%Y%m%d}_{stored.to_date:%Y%m%d}.xlsx"
 
 
 def _autosize(ws, min_width: int = 12, max_width: int = 60) -> None:
@@ -57,19 +63,20 @@ def build_excel(stored: StoredSystemOneBacktest) -> bytes:
         cell.alignment = Alignment(horizontal="center")
 
     for t in stored.result.trades:
-        # Open trades leave the exit cells empty — never 0.
+        # Open trades leave the exit cells empty - never 0; their unrealised P&L has its own column.
         ws.append([
-            _when(t.entry_date), t.entry_price, t.stop_loss, t.risk_per_share, t.risk_per_trade,
-            t.quantity, t.exit_price, _when(t.exit_date),
-            t.pnl_amount, t.status,
+            t.trade_number, _when(t.signal_date), _when(t.entry_date), t.entry_price, t.stop_loss, t.risk_per_share,
+            t.quantity, t.risk_per_trade, _when(t.exit_date), t.exit_price, t.exit_reason, t.holding_periods,
+            t.pnl_amount, t.pnl_pct, t.r_multiple, t.unrealized_pnl, t.data_flag,
         ])
         row = ws.max_row
-        for col, fmt in ((1, date_format), (2, MONEY_FORMAT), (3, MONEY_FORMAT), (4, MONEY_FORMAT),
-                         (5, MONEY_FORMAT), (6, "0"), (7, MONEY_FORMAT), (8, date_format), (9, PNL_FORMAT)):
+        for col, fmt in ((2, date_format), (3, date_format), (4, MONEY_FORMAT), (5, MONEY_FORMAT), (6, MONEY_FORMAT),
+                         (7, "0"), (8, MONEY_FORMAT), (9, date_format), (10, MONEY_FORMAT), (13, PNL_FORMAT),
+                         (14, "0.00"), (15, "0.00"), (16, PNL_FORMAT)):
             ws.cell(row=row, column=col).number_format = fmt
         for col in range(1, len(TRADE_HEADERS) + 1):
             ws.cell(row=row, column=col).border = THIN_BORDER
-        pnl_cell = ws.cell(row=row, column=9)
+        pnl_cell = ws.cell(row=row, column=_PNL_COL)
         if t.pnl_amount is not None and t.pnl_amount > 0:
             pnl_cell.fill, pnl_cell.font = GREEN_FILL, GREEN_FONT
         elif t.pnl_amount is not None and t.pnl_amount < 0:
@@ -105,6 +112,9 @@ def build_excel(stored: StoredSystemOneBacktest) -> bytes:
         ("Profit Factor", s.profit_factor if s.profit_factor is not None else "N/A"),
         ("Best Trade", s.best_trade),
         ("Worst Trade", s.worst_trade),
+        ("Max Drawdown (Rs, realised)", s.max_drawdown),
+        ("Longest Losing Streak", s.longest_losing_streak),
+        ("Unrealised P&L (open trades, not in totals)", s.unrealized_pnl),
         ("Note", PNL_NOTE),
     ]
     for label, value in rows:
@@ -123,6 +133,23 @@ def build_excel(stored: StoredSystemOneBacktest) -> bytes:
             summary.append([_when(sk.signal_date), sk.reason])
             summary.cell(row=summary.max_row, column=1).number_format = date_format
     _autosize(summary, max_width=90)
+
+    # ---- Sheet 3: year-wise (by exit year) and equity curve ------------------
+    years = wb.create_sheet("Year-wise")
+    years.append(["Year (exit)", "Trades", "Wins", "Losses", "Gross Profit", "Gross Loss", "Net P&L"])
+    for y in stored.result.yearly():
+        years.append([y.year, y.trades, y.wins, y.losses, y.gross_profit, y.gross_loss, y.net_pnl])
+        for col in (5, 6, 7):
+            years.cell(row=years.max_row, column=col).number_format = PNL_FORMAT
+    _autosize(years)
+
+    curve = wb.create_sheet("Equity Curve")
+    curve.append(["Exit Date", "Trade #", "Cumulative Realised P&L"])
+    for p in stored.result.equity_curve():
+        curve.append([_when(p.date), p.trade_number, p.cumulative_pnl])
+        curve.cell(row=curve.max_row, column=1).number_format = date_format
+        curve.cell(row=curve.max_row, column=3).number_format = PNL_FORMAT
+    _autosize(curve)
 
     buf = io.BytesIO()
     wb.save(buf)

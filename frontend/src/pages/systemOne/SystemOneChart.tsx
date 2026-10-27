@@ -184,8 +184,8 @@ export function SystemOneChart({ result, focusedTradeNumber }: Props) {
   return (
     <div>
       <p className="so-chart-legend">
-        <span style={{ color: "#f59e0b", fontWeight: 600 }}>Orange</span> = 20 MA (its value at entry is the stop loss; exit when a {timeframeNoun(result.timeframe)}
-        candle touches that stop) · <span style={{ color: "#7c3aed", fontWeight: 600 }}>Purple</span> = RSI(14), buy trigger
+        <span style={{ color: "#f59e0b", fontWeight: 600 }}>Orange</span> = 20 MA (the stop for each {timeframeNoun(result.timeframe)} candle is the previous candle&apos;s
+        value; exit at the open on a gap below it, otherwise at the stop when the low touches it) · <span style={{ color: "#7c3aed", fontWeight: 600 }}>Purple</span> = RSI(14), buy trigger
         when it crosses above the dashed 60 line.{" "}
         {focusedTradeNumber === null
           ? "Click a trade row to zoom to it."

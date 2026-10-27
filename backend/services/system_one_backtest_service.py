@@ -25,7 +25,12 @@ from backend.services.top_bottom_backtest_service import (
     _fetch_ohlcv,
     _resolve_instrument,
 )
-from backend.strategies.system_one_backtest import SystemOneBacktestResult, run_system_one_backtest
+from backend.strategies.system_one_backtest import (
+    SystemOneBacktestResult,
+    find_data_gaps,
+    flag_trades_in_gaps,
+    run_system_one_backtest,
+)
 
 DEFAULT_TIMEFRAME = "1W"
 SUPPORTED_TIMEFRAMES = ("1H", "4H", "1D", "1W")
@@ -45,7 +50,7 @@ _MAX_STORED_RESULTS = 50
 
 PNL_NOTE = (
     "P&L is gross: before brokerage, taxes, slippage and other transaction costs. "
-    "Open trades have no exit and no realised P&L."
+    "Open trades have no exit and no realised P&L; their unrealised P&L is shown separately and is not in the totals."
 )
 
 
@@ -113,6 +118,14 @@ async def run_for_symbol(
             f"{timeframe} data is only available from {candles.index[0].date()}, so the backtest starts there, "
             f"not on the requested {from_date.date()}."
         )
+    if timeframe == "1W":
+        # A normal weekly series has a candle every <= 7 days (holiday weeks still have one).
+        gaps = find_data_gaps(candles.index, max_days=10)
+        for before, after in gaps:
+            result.warnings.append(
+                f"DATA GAP: no weekly candle between {before.date()} and {after.date()}. Nothing was filled in."
+            )
+        flag_trades_in_gaps(result, gaps)
     stored = StoredSystemOneBacktest(
         backtest_id=uuid.uuid4().hex,
         symbol=instrument.underlying,

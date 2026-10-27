@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import dataclasses
+
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import Response
 
@@ -7,9 +9,11 @@ from backend.schemas.system_one_backtest import (
     SystemOneBacktestOut,
     SystemOneBacktestRequest,
     SystemOneCandleOut,
+    SystemOneEquityPointOut,
     SystemOneSkippedOut,
     SystemOneSummaryOut,
     SystemOneTradeOut,
+    SystemOneYearOut,
 )
 from backend.services import system_one_backtest_service as service
 from backend.services import system_one_excel_export as excel_export
@@ -46,6 +50,9 @@ def _serialize(stored: service.StoredSystemOneBacktest) -> SystemOneBacktestOut:
             profit_factor=summary.profit_factor,
             best_trade=summary.best_trade,
             worst_trade=summary.worst_trade,
+            max_drawdown=summary.max_drawdown,
+            longest_losing_streak=summary.longest_losing_streak,
+            unrealized_pnl=summary.unrealized_pnl,
         ),
         candles=[
             SystemOneCandleOut(
@@ -67,11 +74,22 @@ def _serialize(stored: service.StoredSystemOneBacktest) -> SystemOneBacktestOut:
                 exit_date=t.exit_date.to_pydatetime() if t.exit_date is not None else None,
                 pnl_amount=t.pnl_amount,
                 status=t.status,
+                exit_reason=t.exit_reason,
+                holding_periods=t.holding_periods,
+                pnl_pct=t.pnl_pct,
+                r_multiple=t.r_multiple,
+                unrealized_pnl=t.unrealized_pnl,
+                data_flag=t.data_flag,
             )
             for t in result.trades
         ],
         skipped_signals=[
             SystemOneSkippedOut(signal_date=sk.signal_date.to_pydatetime(), reason=sk.reason) for sk in result.skipped
+        ],
+        yearly=[SystemOneYearOut(**dataclasses.asdict(y)) for y in result.yearly()],
+        equity_curve=[
+            SystemOneEquityPointOut(date=p.date.to_pydatetime(), trade_number=p.trade_number, cumulative_pnl=p.cumulative_pnl)
+            for p in result.equity_curve()
         ],
         warnings=result.warnings,
         note=service.PNL_NOTE,
@@ -102,5 +120,5 @@ async def export_backtest(backtest_id: str) -> Response:
     return Response(
         content=excel_export.build_excel(stored),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f'attachment; filename="system_one_{stored.symbol}_{stored.timeframe}.xlsx"'},
+        headers={"Content-Disposition": f'attachment; filename="{excel_export.file_name(stored)}"'},
     )

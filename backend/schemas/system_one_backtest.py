@@ -25,6 +25,12 @@ class SystemOneTradeOut(BaseModel):
     exit_date: dt.datetime | None
     pnl_amount: float | None  # None for an OPEN trade — never a fabricated 0
     status: str  # "OPEN" | "CLOSED"
+    exit_reason: str  # STOP_AT_MA | GAP_OPEN_BELOW_MA | OPEN
+    holding_periods: int  # candles (weeks on 1W)
+    pnl_pct: float | None
+    r_multiple: float | None
+    unrealized_pnl: float | None  # open trades only; not part of the realised totals
+    data_flag: str
 
 
 class SystemOneSkippedOut(BaseModel):
@@ -45,6 +51,25 @@ class SystemOneSummaryOut(BaseModel):
     profit_factor: float | None
     best_trade: float | None
     worst_trade: float | None
+    max_drawdown: float
+    longest_losing_streak: int
+    unrealized_pnl: float
+
+
+class SystemOneYearOut(BaseModel):
+    year: int
+    trades: int
+    wins: int
+    losses: int
+    gross_profit: float
+    gross_loss: float
+    net_pnl: float
+
+
+class SystemOneEquityPointOut(BaseModel):
+    date: dt.datetime
+    trade_number: int
+    cumulative_pnl: float
 
 
 class SystemOneCandleOut(BaseModel):
@@ -72,6 +97,8 @@ class SystemOneBacktestOut(BaseModel):
     trades: list[SystemOneTradeOut]
     candles: list[SystemOneCandleOut]
     skipped_signals: list[SystemOneSkippedOut]
+    yearly: list[SystemOneYearOut]
+    equity_curve: list[SystemOneEquityPointOut]
     warnings: list[str]
     note: str
     created_at: dt.datetime
