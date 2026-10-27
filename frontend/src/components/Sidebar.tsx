@@ -21,6 +21,7 @@ const NAV_ITEMS = [
   { to: "/top-bottom", label: "Top Bottom Backtesting", icon: TrendIcon },
   { to: "/cup-breakout", label: "Cup Breakout", icon: SectorIcon },
   { to: "/history", label: "Scan History", icon: HistoryIcon },
+  { to: "/breakout-15", label: "15-Min Breakout", icon: TrendIcon },
   { to: "/settings", label: "Settings", icon: SettingsIcon },
 ];
 

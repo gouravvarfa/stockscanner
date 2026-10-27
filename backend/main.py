@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.api import angelone as angelone_api
+from backend.api import breakout15 as breakout15_api
 from backend.api import chart as chart_api
 from backend.api import config as config_api
 from backend.api import expiry as expiry_api
@@ -76,6 +77,7 @@ app.include_router(top_bottom_api.router)
 app.include_router(system_one_backtest_api.router)
 app.include_router(live_api.router)
 
+app.include_router(breakout15_api.router)
 
 @app.get("/api/health")
 def health() -> dict:
