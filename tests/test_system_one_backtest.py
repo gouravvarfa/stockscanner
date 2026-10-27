@@ -33,8 +33,8 @@ FLAT = [100, 101, 100, 99] * 7 + [100, 101]  # 30 weeks
 RALLY = [104, 108, 112, 116, 120, 124, 126, 128]
 CLIMB = [130 + 2 * k for k in range(14)]  # keeps the 20 SMA far below price for a long time
 
-WINNER = FLAT + RALLY + CLIMB + [125, 118]  # exit candle: 125 (below its 20 SMA 137.05), index 52
-LOSER = FLAT + RALLY + [110, 100]  # exit candle: 100 (below its 20 SMA 107.45), index 39
+WINNER = FLAT + RALLY + CLIMB + [100]  # long climb, then index 52 drops to 100 <= stop 100.65: stop exit at 100.65
+LOSER = FLAT + RALLY + [110, 100]  # index 39 drops to 100 <= stop 100.65: stop exit at 100.65
 STILL_OPEN = FLAT + RALLY  # never closes below the 20 SMA
 SIGNAL_ON_LAST_CANDLE = FLAT + [104]
 ENTRY_BELOW_MA = FLAT + [104, 90]
@@ -97,9 +97,9 @@ def test_engine_gives_identical_trade_numbers_on_any_candle_series():
     # Same closes, hourly stamps instead of weekly: the rules only look at the
     # candle sequence, so entry/stop/quantity/P&L must not change.
     t = run_system_one_backtest(hourly(WINNER)).trades[0]
-    assert (t.entry_price, t.quantity, t.exit_price) == (108.0, 1360, 125.0)
+    assert (t.entry_price, t.quantity, t.exit_price) == (108.0, 1360, 100.0)
     assert t.stop_loss == pytest.approx(100.65)
-    assert t.pnl_amount == pytest.approx(23_120)
+    assert t.pnl_amount == pytest.approx(-10_880)
     assert t.entry_date == hourly(WINNER).index[ENTRY_IDX]
 
 
@@ -131,7 +131,7 @@ def test_stop_loss_is_20_sma_at_entry_and_not_overwritten_later():
     assert t.stop_loss == pytest.approx(100.65)
     # the 20 SMA kept rising until the exit candle; the saved stop did not follow it
     ma_at_exit = sma(df["close"], 20).iloc[52]
-    assert ma_at_exit == pytest.approx(137.05)
+    assert ma_at_exit == pytest.approx(135.8)
     assert t.stop_loss != pytest.approx(ma_at_exit)
 
 
@@ -194,14 +194,14 @@ def test_empty_or_missing_data_returns_warning_not_crash():
 
 # ---- exit and P&L -------------------------------------------------------------
 
-def test_exit_on_first_close_below_20_sma_profit():
+def test_exit_when_price_reaches_the_saved_stop_long_trade():
     df = weekly(WINNER)
     t = run_system_one_backtest(df).trades[0]
     assert t.status == "CLOSED"
     assert t.exit_date == df.index[52]
-    assert t.exit_price == 125.0
-    assert t.pnl_amount == pytest.approx((125.0 - 108.0) * 1360)  # +23,120
-    assert t.pnl_amount > 0
+    assert t.exit_price == 100.0  # candle opens below the stop: gap, exit at the open
+    assert t.pnl_amount == pytest.approx((100.0 - 108.0) * 1360)  # -10,880
+    assert t.pnl_amount < 0  # a stop-only exit is always at or below entry
 
 
 def test_exit_loss_is_negative():
@@ -232,6 +232,40 @@ def test_summary_counts_only_closed_trades():
     s = run_system_one_backtest(weekly(LOSER)).summary()
     assert (s.total_trades, s.closed_trades, s.winning_trades, s.losing_trades) == (1, 1, 0, 1)
     assert s.net_realized_pnl == pytest.approx(-10_880)
+
+
+def test_low_touching_stop_exits_at_the_stop_price_even_if_close_is_above():
+    # Candle 38 closes at 110 (above the stop 100.65) but its Low is 100: the stop was hit intraday.
+    df = weekly(LOSER)
+    df.iloc[38, df.columns.get_loc("low")] = 100.0
+    t = run_system_one_backtest(df).trades[0]
+    assert t.exit_date == df.index[38]
+    assert t.exit_price == pytest.approx(100.65)  # the stop, not the Low
+    assert t.pnl_amount == pytest.approx((100.65 - 108.0) * 1360)
+
+
+def test_low_above_stop_does_not_exit():
+    df = weekly(LOSER)
+    df.iloc[38, df.columns.get_loc("low")] = 105.0  # above the stop 100.65
+    assert run_system_one_backtest(df).trades[0].exit_date == df.index[39]
+
+
+def test_close_below_20_sma_exits_at_that_candles_close():
+    # Test B: candle 39 opens and closes at 100, below the stop 100.65 (gap): exit at the open
+    df = weekly(LOSER)
+    df.iloc[39, df.columns.get_loc("low")] = 90.0
+    t = run_system_one_backtest(df).trades[0]
+    assert (t.exit_date, t.exit_price) == (df.index[39], 100.0)
+
+
+def test_gap_through_stop_reports_the_real_loss_not_the_planned_risk():
+    # Test E: entry 108, stop 100.65, qty 1360. The next weekly close is 70, far below the stop.
+    # The rule exits at the close, so the real loss is (70-108)*1360 = -51,680, well over the 10,000 planned.
+    t = run_system_one_backtest(weekly(FLAT + RALLY[:2] + [70])).trades[0]
+    assert t.exit_price == 70.0 and t.exit_price < t.stop_loss
+    assert t.pnl_amount == pytest.approx(-51_680)
+    assert abs(t.pnl_amount) > t.risk_per_trade
+    assert t.risk_per_trade == 10_000.0  # planned risk stays the planned figure
 
 
 # ---- date window ---------------------------------------------------------------
@@ -297,7 +331,7 @@ def test_summary_statistics_are_none_not_zero_when_there_is_nothing_to_compute()
     s = run_system_one_backtest(weekly(NO_SIGNAL)).summary()
     assert s.win_rate is None and s.profit_factor is None and s.best_trade is None
     only_win = run_system_one_backtest(weekly(WINNER)).summary()
-    assert only_win.win_rate == 100.0 and only_win.average_loss is None and only_win.profit_factor is None
+    assert only_win.win_rate == 0.0 and only_win.average_win is None and only_win.profit_factor == 0.0
     only_open = run_system_one_backtest(weekly(STILL_OPEN)).summary()
     assert only_open.win_rate is None
 
@@ -343,10 +377,22 @@ def test_api_returns_real_trade_rows(client, monkeypatch):
     assert t["stop_loss"] == pytest.approx(100.65)
     assert t["risk_per_share"] == pytest.approx(7.35)
     assert t["quantity"] == 1360
-    assert t["exit_price"] == 125.0
-    assert t["pnl_amount"] == pytest.approx(23_120)
-    assert body["summary"]["net_realized_pnl"] == pytest.approx(23_120)
+    assert t["exit_price"] == 100.0
+    assert t["pnl_amount"] == pytest.approx(-10_880)
+    assert body["summary"]["net_realized_pnl"] == pytest.approx(-10_880)
     assert "gross" in body["note"]
+
+
+def test_api_trade_matches_chart_candles(client, monkeypatch):
+    # Test G: the entry/exit markers sit on candles whose CLOSE equals the trade's prices.
+    _patch_data(monkeypatch, LOSER)
+    body = client.post("/api/system-one/backtest", json=_BODY).json()
+    t = body["trades"][0]
+    by_date = {c["date"]: c for c in body["candles"]}
+    assert by_date[t["entry_date"]]["close"] == t["entry_price"]
+    assert by_date[t["exit_date"]]["close"] == t["exit_price"]
+    assert t["pnl_amount"] == pytest.approx((t["exit_price"] - t["entry_price"]) * t["quantity"])
+    assert t["stop_loss"] == pytest.approx(by_date[t["entry_date"]]["ma"])
 
 
 def test_api_returns_chart_candles_and_summary_stats(client, monkeypatch):
@@ -356,8 +402,8 @@ def test_api_returns_chart_candles_and_summary_stats(client, monkeypatch):
     first, entry = body["candles"][0], body["candles"][ENTRY_IDX]
     assert first["rsi"] is None and first["ma"] is None  # JSON null, not NaN
     assert entry["close"] == 108.0 and entry["ma"] == pytest.approx(100.65)
-    assert body["summary"]["win_rate"] == 100.0
-    assert body["summary"]["profit_factor"] is None
+    assert body["summary"]["win_rate"] == 0.0
+    assert body["summary"]["average_win"] is None
 
 
 def test_api_timeframe_defaults_to_weekly(client, monkeypatch):
@@ -428,10 +474,10 @@ def test_excel_export_matches_ui_columns_and_values(client, monkeypatch):
     ]
     r = rows[1]
     assert r[0].date() == weekly(WINNER).index[31].date()
-    assert r[1] == 108.0 and r[5] == 1360 and r[6] == 125.0
+    assert r[1] == 108.0 and r[5] == 1360 and r[6] == 100.0
     assert r[2] == pytest.approx(100.65) and r[3] == pytest.approx(7.35) and r[4] == 10_000.0
     assert r[7].date() == weekly(WINNER).index[52].date()
-    assert r[8] == pytest.approx(23_120)
+    assert r[8] == pytest.approx(-10_880)
     assert len(rows) == 2
 
 

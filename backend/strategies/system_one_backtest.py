@@ -14,8 +14,10 @@ Rules (all on the SAME candle series, whatever its timeframe):
                   (never overwritten by later MA values).
   * Risk/share  : entry price - stop loss.
   * Quantity    : floor(risk per trade / risk per share), whole shares.
-  * Exit        : first candle after the entry candle whose CLOSE is below its
-                  own 20 SMA; exit price is that candle's close.
+  * Exit        : first candle after the entry candle whose LOW touches the
+                  saved stop loss; exit price is the stop. If the candle OPENS
+                  at/below the stop (gap), exit price is the open (real loss
+                  can then exceed the planned risk).
   * No exit before the data ends -> the trade stays OPEN (no exit price, no
     realised P&L).
   * One trade at a time: signals while a trade is open are ignored.
@@ -231,16 +233,22 @@ def run_system_one_backtest(
             status="OPEN",
         )
 
+        # Stop hit: the candle's low reaches the frozen stop. If the candle opens
+        # at/below the stop (a gap) we cannot get the stop price, so exit at the open.
         exit_idx = None
+        exit_price = None
         for j in range(entry_idx + 1, n):
-            if not _is_missing(ma_values[j]) and closes[j] < ma_values[j]:
-                exit_idx = j
+            if opens[j] <= stop_loss:
+                exit_idx, exit_price = j, opens[j]
+                break
+            if lows[j] <= stop_loss:
+                exit_idx, exit_price = j, stop_loss
                 break
 
         if exit_idx is not None:
             trade.status = "CLOSED"
             trade.exit_date = dates[exit_idx]
-            trade.exit_price = closes[exit_idx]
+            trade.exit_price = exit_price
             trade.pnl_amount = (trade.exit_price - entry_price) * quantity
 
         result.trades.append(trade)
