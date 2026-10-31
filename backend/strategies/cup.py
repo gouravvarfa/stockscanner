@@ -264,10 +264,14 @@ def _find_cup_structure(monthly: pd.DataFrame, config: CupConfig) -> tuple[dict[
             continue
         # Continuation-only (2026-09-25): the cup must be a correction
         # inside an existing uptrend — see _validate_pre_cup_uptrend.
-        is_uptrend, trend_start_date, trend_start_price = _validate_pre_cup_uptrend(monthly, left_rim_idx, config)
-        if not is_uptrend:
-            last_rejection_reason = "no_established_uptrend_before_cup"
-            continue
+        # 2026-10-31: only enforced when require_pre_cup_uptrend is on (off
+        # by default — the Cup Level 1 spec needs just the cup itself).
+        trend_start_date, trend_start_price = None, None
+        if config.require_pre_cup_uptrend:
+            is_uptrend, trend_start_date, trend_start_price = _validate_pre_cup_uptrend(monthly, left_rim_idx, config)
+            if not is_uptrend:
+                last_rejection_reason = "no_established_uptrend_before_cup"
+                continue
         distance = abs((left_rim_price - latest_close) / left_rim_price * 100.0)
         if best_distance is None or distance < best_distance:
             best_distance = distance
@@ -485,7 +489,7 @@ def _detect_cup_structure_and_status(
         "cup_type": structure["cup_type"],
         "bottom_duration_months": structure["bottom_duration_months"],
         "recovery_duration_months": b_idx - cup_low_idx if structure["recovery_duration_months"] is None else structure["recovery_duration_months"],
-        "trend_before_cup": "UPTREND",
+        "trend_before_cup": "UPTREND" if structure["trend_start_date"] is not None else None,
         "trend_start_date": structure["trend_start_date"].isoformat() if structure["trend_start_date"] is not None else None,
         "trend_start_price": structure["trend_start_price"],
         "cup_duration_months": cup_age_months,

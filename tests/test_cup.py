@@ -42,6 +42,9 @@ def _flat_run(year_start: int, month_start: int, n: int, price: float, vol: floa
 
 
 DEFAULT_CONFIG = CupConfig()
+# The pre-cup-uptrend rule is off by default (2026-10-31); the tests that
+# exercise that rule itself opt back in explicitly.
+UPTREND_CONFIG = CupConfig(require_pre_cup_uptrend=True)
 
 
 def test_insufficient_history_short_series():
@@ -1024,7 +1027,7 @@ def _specs_with_lead_in(lead_in_prices, left_rim=1000.0, cup_low=600.0, recovery
 def test_uptrend_then_correction_then_rounded_cup_is_accepted_with_trend_fields():
     lead_in = [550.0 + 350.0 * i / 11 for i in range(12)]  # steady advance 550 -> 900
     specs, (y, m) = _specs_with_lead_in(lead_in)
-    result = detect_cup(_monthly_frame(specs), DEFAULT_CONFIG, now=dt.datetime(y, m, 10))
+    result = detect_cup(_monthly_frame(specs), UPTREND_CONFIG, now=dt.datetime(y, m, 10))
     assert result["status"] in ("EARLY_CUP", "NEAR_BREAKOUT")
     assert result["trend_before_cup"] == "UPTREND"
     assert result["trend_start_price"] == pytest.approx(550.0)  # the low the uptrend started from
@@ -1042,7 +1045,7 @@ def test_bear_market_recovery_is_rejected_not_called_a_cup():
     # but the window as a whole is FALLING (a bounce in a bear market).
     lead_in = [1600.0, 1500.0, 1400.0, 1300.0, 1200.0, 1100.0, 1000.0, 900.0, 800.0, 700.0, 800.0, 900.0]
     specs, (y, m) = _specs_with_lead_in(lead_in)
-    result = detect_cup(_monthly_frame(specs), DEFAULT_CONFIG, now=dt.datetime(y, m, 10))
+    result = detect_cup(_monthly_frame(specs), UPTREND_CONFIG, now=dt.datetime(y, m, 10))
     assert result["status"] == "NO_SIGNAL"
     assert result["rejection_reason"] == "no_established_uptrend_before_cup"
     assert result["trend_before_cup"] is None
@@ -1053,7 +1056,7 @@ def test_flat_sideways_market_before_the_rim_is_not_an_uptrend():
     # established uptrend (min gain 15%).
     lead_in = [950.0] * 12
     specs, (y, m) = _specs_with_lead_in(lead_in)
-    result = detect_cup(_monthly_frame(specs), DEFAULT_CONFIG, now=dt.datetime(y, m, 10))
+    result = detect_cup(_monthly_frame(specs), UPTREND_CONFIG, now=dt.datetime(y, m, 10))
     assert result["status"] == "NO_SIGNAL"
     assert result["rejection_reason"] == "no_established_uptrend_before_cup"
 
@@ -1065,7 +1068,7 @@ def test_single_spike_off_a_base_without_a_rising_bias_is_not_an_uptrend():
     to the rim (+47% off the low, but no uptrend led into it)."""
     lead_in = [900.0 - 20.0 * i for i in range(12)]  # 900 -> 680
     specs, (y, m) = _specs_with_lead_in(lead_in)
-    result = detect_cup(_monthly_frame(specs), DEFAULT_CONFIG, now=dt.datetime(y, m, 10))
+    result = detect_cup(_monthly_frame(specs), UPTREND_CONFIG, now=dt.datetime(y, m, 10))
     assert result["status"] == "NO_SIGNAL"
     assert result["rejection_reason"] == "no_established_uptrend_before_cup"
 
@@ -1075,7 +1078,7 @@ def test_rim_with_too_little_prior_history_to_confirm_an_uptrend_is_rejected():
     # "bullish" can't be confirmed, so it isn't assumed.
     lead_in = [700.0, 800.0]
     specs, (y, m) = _specs_with_lead_in(lead_in, n_decline=40, n_recover=40)
-    result = detect_cup(_monthly_frame(specs), DEFAULT_CONFIG, now=dt.datetime(y, m, 10))
+    result = detect_cup(_monthly_frame(specs), UPTREND_CONFIG, now=dt.datetime(y, m, 10))
     assert result["status"] == "NO_SIGNAL"
     assert result["rejection_reason"] == "no_established_uptrend_before_cup"
 
@@ -1085,7 +1088,7 @@ def test_short_post_listing_rally_counts_as_the_pre_cup_uptrend():
     is its whole pre-cup history - accepted (>= 4 months, rising, big gain)."""
     lead_in = [300.0 + 100.0 * i for i in range(6)]  # 300 -> 800
     specs, (y, m) = _specs_with_lead_in(lead_in, left_rim=840.0, cup_low=460.0, recovery_close=800.0, n_decline=40, n_recover=24)
-    result = detect_cup(_monthly_frame(specs), DEFAULT_CONFIG, now=dt.datetime(y, m, 10))
+    result = detect_cup(_monthly_frame(specs), UPTREND_CONFIG, now=dt.datetime(y, m, 10))
     assert result["status"] in ("EARLY_CUP", "NEAR_BREAKOUT")
     assert result["trend_before_cup"] == "UPTREND"
     assert result["trend_start_price"] == pytest.approx(300.0)
@@ -1117,7 +1120,7 @@ def test_among_multiple_cups_only_the_one_inside_an_uptrend_is_selected():
     for _ in range(30):  # recovery toward the rim
         price += 450.0 / 30
         specs.append((y, m, price, price, price, price, 1000.0)); y, m = _step_month(y, m)
-    result = detect_cup(_monthly_frame(specs), DEFAULT_CONFIG, now=dt.datetime(y, m, 10))
+    result = detect_cup(_monthly_frame(specs), UPTREND_CONFIG, now=dt.datetime(y, m, 10))
     assert result["trend_before_cup"] == "UPTREND"
     assert result["left_rim_price"] == pytest.approx(1600.0, abs=1.0)
 
@@ -1134,7 +1137,7 @@ def test_confirmed_breakout_reports_the_full_continuation_structure():
     )
     df = pd.concat([df, stub])
     now = dt.datetime(df.index[-2].year, df.index[-2].month, 28) + pd.Timedelta(days=10)
-    result = detect_cup(df, DEFAULT_CONFIG, now=now)
+    result = detect_cup(df, UPTREND_CONFIG, now=now)
     assert result["status"] == "BREAKOUT_CONFIRMED"
     assert result["trend_before_cup"] == "UPTREND"
     assert result["trend_start_date"] < result["left_rim_date"] < result["cup_bottom_date"] < result["right_rim_date"]

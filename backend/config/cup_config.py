@@ -149,6 +149,10 @@ class CupConfig(BaseModel):
     # rim Dec-2021 — its post-IPO rally IS its pre-cup uptrend) — whatever
     # prior history exists is used, as long as there are at least
     # pre_cup_trend_min_history_months of it.
+    # 2026-10-31: OFF by default — per explicit user direction, the Cup
+    # Level 1 scanner only needs the cup itself, not an uptrend before it.
+    # Set True to restore the 2026-09-25 continuation-only behavior.
+    require_pre_cup_uptrend: bool = False
     pre_cup_trend_lookback_months: int = 12
     pre_cup_trend_min_history_months: int = 4
     pre_cup_trend_min_gain_pct: float = 15.0

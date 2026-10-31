@@ -116,3 +116,19 @@ def test_empty_or_missing_data_is_not_a_signal():
     result = detect_cup(empty, CONFIG)
     assert result["status"] == "INSUFFICIENT_HISTORY"
     assert "entry_price" not in result
+
+
+def test_cup_without_a_prior_uptrend_is_accepted_by_default():
+    # A bear-market-style lead-in (falling before the rim) used to be
+    # rejected as "no_established_uptrend_before_cup"; the uptrend rule is
+    # now off, so the cup alone decides.
+    from tests.test_cup import _cup_specs as cup_specs
+
+    specs, (y, m) = cup_specs(left_rim=1000.0, cup_low=600.0, recovery_close=850.0)
+    # Replace the rising lead-in with a falling one.
+    for i in range(12):
+        price = 900.0 - i * 15
+        specs[i] = (specs[i][0], specs[i][1], price, price, price, price, 1000.0)
+    result = detect_cup(_monthly_frame(specs), CONFIG, now=dt.datetime(y, m, 10))
+    assert result["status"] == "EARLY_CUP"
+    assert result["trend_before_cup"] is None
