@@ -731,9 +731,15 @@ def test_sonacoms_like_short_total_history_uses_relaxed_room_requirement():
     df = _monthly_frame(specs)
     total_months = len(specs)
     assert DEFAULT_CONFIG.min_cup_months < total_months < DEFAULT_CONFIG.min_cup_months + 12  # short total history, matching SONACOMS (~5.25y)
-    result = detect_cup(df, DEFAULT_CONFIG, now=dt.datetime(y, m, 10))
+    # Relaxation is OFF by default since the strict 5-year Cup Level 1 spec
+    # (2026-10-31) — this legacy behavior is now opt-in via the flag.
+    relaxed = CupConfig(allow_short_history_relaxation=True)
+    result = detect_cup(df, relaxed, now=dt.datetime(y, m, 10))
     assert result["status"] in ("EARLY_CUP", "NEAR_BREAKOUT", "BREAKOUT_CONFIRMED", "RECENT_BREAKOUT")
     assert result["left_rim_price"] == pytest.approx(700.0, abs=1.0)
+    # ...and with the default (strict) config the same chart is rejected.
+    strict = detect_cup(df, DEFAULT_CONFIG, now=dt.datetime(y, m, 10))
+    assert strict["status"] == "NO_SIGNAL"
 
 
 def test_short_history_relaxation_never_exceeds_the_normal_five_year_rule():
@@ -813,7 +819,10 @@ def _v_shaped_deep_specs():
 def test_deep_cup_50_to_60_percent_v_shaped_spike_is_rejected_as_no_signal():
     specs, (y, m) = _v_shaped_deep_specs()
     df = _monthly_frame(specs)
-    result = detect_cup(df, DEFAULT_CONFIG, now=dt.datetime(y, m, 10))
+    # This fixture has only ~59 months after the rim — it exercises the
+    # deep-cup SHAPE check, not the 5-year rule, so it opts into the
+    # (now off-by-default) short-history relaxation to reach that check.
+    result = detect_cup(df, CupConfig(allow_short_history_relaxation=True), now=dt.datetime(y, m, 10))
     assert result["status"] == "NO_SIGNAL"
     assert result["rejection_reason"] == "v_shaped_recovery_too_sharp"
     assert result["invalidation_reason"] == "v_shaped_recovery_too_sharp"

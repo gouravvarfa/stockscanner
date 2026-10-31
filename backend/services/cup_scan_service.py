@@ -55,7 +55,7 @@ def _cup_result_to_signal(symbol: str, instrument_type: str, cup_result: dict[st
     without that plumbing needing to know anything Cup-specific. RSI fields
     are not applicable to Cup and are always None."""
     extra = dict(cup_result)
-    extra["current_price"] = cup_result.get("latest_monthly_close")
+    extra["current_price"] = cup_result.get("current_price", cup_result.get("latest_monthly_close"))
     extra["data_source"] = "ANGEL_ONE"
     status = cup_result["status"]
     return StrategySignal(
@@ -117,6 +117,7 @@ async def run_cup_scan(
 
         stocks_scanned += 1
         cup_result["symbol"] = symbol
+        cup_result["company_name"] = universe_loader.company_name_for(symbol)
         cup_result["instrument_type"] = instrument_type
         cup_result["updated_at"] = dt.datetime.utcnow().isoformat()
 

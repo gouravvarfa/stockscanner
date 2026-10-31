@@ -80,6 +80,32 @@ def load_a_group_universe() -> list[str]:
     return list(_a_group_cache)
 
 
+_company_names_cache: dict[str, str] | None = None
+
+
+def company_name_for(symbol: str) -> str | None:
+    """Display-only: the 'NSE Company Name' column of the same Excel file
+    (never used by any strategy). None if the file/column/row is missing —
+    a missing name must never break a scan."""
+    global _company_names_cache
+    if _company_names_cache is None:
+        names: dict[str, str] = {}
+        try:
+            wb = openpyxl.load_workbook(A_GROUP_PATH, read_only=True, data_only=True)
+            ws = wb.active
+            header = list(next(ws.iter_rows(min_row=1, max_row=1, values_only=True), ()))
+            if "Symbol" in header and "NSE Company Name" in header:
+                s_idx, n_idx = header.index("Symbol"), header.index("NSE Company Name")
+                for row in ws.iter_rows(min_row=2, values_only=True):
+                    if len(row) > max(s_idx, n_idx) and row[s_idx] and row[n_idx]:
+                        names[str(row[s_idx]).strip().upper()] = str(row[n_idx]).strip()
+        except (OSError, ValueError):
+            pass
+        _company_names_cache = names
+    return _company_names_cache.get(symbol.strip().upper())
+
+
 def reset_cache_for_tests() -> None:
-    global _a_group_cache
+    global _a_group_cache, _company_names_cache
     _a_group_cache = None
+    _company_names_cache = None

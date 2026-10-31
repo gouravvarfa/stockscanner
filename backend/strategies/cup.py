@@ -32,6 +32,7 @@ import pandas as pd
 from backend.config.cup_config import CupConfig
 from backend.divergence.swing import find_swing_points
 from backend.indicators.resample import to_monthly
+from backend.strategies.cup_levels import compute_trade_levels, status_group, targets_crossed
 
 STATUS_EARLY_CUP = "EARLY_CUP"
 STATUS_NEAR_BREAKOUT = "NEAR_BREAKOUT"
@@ -196,10 +197,12 @@ def _find_cup_structure(monthly: pd.DataFrame, config: CupConfig) -> tuple[dict[
     # never below short_history_min_cup_months, and NEVER larger than
     # min_cup_months, so a stock with genuinely 5+ years available is
     # completely unaffected by this.
-    effective_min_cup_months = min(
-        config.min_cup_months,
-        max(config.short_history_min_cup_months, int(n * config.short_history_ratio)),
-    )
+    effective_min_cup_months = config.min_cup_months
+    if config.allow_short_history_relaxation:
+        effective_min_cup_months = min(
+            config.min_cup_months,
+            max(config.short_history_min_cup_months, int(n * config.short_history_ratio)),
+        )
 
     swing_highs = [p.index for p in find_swing_points(monthly["high"], monthly["low"], 2) if p.kind == "high"]
     candidate_idxs = [i for i in swing_highs if i <= b_idx - effective_min_cup_months]
@@ -365,7 +368,33 @@ def detect_cup(
     bars belong to the still-in-progress current calendar month for the
     informational BREAKOUT_FORMING check; every other field comes only from
     completed monthly candles.
+
+    Wraps the structure/status detection below and then attaches, for every
+    qualifying result, the neckline, entry/stop-loss/targets (all from
+    backend/strategies/cup_levels.py — the single calculation point) and the
+    3-way status_group.
     """
+    result = _detect_cup_structure_and_status(daily_ohlcv, config, now)
+    neckline = result.get("potential_breakout_level")
+    if result["status"] in QUALIFYING_STATUSES and neckline:
+        levels = compute_trade_levels(neckline, config)
+        current_price = float(daily_ohlcv["close"].iloc[-1])
+        result.update({
+            "neckline": neckline,
+            "cup_start_date": result["left_rim_date"],
+            "current_price": current_price,
+            "status_group": status_group(result["status"]),
+            "targets_crossed": targets_crossed(current_price, levels),
+            **levels,
+        })
+    return result
+
+
+def _detect_cup_structure_and_status(
+    daily_ohlcv: pd.DataFrame,
+    config: CupConfig,
+    now: dt.datetime | None = None,
+) -> dict[str, Any]:
     now = now or dt.datetime.now()
     result: dict[str, Any] = {
         "status": STATUS_INSUFFICIENT_HISTORY,

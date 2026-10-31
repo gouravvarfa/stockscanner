@@ -62,6 +62,22 @@ class CupConfig(BaseModel):
     # actually have 5+ years available.
     short_history_min_cup_months: int = 24
     short_history_ratio: float = 0.65
+    # 2026-10-31 (Cup Level 1 spec): the 5-year minimum is strict — a cup
+    # with fewer than min_cup_months completed monthly candles never
+    # qualifies, so the short-history relaxation above is OFF by default.
+    # Kept (not deleted) so the SONACOMS-style behavior can be re-enabled
+    # with a single flag if ever wanted again.
+    allow_short_history_relaxation: bool = False
+
+    # ---- Trade levels (2026-10-31, Cup Level 1 handwritten diagram) -------
+    # Every level is a % of the stock's own NECKLINE (never of the entry
+    # price) — see backend/strategies/cup_levels.py, the single place these
+    # are computed.
+    entry_above_neckline_pct: float = 4.0
+    stop_loss_below_neckline_pct: float = 2.0
+    target_1_above_neckline_pct: float = 10.0
+    target_2_above_neckline_pct: float = 20.0
+    target_3_above_neckline_pct: float = 30.0
 
     # ---- Breakout classification -----------------------------------------
     near_breakout_pct: float = 10.0

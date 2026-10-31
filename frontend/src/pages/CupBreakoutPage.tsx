@@ -18,6 +18,7 @@ const SCAN_TYPE = "cup_breakout";
 
 interface CupResult {
   symbol: string;
+  company_name?: string | null;
   instrument_type: "FUTURE" | "EQUITY" | null;
   status: string;
   left_rim_date: string | null;
@@ -54,6 +55,18 @@ interface CupResult {
   handle_end_date?: string | null;
   handle_low_price?: number | null;
   cup_type?: string | null;
+  // Cup Level 1 trade levels (2026-10-31) — all computed server-side in
+  // backend/strategies/cup_levels.py; the page only displays them.
+  neckline?: number | null;
+  cup_start_date?: string | null;
+  current_price?: number | null;
+  status_group?: "CUP_FORMING" | "AWAITING_BREAKOUT" | "BREAKOUT_CONFIRMED" | null;
+  entry_price?: number | null;
+  stop_loss?: number | null;
+  target_1?: number | null;
+  target_2?: number | null;
+  target_3?: number | null;
+  targets_crossed?: number | null;
 }
 
 interface CupScanResult {
@@ -65,6 +78,12 @@ interface CupScanResult {
   failed_symbols: string[];
   results: CupResult[];
 }
+
+const GROUP_LABELS: Record<string, string> = {
+  CUP_FORMING: "Cup Forming",
+  AWAITING_BREAKOUT: "Awaiting Breakout",
+  BREAKOUT_CONFIRMED: "Breakout Confirmed",
+};
 
 const STATUS_TABS = [
   { key: "all", label: "All" },
@@ -315,21 +334,29 @@ export function CupBreakoutPage() {
               <thead>
                 <tr>
                   <th>Symbol</th>
+                  <th>Company</th>
                   <th>Type</th>
                   <th>Status</th>
+                  <th>Group</th>
                   <th className="num-cell">Price</th>
-                  <th className="num-cell">Breakout Level</th>
+                  <th className="num-cell">Neckline</th>
                   <th className="num-cell">Distance</th>
+                  <th className="num-cell">Entry (+4%)</th>
+                  <th className="num-cell">Stop Loss (−2%)</th>
+                  <th className="num-cell">Target 1 (+10%)</th>
+                  <th className="num-cell">Target 2 (+20%)</th>
+                  <th className="num-cell">Target 3 (+30%)</th>
+                  <th>Cup Start</th>
+                  <th className="num-cell">Cup Duration</th>
                   <th className="num-cell">Cup Depth</th>
                   <th className="num-cell">Recovery</th>
-                  <th className="num-cell">Cup Age</th>
                   <th className="num-cell">Breakout %</th>
                   <th>Chart</th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.length === 0 ? (
-                  <tr><td colSpan={11} className="muted small" style={{ padding: 16 }}>No stocks match these filters.</td></tr>
+                  <tr><td colSpan={18} className="muted small" style={{ padding: 16 }}>No stocks match these filters.</td></tr>
                 ) : (
                   filtered.map((r) => (
                     <tr key={r.symbol}>
@@ -337,14 +364,25 @@ export function CupBreakoutPage() {
                         <b>{r.symbol}</b>
                         <InstrumentBadge type={r.instrument_type} />
                       </td>
+                      <td>{r.company_name ?? "—"}</td>
                       <td>{r.instrument_type ?? "—"}</td>
                       <td><span className={statusChipClass(r.status)}>{statusLabel(r.status)}</span></td>
-                      <td className="num-cell">{fmtPrice(r.latest_monthly_close)}</td>
-                      <td className="num-cell">{fmtPrice(r.potential_breakout_level)}</td>
+                      <td>
+                        {r.status_group ? GROUP_LABELS[r.status_group] : "—"}
+                        {!!r.targets_crossed && <span className="chip chip-pass" style={{ marginLeft: 6 }}>Target {r.targets_crossed} paar</span>}
+                      </td>
+                      <td className="num-cell">{fmtPrice(r.current_price ?? r.latest_monthly_close)}</td>
+                      <td className="num-cell">{fmtPrice(r.neckline ?? r.potential_breakout_level)}</td>
                       <td className="num-cell">{fmtPct(r.distance_to_breakout_percent)}</td>
+                      <td className="num-cell">{fmtPrice(r.entry_price)}</td>
+                      <td className="num-cell">{fmtPrice(r.stop_loss)}</td>
+                      <td className="num-cell">{fmtPrice(r.target_1)}</td>
+                      <td className="num-cell">{fmtPrice(r.target_2)}</td>
+                      <td className="num-cell">{fmtPrice(r.target_3)}</td>
+                      <td>{fmtDay(r.cup_start_date ?? r.left_rim_date)}</td>
+                      <td className="num-cell">{r.cup_age_years !== null ? `${r.cup_age_years.toFixed(1)}Y` : "—"}</td>
                       <td className="num-cell">{fmtPct(r.cup_depth_percent)}</td>
                       <td className="num-cell">{fmtPct(r.recovery_percent)}</td>
-                      <td className="num-cell">{r.cup_age_years !== null ? `${r.cup_age_years.toFixed(1)}Y` : "—"}</td>
                       <td className="num-cell">{r.breakout_percent !== null ? fmtPct(r.breakout_percent, true) : "—"}</td>
                       <td>
                         <button
