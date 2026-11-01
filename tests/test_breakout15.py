@@ -437,12 +437,12 @@ def test_export_xlsx_matches_the_users_manual_sheet_layout():
               "rows": [r.as_dict() for r in rows]}
     ws = openpyxl.load_workbook(io.BytesIO(build_xlsx(result))).active
     assert ws.title == "Sheet1" and ws["A1"].value == "NIFTY 50"
-    assert [c.value for c in ws[3]] == ["DATE", "TIME", "CALL/PUT", "15 minute candel", "15 minute candel points", "PROFIT", "LOSS", "PERCENTAGE", "POINTS"]
+    assert [c.value for c in ws[3]] == ["DATE", "TIME", "CALL/PUT", "15 minute candel", "15 minute candel points", "PROFIT", "LOSS", "PERCENTAGE", "POINTS", "RISK:REWARD"]
     r4, r5, r6 = ([c.value for c in ws[i]] for i in (4, 5, 6))
     assert r4[0].date() == D and r4[1] == dt.time(10, 0) and r4[2] == "CALL" and round(r4[3], 4) == 0.2 and r4[4] == 20
-    assert r4[5] == "PROFIT" and r4[6] is None and round(r4[7], 6) == round(10 / 110, 6) and r4[8] == 10
-    assert r5[2] == "CALL" and r5[5] is None and r5[6] == "LOSS" and round(r5[7], 6) == round(20 / 110, 6) and r5[8] == 20
-    assert r6[1] is None and r6[2] == "NO ENTRY" and r6[4] == 20 and r6[5:] == [None, None, None, None]
+    assert r4[5] == "PROFIT" and r4[6] is None and round(r4[7], 6) == round(10 / 110, 6) and r4[8] == 10 and r4[9] == "1:0.50"
+    assert r5[2] == "CALL" and r5[5] is None and r5[6] == "LOSS" and round(r5[7], 6) == round(20 / 110, 6) and r5[8] == 20 and r5[9] == "1:-1.00"
+    assert r6[1] is None and r6[2] == "NO ENTRY" and r6[4] == 20 and r6[5:] == [None, None, None, None, None]
     assert ws["D4"].number_format == "0.00%" and ws["A4"].number_format == "d-mmm-yy" and ws.max_row == 6
 
 
