@@ -44,6 +44,7 @@ class RunRequest(BaseModel):
     to_date: dt.date
     exit_mode: str = "CLOSE"  # CLOSE = 15:30 close (last candle) | SECOND_LAST = second-last candle close
     bar_minutes: int = 15  # candle size: 15 or 5
+    exit_time: str | None = None  # "HH:MM" START of the candle whose close is the exit; None = use exit_mode
     entry_start: str | None = None  # "HH:MM": ignore breakouts before this time; None = right after the first candle
 
 
@@ -115,6 +116,7 @@ async def _run(job_id: str, req: RunRequest) -> None:
             return await fetch_candles(INTERVAL_BY_BAR[req.bar_minutes], a, b)
 
         entry_start = parse_entry_start(req.entry_start)
+        exit_start = parse_entry_start(req.exit_time)
         bars = await fetch_bars(token, req.from_date, req.to_date, fetch_chunk,
                                 progress=lambda d, t: job.update(done=d, total=t), bar_minutes=req.bar_minutes)
         if not bars:
@@ -122,7 +124,7 @@ async def _run(job_id: str, req: RunRequest) -> None:
         # Days where one 15-minute candle broke both ends of the first candle: order the break from the real
         # 1-minute candles of just that candle, so the day gets a single CALL or PUT.
         minute_bars: dict[dt.date, list[tuple]] = {}
-        todo = engine.ambiguous_candles(bars, req.exit_mode, req.bar_minutes, entry_start)
+        todo = engine.ambiguous_candles(bars, req.exit_mode, req.bar_minutes, entry_start, exit_start)
         job.update(phase="resolving", done=0, total=len(todo))
         for n, (day, start) in enumerate(sorted(todo.items()), 1):
             await asyncio.sleep(CHUNK_DELAY_SECONDS)
@@ -132,10 +134,10 @@ async def _run(job_id: str, req: RunRequest) -> None:
             except Exception:  # noqa: BLE001 - that day simply stays unresolved (flagged), the run continues
                 minute_bars[day] = []
             job.update(done=n)
-        rows, summary = engine.run_backtest(bars, req.exit_mode, minute_bars, req.bar_minutes, entry_start)
+        rows, summary = engine.run_backtest(bars, req.exit_mode, minute_bars, req.bar_minutes, entry_start, exit_start)
         _results[req.symbol] = {
             "symbol": req.symbol, "token": token, "exit_mode": req.exit_mode,
-            "bar_minutes": req.bar_minutes, "entry_start": req.entry_start or None, "from": req.from_date.isoformat(), "to": req.to_date.isoformat(),
+            "bar_minutes": req.bar_minutes, "entry_start": req.entry_start or None, "exit_time": req.exit_time or None, "from": req.from_date.isoformat(), "to": req.to_date.isoformat(),
             "generated_at": dt.datetime.now(IST).isoformat(timespec="seconds"), "summary": summary,
             "rows": [r.as_dict() for r in rows],
         }
@@ -152,11 +154,18 @@ async def start_run(req: RunRequest) -> dict:
         raise HTTPException(400, f"bar_minutes must be one of {list(engine.BAR_MINUTES)}")
     try:
         start_t = parse_entry_start(req.entry_start)
+        exit_t = parse_entry_start(req.exit_time)
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
     lay = engine.bar_layout(req.bar_minutes)
     if start_t is not None and not (lay["first_end"] <= start_t <= lay["last_start"]):
         raise HTTPException(400, f"entry_start must be between {lay['first_end']:%H:%M} and {lay['last_start']:%H:%M} for {req.bar_minutes}-minute candles")
+    for label, value in (("entry_start", start_t), ("exit_time", exit_t)):
+        if value is not None and not (lay["first_end"] <= value <= lay["last_start"]
+                                      and (value.hour * 60 + value.minute - engine.SESSION_OPEN_MIN) % req.bar_minutes == 0):
+            raise HTTPException(400, f"{label} must be a {req.bar_minutes}-minute candle time")
+    if start_t is not None and start_t >= (exit_t or lay["last_start"]):
+        raise HTTPException(400, "the base candle must start before the exit candle")
     if req.exit_mode not in engine.EXIT_MODES:
         raise HTTPException(400, f"exit_mode must be one of {list(engine.EXIT_MODES)}")
     if req.from_date > req.to_date:

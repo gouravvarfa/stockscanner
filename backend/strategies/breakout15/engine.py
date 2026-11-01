@@ -48,6 +48,7 @@ def bar_layout(bar_minutes: int) -> dict:
 
 STOP_LOSS, MARKET_CLOSE, NO_ENTRY, DATA_INCOMPLETE = "STOP_LOSS", "MARKET_CLOSE", "NO_ENTRY", "DATA_INCOMPLETE"
 SECOND_LAST_CLOSE = "SECOND_LAST_CLOSE"
+TIMED_EXIT = "TIMED_EXIT"
 DATA_ENDED = "DATA_ENDED_BEFORE_CLOSE"
 CALL, PUT, BOTH = "CALL", "PUT", "BOTH"
 EXIT_MODES = ("CLOSE", "SECOND_LAST")
@@ -115,24 +116,27 @@ def _resolve_side(candle_start: dt.datetime, minutes: list[Bar] | None, h: float
 
 
 def run_day(day: dt.date, bars: list[Bar], exit_mode: str = "CLOSE", minute_bars: list[Bar] | None = None,
-            bar_minutes: int = DEFAULT_BAR_MINUTES, entry_start: dt.time | None = None) -> DayResult:
+            bar_minutes: int = DEFAULT_BAR_MINUTES, entry_start: dt.time | None = None,
+            exit_start: dt.time | None = None) -> DayResult:
     """`bars` are real candles of `bar_minutes` (5 or 15) keyed by START time (09:15 ... last start).
 
-    `entry_start`: breakouts before this time are ignored; the first candle at/after it that trades beyond the
-    first candle's High or Low is the entry. None = right after the first candle (09:15 + one bar). The first
-    candle, stop levels and exits do not depend on it."""
+    `entry_start`: START time of the base candle. That candle replaces the 09:15 candle: its High/Low set the
+    breakout levels, stops, % and points, and only later candles can break out. None = the 09:15 candle. `exit_start`: START time of the candle whose close is the
+    time exit (overrides `exit_mode`); the stop still applies until then."""
     if exit_mode not in EXIT_MODES:
         raise ValueError(f"exit_mode must be one of {EXIT_MODES}")
     lay = bar_layout(bar_minutes)
     FIRST_END, SECOND_LAST_START, LAST_START, EXPECTED_BARS = (
         lay["first_end"], lay["second_last_start"], lay["last_start"], lay["expected_bars"])
-    earliest = max(entry_start, FIRST_END) if entry_start is not None else FIRST_END
+    base_start = entry_start or OPEN
+    FIRST_END = _t(base_start.hour * 60 + base_start.minute + bar_minutes)
+    earliest = FIRST_END
     r = DayResult(day)
     by_start = {b[0].time(): b for b in sorted(bars, key=lambda b: b[0])}
-    first = by_start.get(OPEN)
+    first = by_start.get(base_start)
     if first is None:
         r.exit_reason = DATA_INCOMPLETE
-        r.flags.append(f"first {bar_minutes}-minute candle (09:15) missing")
+        r.flags.append(f"base {bar_minutes}-minute candle ({base_start:%H:%M}) missing")
         return r
 
     _, o, h, l, c = first
@@ -148,9 +152,10 @@ def run_day(day: dt.date, bars: list[Bar], exit_mode: str = "CLOSE", minute_bars
     else:
         r.flags.append(f"second-last candle ({SECOND_LAST_START:%H:%M}) missing")
 
-    last_start = SECOND_LAST_START if exit_mode == "SECOND_LAST" else LAST_START
+    last_start = exit_start or (SECOND_LAST_START if exit_mode == "SECOND_LAST" else LAST_START)
     after = [b for t, b in sorted(by_start.items()) if FIRST_END <= t <= last_start]  # nothing at/before the first candle
-    missing = (EXPECTED_BARS - 1 if exit_mode == "CLOSE" else EXPECTED_BARS - 2) - len(after)
+    span = (last_start.hour * 60 + last_start.minute) - (FIRST_END.hour * 60 + FIRST_END.minute)
+    missing = span // bar_minutes + 1 - len(after)
 
     # ---- first breakout in either direction
     entry_i = next((i for i, b in enumerate(after) if b[0].time() >= earliest and (b[2] > h or b[3] < l)), None)
@@ -164,8 +169,6 @@ def run_day(day: dt.date, bars: list[Bar], exit_mode: str = "CLOSE", minute_bars
     up, down = eb[2] > h, eb[3] < l
     r.breakout_time = eb[0]
     r.flags.append(f"breakout time = start of the {bar_minutes}-minute candle that crossed the first candle")
-    if earliest > FIRST_END:
-        r.flags.append(f"entry window starts {earliest:%H:%M}: earlier breakouts ignored")
 
     if up and down and l <= eb[1] <= h:  # opened inside, traded through both ends: candle data cannot order them
         res = _resolve_side(eb[0], minute_bars, h, l, bar_minutes)
@@ -228,7 +231,8 @@ def run_day(day: dt.date, bars: list[Bar], exit_mode: str = "CLOSE", minute_bars
         last = after[-1]
         exit_bar, exit_price = last, last[4]
         if last[0].time() == last_start and not missing:
-            reason = MARKET_CLOSE if exit_mode == "CLOSE" else SECOND_LAST_CLOSE
+            reason = TIMED_EXIT if exit_start and exit_start != LAST_START else (
+                MARKET_CLOSE if last_start == LAST_START else SECOND_LAST_CLOSE)
         else:
             reason = DATA_ENDED
             r.flags.append(f"data incomplete: last candle {last[0]:%H:%M}, {missing} candle(s) missing; not a verified exit")
@@ -255,7 +259,7 @@ def summarize(rows: list[DayResult]) -> dict:
         "both_side_days": sum(r.side == BOTH for r in rows),
         "no_entry_days": sum(r.exit_reason == NO_ENTRY for r in rows),
         "stop_loss_exits": sum(r.exit_reason == STOP_LOSS for r in rows),
-        "market_close_exits": sum(r.exit_reason in (MARKET_CLOSE, SECOND_LAST_CLOSE) for r in rows),
+        "market_close_exits": sum(r.exit_reason in (MARKET_CLOSE, SECOND_LAST_CLOSE, TIMED_EXIT) for r in rows),
         "incomplete_days": sum(r.exit_reason in (DATA_INCOMPLETE, DATA_ENDED) for r in rows),
         "ambiguous_days": sum(any(f.startswith("AMBIGUOUS") for f in r.flags) for r in rows),
         "resolved_days": sum(any(f.startswith("resolved on 1-minute") for f in r.flags) for r in rows),
@@ -276,12 +280,12 @@ def _by_day(bars: list[Bar]) -> dict[dt.date, list[Bar]]:
 
 
 def ambiguous_candles(bars: list[Bar], exit_mode: str = "CLOSE", bar_minutes: int = DEFAULT_BAR_MINUTES,
-                      entry_start: dt.time | None = None) -> dict[dt.date, dt.datetime]:
+                      entry_start: dt.time | None = None, exit_start: dt.time | None = None) -> dict[dt.date, dt.datetime]:
     """Days whose breakout candle broke both ends (side BOTH) -> that candle's start, i.e. exactly which
     minutes of 1-minute data are needed to order the break."""
     out = {}
     for d, v in _by_day(bars).items():
-        r = run_day(d, v, exit_mode, None, bar_minutes, entry_start)
+        r = run_day(d, v, exit_mode, None, bar_minutes, entry_start, exit_start)
         if r.side == BOTH and r.breakout_time is not None:
             out[d] = r.breakout_time
     return out
@@ -289,7 +293,7 @@ def ambiguous_candles(bars: list[Bar], exit_mode: str = "CLOSE", bar_minutes: in
 
 def run_backtest(bars: list[Bar], exit_mode: str = "CLOSE",
                  minute_bars: dict[dt.date, list[Bar]] | None = None, bar_minutes: int = DEFAULT_BAR_MINUTES,
-                 entry_start: dt.time | None = None) -> tuple[list[DayResult], dict]:
-    rows = [run_day(d, v, exit_mode, (minute_bars or {}).get(d), bar_minutes, entry_start)
+                 entry_start: dt.time | None = None, exit_start: dt.time | None = None) -> tuple[list[DayResult], dict]:
+    rows = [run_day(d, v, exit_mode, (minute_bars or {}).get(d), bar_minutes, entry_start, exit_start)
             for d, v in sorted(_by_day(bars).items())]
     return rows, summarize(rows)

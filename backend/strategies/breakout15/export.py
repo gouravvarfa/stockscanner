@@ -1,8 +1,8 @@
 """The .xlsx export of one stored backtest, laid out like the user's manual sheet:
-title row, then DATE | CALL/PUT | 15 minute candel size | PROFIT | LOSS | EOD, one row per trading day.
+title row, then DATE | TIME | CALL/PUT | N minute candel | N minute candel points | PROFIT | LOSS | PERCENTAGE | POINTS.
+TIME is the entry time; candle columns describe the first candle; PERCENTAGE and POINTS describe the trade.
 
-EOD follows the user's sheet: the size of the day's trade result in % (a loss row shows the loss size,
-a profit row the profit size) - the PROFIT/LOSS columns carry the sign.
+PERCENTAGE and POINTS follow the user's sheet: sizes without a sign; the PROFIT/LOSS columns carry the sign.
 """
 from __future__ import annotations
 
@@ -13,7 +13,13 @@ from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Font, Side
 
 TITLES = {"NIFTY": "NIFTY 50", "BANKNIFTY": "BANK NIFTY"}
-HEADERS = ["DATE", "CALL/PUT", "15 minute candel size", "PROFIT", "LOSS", "EOD"]
+WIDTHS = (12, 8, 11, 18, 24, 10, 10, 13, 10)
+
+
+def headers(bar_minutes: int) -> list[str]:
+    return ["DATE", "TIME", "CALL/PUT", f"{bar_minutes} minute candel", f"{bar_minutes} minute candel points",
+            "PROFIT", "LOSS", "PERCENTAGE", "POINTS"]
+
 THIN = Side(style="thin")
 BOX = Border(left=THIN, right=THIN, top=THIN, bottom=THIN)
 
@@ -27,11 +33,15 @@ def _row(r: dict) -> list:
         side = "DATA INCOMPLETE"
     size = None if r.get("first_range_pct") is None else r["first_range_pct"] / 100.0
     eod = None if r.get("pnl_pct") is None else abs(r["pnl_pct"]) / 100.0
+    high, low = r.get("first_high"), r.get("first_low")
+    entry = r.get("breakout_time")
     return [
-        dt.date.fromisoformat(r["date"]), side, size,
+        dt.date.fromisoformat(r["date"]), dt.time.fromisoformat(entry[11:16]) if entry else None, side, size,
+        None if high is None or low is None else round(high - low, 2),
         "PROFIT" if pnl is not None and pnl > 0 else None,
         "LOSS" if pnl is not None and pnl < 0 else None,
         eod,
+        None if pnl is None else round(abs(pnl), 2),
     ]
 
 
@@ -39,14 +49,14 @@ def build_xlsx(result: dict) -> bytes:
     wb = Workbook()
     ws = wb.active
     ws.title = "Sheet1"
-    ws.merge_cells("A1:F2")
+    ws.merge_cells("A1:I2")
     ws["A1"] = TITLES.get(result["symbol"], result["symbol"])
     ws["A1"].font = Font(bold=True, size=20)
     ws["A1"].alignment = Alignment(horizontal="center", vertical="center")
-    for col in "ABCDEF":
+    for col in "ABCDEFGHI":
         for row in (1, 2):
             ws[f"{col}{row}"].border = BOX
-    for c, text in zip(ws[3], HEADERS):
+    for c, text in zip(ws[3], headers(result.get("bar_minutes", 15))):
         c.value = text
         c.font = Font(bold=True)
         c.border = BOX
@@ -55,11 +65,14 @@ def build_xlsx(result: dict) -> bytes:
         for c, v in zip(cells, _row(r)):
             c.value = v
         cells[0].number_format = "d-mmm-yy"
-        cells[2].number_format = "0.00%"
-        cells[5].number_format = "0.00%"
+        cells[1].number_format = "hh:mm"
+        cells[3].number_format = "0.00%"
+        cells[4].number_format = "0.00"
+        cells[7].number_format = "0.00%"
+        cells[8].number_format = "0.00"
         for c in cells:
             c.border = BOX
-    for letter, width in zip("ABCDEF", (12, 11, 24, 10, 10, 10)):
+    for letter, width in zip("ABCDEFGHI", WIDTHS):
         ws.column_dimensions[letter].width = width
     buf = io.BytesIO()
     wb.save(buf)

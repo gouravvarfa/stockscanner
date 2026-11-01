@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import {
-  breakout15Api, downloadResultXlsx, importExcel, saveBlob, type Breakout15BarMinutes, type Breakout15ExitMode, type Breakout15Result, type Breakout15Row, type Breakout15Symbol, type ExcelImport,
+  breakout15Api, candleTimes, downloadResultXlsx, importExcel, saveBlob, type Breakout15BarMinutes, type Breakout15ExitMode, type Breakout15Result, type Breakout15Row, type Breakout15Symbol, type ExcelImport,
 } from "../services/breakout15Api";
 import { compareToCsv, compareWithManual, summarizeComparison } from "../services/breakout15Compare";
 
@@ -24,8 +24,9 @@ export function Breakout15Page() {
   const [symbol, setSymbol] = useState<Breakout15Symbol>("NIFTY");
   const [from, setFrom] = useState(() => iso(new Date(Date.now() - 91 * 864e5)));
   const [to, setTo] = useState(() => iso(new Date(Date.now() - 864e5)));
-  const [exitMode, setExitMode] = useState<Breakout15ExitMode>("CLOSE");
+  const exitMode: Breakout15ExitMode = "CLOSE";
   const [barMinutes, setBarMinutes] = useState<Breakout15BarMinutes>(15);
+  const [exitTime, setExitTime] = useState("");
   const [entryStart, setEntryStart] = useState("");  // "" = right after the first candle
   const [result, setResult] = useState<Breakout15Result | null>(null);
   const [progress, setProgress] = useState<string | null>(null);
@@ -56,7 +57,7 @@ export function Breakout15Page() {
     setError(null);
     setProgress("Starting…");
     try {
-      let job = await breakout15Api.start(symbol, from, to, exitMode, barMinutes, entryStart || null);
+      let job = await breakout15Api.start(symbol, from, to, exitMode, barMinutes, entryStart || null, exitTime || null);
       while (job.state === "running") {
         setProgress(job.phase === "resolving"
           ? `Ordering both-ends days on 1-minute candles… ${job.done}/${job.total}`
@@ -99,7 +100,7 @@ export function Breakout15Page() {
         <div>
           <h1 className="page-title">15-Min Candle Breakout</h1>
           <p className="page-subtitle">
-            CALL above the first candle High (stop at its Low) · PUT below its Low (stop at its High) · first break of the day only · 15 or 5 minute candles · optional entry start time · index points only, no orders
+            CALL above the base candle High (stop at its Low) · PUT below its Low (stop at its High) · first break of the day only · 15 or 5 minute candles · base candle by time · index points only, no orders
           </p>
         </div>
       </div>
@@ -114,24 +115,23 @@ export function Breakout15Page() {
         </label>
         <label className="muted small" style={{ display: "grid", gap: 4 }}>
           Candle size
-          <select value={barMinutes} onChange={(e) => { setBarMinutes(Number(e.target.value) as Breakout15BarMinutes); setEntryStart(""); }} disabled={progress !== null}>
+          <select value={barMinutes} onChange={(e) => { setBarMinutes(Number(e.target.value) as Breakout15BarMinutes); setEntryStart(""); setExitTime(""); }} disabled={progress !== null}>
             <option value={15}>15 minute</option>
             <option value={5}>5 minute</option>
           </select>
         </label>
         <label className="muted small" style={{ display: "grid", gap: 4 }}>
-          Entry start time
-          <input
-            type="time" value={entryStart} onChange={(e) => setEntryStart(e.target.value)} disabled={progress !== null}
-            min={barMinutes === 5 ? "09:20" : "09:30"} max={barMinutes === 5 ? "15:25" : "15:15"} step={barMinutes * 60}
-            title="Breakouts before this time are ignored. Empty = right after the first candle."
-          />
+          Base candle time
+          <select value={entryStart} onChange={(e) => setEntryStart(e.target.value)} disabled={progress !== null}>
+            <option value="">09:15</option>
+            {candleTimes(barMinutes).map((x) => <option key={x} value={x}>{x}</option>)}
+          </select>
         </label>
         <label className="muted small" style={{ display: "grid", gap: 4 }}>
-          Exit at
-          <select value={exitMode} onChange={(e) => setExitMode(e.target.value as Breakout15ExitMode)} disabled={progress !== null}>
-            <option value="CLOSE">15:30 close (last candle)</option>
-            <option value="SECOND_LAST">{barMinutes === 5 ? "15:25" : "15:15"} (second-last candle close)</option>
+          Exit candle
+          <select value={exitTime} onChange={(e) => setExitTime(e.target.value)} disabled={progress !== null}>
+            <option value="">Last candle (15:30 close)</option>
+            {candleTimes(barMinutes).map((x) => <option key={x} value={x}>{x} candle close</option>)}
           </select>
         </label>
         <label className="muted small" style={{ display: "grid", gap: 4 }}>
@@ -167,7 +167,7 @@ export function Breakout15Page() {
             ))}
           </div>
           <p className="muted small">
-            {result.symbol} · token {result.token} · {result.from} → {result.to} · {result.bar_minutes ?? 15}-min candles · entry from {result.entry_start ?? "first candle end"} · exit {result.exit_mode === "SECOND_LAST" ? (result.bar_minutes === 5 ? "15:25" : "15:15") : "15:30"} · generated {result.generated_at.replace("T", " ")}
+            {result.symbol} · token {result.token} · {result.from} → {result.to} · {result.bar_minutes ?? 15}-min candles · base candle {result.entry_start ?? "09:15"} · exit {result.exit_time ? `${result.exit_time} candle close` : result.exit_mode === "SECOND_LAST" ? "second-last close" : "15:30"} · generated {result.generated_at.replace("T", " ")}
           </p>
           <div className="table-wrap">
             <table className="data-table">

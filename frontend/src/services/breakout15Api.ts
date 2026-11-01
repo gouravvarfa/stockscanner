@@ -27,7 +27,7 @@ export interface Breakout15Row {
   breakout_time: string | null; entry_price: number | null; stop_loss: number | null;
   second_last_time: string | null; second_last_close: number | null; second_last_change_pct: number | null;
   exit_time: string | null; exit_price: number | null;
-  exit_reason: "STOP_LOSS" | "MARKET_CLOSE" | "SECOND_LAST_CLOSE" | "NO_ENTRY" | "DATA_INCOMPLETE" | "DATA_ENDED_BEFORE_CLOSE";
+  exit_reason: "STOP_LOSS" | "MARKET_CLOSE" | "SECOND_LAST_CLOSE" | "TIMED_EXIT" | "NO_ENTRY" | "DATA_INCOMPLETE" | "DATA_ENDED_BEFORE_CLOSE";
   pnl_points: number | null; pnl_pct: number | null;
   flags: string[]; quality: string;
 }
@@ -40,7 +40,7 @@ export interface Breakout15Summary {
 }
 
 export interface Breakout15Result {
-  symbol: Breakout15Symbol; token: string; exit_mode: Breakout15ExitMode; bar_minutes: Breakout15BarMinutes; entry_start: string | null; from: string; to: string; generated_at: string;
+  symbol: Breakout15Symbol; token: string; exit_mode: Breakout15ExitMode; bar_minutes: Breakout15BarMinutes; entry_start: string | null; exit_time: string | null; from: string; to: string; generated_at: string;
   summary: Breakout15Summary; rows: Breakout15Row[];
 }
 
@@ -50,10 +50,10 @@ export interface Breakout15Job {
 
 export const breakout15Api = {
   start: (symbol: Breakout15Symbol, from_date: string, to_date: string, exit_mode: Breakout15ExitMode,
-          bar_minutes: Breakout15BarMinutes = 15, entry_start: string | null = null) =>
+          bar_minutes: Breakout15BarMinutes = 15, entry_start: string | null = null, exit_time: string | null = null) =>
     request<Breakout15Job>("/api/breakout15/runs", {
       method: "POST",
-      body: JSON.stringify({ symbol, from_date, to_date, exit_mode, bar_minutes, entry_start: entry_start || null }),
+      body: JSON.stringify({ symbol, from_date, to_date, exit_mode, bar_minutes, entry_start: entry_start || null, exit_time: exit_time || null }),
     }),
   job: (id: string) => request<Breakout15Job>(`/api/breakout15/runs/${id}`),
   result: (symbol: Breakout15Symbol) => request<Breakout15Result>(`/api/breakout15/results/${symbol}`),
@@ -96,11 +96,20 @@ export { saveBlob };
 
 /** File name carries the index and the exact date range (and exit rule) of the result, so exports of
  * different ranges never share a name. */
+/** Candle start times after the first candle (09:15 + one bar) up to the last candle: only real times of this size. */
+export function candleTimes(bar: Breakout15BarMinutes): string[] {
+  const out: string[] = [];
+  for (let m = 9 * 60 + 15 + bar; m < 15 * 60 + 30; m += bar) {
+    out.push(`${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`);
+  }
+  return out;
+}
+
 export function exportFileName(
-  r: Pick<Breakout15Result, "symbol" | "from" | "to" | "exit_mode"> & Partial<Pick<Breakout15Result, "bar_minutes" | "entry_start">>,
+  r: Pick<Breakout15Result, "symbol" | "from" | "to" | "exit_mode"> & Partial<Pick<Breakout15Result, "bar_minutes" | "entry_start" | "exit_time">>,
 ): string {
   const bar = r.bar_minutes ?? 15;
-  const second = r.exit_mode === "SECOND_LAST" ? `_exit-${bar === 5 ? "1525" : "1515"}` : "";
+  const second = r.exit_time ? `_exit-candle-${r.exit_time.replace(":", "")}` : r.exit_mode === "SECOND_LAST" ? `_exit-${bar === 5 ? "1525" : "1515"}` : "";
   const start = r.entry_start ? `_from-${r.entry_start.replace(":", "")}` : "";
   return `${r.symbol}_${r.from}_to_${r.to}_${bar}m${start}${second}.xlsx`;
 }
