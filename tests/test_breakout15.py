@@ -29,7 +29,105 @@ def day(first=(100, 110, 90, 105), body=None, skip=(), until=(15, 15)):
 
 
 def test_session_has_25_candles():
-    assert len(starts()) == 25 == E.EXPECTED_BARS
+    assert len(starts()) == 25 == E.bar_layout(15)["expected_bars"]
+
+
+def test_bar_layout_for_both_candle_sizes():
+    l15, l5 = E.bar_layout(15), E.bar_layout(5)
+    assert (l15["first_end"], l15["second_last_start"], l15["last_start"]) == (dt.time(9, 30), dt.time(15, 0), dt.time(15, 15))
+    assert (l5["first_end"], l5["second_last_start"], l5["last_start"], l5["expected_bars"]) == (
+        dt.time(9, 20), dt.time(15, 20), dt.time(15, 25), 75)
+
+
+def test_unsupported_candle_size_is_rejected():
+    import pytest
+
+    with pytest.raises(ValueError):
+        E.bar_layout(10)
+
+
+def day5(first=(100, 110, 90, 105), body=None, skip=(), until=(15, 25)):
+    """Full session of 5-minute candles (START times 09:15 .. 15:25). Unlisted candles sit flat at 100."""
+    body, bars, x = body or {}, [], 9 * 60 + 15
+    while x < 15 * 60 + 30:
+        hm = (x // 60, x % 60)
+        x += 5
+        if hm in skip or hm > until:
+            continue
+        o, h, l, c = first if hm == (9, 15) else body.get(hm, (100, 100, 100, 100))
+        bars.append((t(*hm), o, h, l, c))
+    return bars
+
+
+def test_five_minute_candles_same_strategy_first_candle_is_0915_to_0920():
+    r = E.run_day(D, day5(body={(9, 40): (108, 111, 108, 110), (15, 20): (112, 113, 111, 112), (15, 25): (119, 121, 118, 120)}),
+                  bar_minutes=5)
+    assert (r.first_open, r.first_high, r.first_low) == (100, 110, 90)
+    assert r.side == "CALL" and r.breakout_time == t(9, 40) and r.entry_price == 110 and r.stop_loss == 90
+    assert r.second_last_time == t(15, 20) and r.second_last_close == 112
+    assert r.exit_reason == E.MARKET_CLOSE and r.exit_price == 120 and r.pnl_points == 10
+
+
+def test_five_minute_second_last_exit_uses_the_1520_candle():
+    body = {(9, 40): (108, 111, 108, 110), (15, 20): (112, 113, 111, 112), (15, 25): (119, 121, 118, 120)}
+    r = E.run_day(D, day5(body=body), "SECOND_LAST", bar_minutes=5)
+    assert r.exit_reason == E.SECOND_LAST_CLOSE and r.exit_time == t(15, 20) and r.exit_price == 112
+
+
+def test_five_minute_put_and_stop():
+    r = E.run_day(D, day5(body={(9, 25): (92, 93, 88, 89), (10, 0): (100, 112, 99, 111)}), bar_minutes=5)
+    assert r.side == "PUT" and r.entry_price == 90 and r.stop_loss == 110
+    assert r.exit_reason == E.STOP_LOSS and r.exit_price == 110 and r.pnl_points == -20
+
+
+def test_five_minute_both_ends_candle_is_ordered_from_one_minute_data():
+    body = {(9, 30): (100, 111, 89, 100)}
+    mins = [(t(9, 30) + dt.timedelta(minutes=i), *row) for i, row in enumerate(
+        [(100, 101, 99, 100), (100, 100, 88, 89), (89, 111, 89, 110), (110, 110, 109, 110), (110, 110, 109, 110)])]
+    r = E.run_day(D, day5(body=body), minute_bars=mins, bar_minutes=5)
+    assert r.side == "PUT" and r.breakout_time == t(9, 31) and r.exit_time == t(9, 32) and r.exit_price == 110
+    # 1-minute bars outside the 5-minute candle are ignored
+    assert E.run_day(D, day5(body=body), minute_bars=[(t(9, 36), 100, 120, 80, 100)], bar_minutes=5).side == "BOTH"
+
+
+def test_five_minute_missing_candle_is_not_called_a_market_close():
+    r = E.run_day(D, day5(body={(9, 40): (108, 111, 108, 110)}, skip={(11, 0)}), bar_minutes=5)
+    assert r.exit_reason == E.DATA_ENDED and any("not a verified exit" in f for f in r.flags)
+
+
+def test_entry_start_ignores_earlier_breakouts_and_enters_on_the_first_candle_at_or_after_it():
+    body = {(9, 45): (108, 111, 108, 110), (10, 0): (110, 112, 109, 111),  # breaks out early, price stays above
+            (10, 30): (111, 113, 110, 112), (15, 15): (118, 121, 117, 120)}
+    early = E.run_day(D, day(body=body))
+    late = E.run_day(D, day(body=body), entry_start=dt.time(10, 30))
+    assert early.breakout_time == t(9, 45) and early.entry_price == 110
+    assert late.breakout_time == t(10, 30) and late.side == "CALL"
+    assert late.entry_price == 111  # the candle opened beyond the High: filled at its open
+    assert late.stop_loss == 90 and late.exit_reason == E.MARKET_CLOSE and late.exit_price == 120
+    assert any("earlier breakouts ignored" in f for f in late.flags)
+
+
+def test_entry_start_with_no_breakout_after_it_is_a_no_entry_day():
+    r = E.run_day(D, day(body={(9, 45): (108, 111, 108, 110)}), entry_start=dt.time(10, 30))
+    # price returns inside the range after 09:45 and never breaks again from 10:30
+    assert r.exit_reason == E.NO_ENTRY and r.side is None
+
+
+def test_entry_start_earlier_than_the_first_candles_end_changes_nothing():
+    body = {(9, 30): (108, 111, 108, 110)}
+    assert E.run_day(D, day(body=body), entry_start=dt.time(9, 0)).breakout_time == E.run_day(D, day(body=body)).breakout_time
+
+
+def test_entry_start_on_five_minute_candles():
+    body = {(9, 30): (108, 111, 108, 110), (10, 30): (112, 113, 111, 112)}
+    r = E.run_day(D, day5(body=body), bar_minutes=5, entry_start=dt.time(10, 30))
+    assert r.breakout_time == t(10, 30) and r.entry_price == 112 and r.side == "CALL"
+
+
+def test_run_backtest_passes_candle_size_and_entry_start_through():
+    rows, summary = E.run_backtest(day5(body={(10, 30): (112, 113, 111, 112)}), bar_minutes=5, entry_start=dt.time(10, 30))
+    assert rows[0].breakout_time == t(10, 30) and summary["call_entries"] == 1
+    assert E.ambiguous_candles(day5(body={(9, 30): (100, 111, 89, 100)}), bar_minutes=5) == {D: t(9, 30)}
 
 
 def test_first_candle_stats_and_no_entry_day_is_kept():
@@ -342,3 +440,36 @@ def test_export_xlsx_matches_the_users_manual_sheet_layout():
     assert r6[1] == "NO ENTRY" and r6[3] is None and r6[4] is None and r6[5] is None
     assert [c.value for c in ws[4]][1] == "CALL"
     assert ws["C4"].number_format == "0.00%" and ws["A4"].number_format == "d-mmm-yy" and ws.max_row == 6
+
+
+# ---- API request validation + 5-minute chunks ----
+
+def test_chunks_are_smaller_for_five_minute_candles():
+    five = api.chunk_ranges(dt.date(2025, 1, 1), dt.date(2025, 12, 31), 5)
+    fifteen = api.chunk_ranges(dt.date(2025, 1, 1), dt.date(2025, 12, 31), 15)
+    assert len(five) > len(fifteen) and all((b - a).days < 60 for a, b in five)
+    assert five[0][0].date() == dt.date(2025, 1, 1) and five[-1][1].date() == dt.date(2025, 12, 31)
+
+
+def test_parse_entry_start():
+    assert api.parse_entry_start("10:30") == dt.time(10, 30) and api.parse_entry_start(None) is None and api.parse_entry_start("") is None
+    import pytest
+
+    with pytest.raises(ValueError):
+        api.parse_entry_start("half past ten")
+
+
+def test_api_rejects_bad_candle_size_and_entry_times(monkeypatch, tmp_path):
+    from fastapi.testclient import TestClient
+
+    from backend.main import app
+    from backend.services import angelone_credential_store
+
+    monkeypatch.setattr(angelone_credential_store, "CREDENTIAL_PATH", tmp_path / "c.json")
+    body = {"symbol": "NIFTY", "from_date": "2025-01-01", "to_date": "2025-01-31"}
+    with TestClient(app) as c:
+        assert c.post("/api/breakout15/runs", json={**body, "bar_minutes": 10}).status_code == 400
+        assert c.post("/api/breakout15/runs", json={**body, "entry_start": "abc"}).status_code == 400
+        assert c.post("/api/breakout15/runs", json={**body, "bar_minutes": 5, "entry_start": "09:16"}).status_code == 400
+        assert c.post("/api/breakout15/runs", json={**body, "entry_start": "09:20"}).status_code == 400  # 15-min: first candle ends 09:30
+        assert c.post("/api/breakout15/runs", json={**body, "entry_start": "15:30"}).status_code == 400

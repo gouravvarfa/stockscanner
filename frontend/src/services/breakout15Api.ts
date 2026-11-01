@@ -17,6 +17,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 
 export type Breakout15Symbol = "NIFTY" | "BANKNIFTY";
 export type Breakout15ExitMode = "CLOSE" | "SECOND_LAST";
+export type Breakout15BarMinutes = 5 | 15;
 
 export interface Breakout15Row {
   date: string;
@@ -39,7 +40,7 @@ export interface Breakout15Summary {
 }
 
 export interface Breakout15Result {
-  symbol: Breakout15Symbol; token: string; exit_mode: Breakout15ExitMode; from: string; to: string; generated_at: string;
+  symbol: Breakout15Symbol; token: string; exit_mode: Breakout15ExitMode; bar_minutes: Breakout15BarMinutes; entry_start: string | null; from: string; to: string; generated_at: string;
   summary: Breakout15Summary; rows: Breakout15Row[];
 }
 
@@ -48,8 +49,12 @@ export interface Breakout15Job {
 }
 
 export const breakout15Api = {
-  start: (symbol: Breakout15Symbol, from_date: string, to_date: string, exit_mode: Breakout15ExitMode) =>
-    request<Breakout15Job>("/api/breakout15/runs", { method: "POST", body: JSON.stringify({ symbol, from_date, to_date, exit_mode }) }),
+  start: (symbol: Breakout15Symbol, from_date: string, to_date: string, exit_mode: Breakout15ExitMode,
+          bar_minutes: Breakout15BarMinutes = 15, entry_start: string | null = null) =>
+    request<Breakout15Job>("/api/breakout15/runs", {
+      method: "POST",
+      body: JSON.stringify({ symbol, from_date, to_date, exit_mode, bar_minutes, entry_start: entry_start || null }),
+    }),
   job: (id: string) => request<Breakout15Job>(`/api/breakout15/runs/${id}`),
   result: (symbol: Breakout15Symbol) => request<Breakout15Result>(`/api/breakout15/results/${symbol}`),
 };
@@ -91,8 +96,13 @@ export { saveBlob };
 
 /** File name carries the index and the exact date range (and exit rule) of the result, so exports of
  * different ranges never share a name. */
-export function exportFileName(r: Pick<Breakout15Result, "symbol" | "from" | "to" | "exit_mode">): string {
-  return `${r.symbol}_${r.from}_to_${r.to}${r.exit_mode === "SECOND_LAST" ? "_exit-1515" : ""}.xlsx`;
+export function exportFileName(
+  r: Pick<Breakout15Result, "symbol" | "from" | "to" | "exit_mode"> & Partial<Pick<Breakout15Result, "bar_minutes" | "entry_start">>,
+): string {
+  const bar = r.bar_minutes ?? 15;
+  const second = r.exit_mode === "SECOND_LAST" ? `_exit-${bar === 5 ? "1525" : "1515"}` : "";
+  const start = r.entry_start ? `_from-${r.entry_start.replace(":", "")}` : "";
+  return `${r.symbol}_${r.from}_to_${r.to}_${bar}m${start}${second}.xlsx`;
 }
 
 export async function downloadResultXlsx(result: Breakout15Result): Promise<void> {

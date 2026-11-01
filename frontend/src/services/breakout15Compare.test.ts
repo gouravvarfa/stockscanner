@@ -55,7 +55,11 @@ describe("compareToCsv", () => {
 
 describe("exportFileName", () => {
   it("carries the index and the exact date range so different ranges never share a name", () => {
-    expect(exportFileName({ symbol: "NIFTY", from: "2025-01-01", to: "2025-01-24", exit_mode: "CLOSE" })).toBe("NIFTY_2025-01-01_to_2025-01-24.xlsx");
-    expect(exportFileName({ symbol: "BANKNIFTY", from: "2025-02-03", to: "2025-03-28", exit_mode: "SECOND_LAST" })).toBe("BANKNIFTY_2025-02-03_to_2025-03-28_exit-1515.xlsx");
+    expect(exportFileName({ symbol: "NIFTY", from: "2025-01-01", to: "2025-01-24", exit_mode: "CLOSE" })).toBe("NIFTY_2025-01-01_to_2025-01-24_15m.xlsx");
+    expect(exportFileName({ symbol: "BANKNIFTY", from: "2025-02-03", to: "2025-03-28", exit_mode: "SECOND_LAST" })).toBe("BANKNIFTY_2025-02-03_to_2025-03-28_15m_exit-1515.xlsx");
+    expect(exportFileName({ symbol: "NIFTY", from: "2025-01-01", to: "2025-12-31", exit_mode: "CLOSE", bar_minutes: 5, entry_start: "10:30" }))
+      .toBe("NIFTY_2025-01-01_to_2025-12-31_5m_from-1030.xlsx");
+    expect(exportFileName({ symbol: "NIFTY", from: "2025-01-01", to: "2025-12-31", exit_mode: "SECOND_LAST", bar_minutes: 5, entry_start: null }))
+      .toBe("NIFTY_2025-01-01_to_2025-12-31_5m_exit-1525.xlsx");
   });
 });

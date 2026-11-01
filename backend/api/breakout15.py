@@ -30,6 +30,8 @@ router = APIRouter(prefix="/api/breakout15", tags=["breakout15"])
 IST = ZoneInfo("Asia/Kolkata")
 INDEX_TOKENS = {"NIFTY": "99926000", "BANKNIFTY": "99926009"}  # NSE index tokens, Angel One scrip master
 CHUNK_DAYS = 150  # 15-minute requests are capped near 200 days
+CHUNK_DAYS_BY_BAR = {15: 150, 5: 60}  # 5-minute requests are capped lower, so smaller windows
+INTERVAL_BY_BAR = {15: "FIFTEEN_MINUTE", 5: "FIVE_MINUTE"}
 CHUNK_DELAY_SECONDS = 3.0  # Angel One answers 403 to rapid back-to-back candle requests
 MAX_RANGE_DAYS = 6 * 366
 _jobs: "OrderedDict[str, dict]" = OrderedDict()
@@ -40,7 +42,9 @@ class RunRequest(BaseModel):
     symbol: str = "NIFTY"
     from_date: dt.date
     to_date: dt.date
-    exit_mode: str = "CLOSE"  # CLOSE = 15:30 close (last candle) | SECOND_LAST = 15:15 (second-last candle close)
+    exit_mode: str = "CLOSE"  # CLOSE = 15:30 close (last candle) | SECOND_LAST = second-last candle close
+    bar_minutes: int = 15  # candle size: 15 or 5
+    entry_start: str | None = None  # "HH:MM": ignore breakouts before this time; None = right after the first candle
 
 
 def parse_ts(raw: str) -> dt.datetime:
@@ -48,10 +52,20 @@ def parse_ts(raw: str) -> dt.datetime:
     return t.astimezone(IST).replace(tzinfo=None) if t.tzinfo else t
 
 
-def chunk_ranges(start: dt.date, end: dt.date) -> list[tuple[dt.datetime, dt.datetime]]:
+def parse_entry_start(value: str | None) -> dt.time | None:
+    if value in (None, ""):
+        return None
+    try:
+        return dt.datetime.strptime(value.strip(), "%H:%M").time()
+    except ValueError as exc:
+        raise ValueError("entry_start must look like 10:30") from exc
+
+
+def chunk_ranges(start: dt.date, end: dt.date, bar_minutes: int = 15) -> list[tuple[dt.datetime, dt.datetime]]:
     out, cur = [], start
+    span = CHUNK_DAYS_BY_BAR.get(bar_minutes, CHUNK_DAYS)
     while cur <= end:
-        last = min(cur + dt.timedelta(days=CHUNK_DAYS - 1), end)
+        last = min(cur + dt.timedelta(days=span - 1), end)
         out.append((dt.datetime.combine(cur, dt.time(9, 15)), dt.datetime.combine(last, dt.time(15, 30))))
         cur = last + dt.timedelta(days=1)
     return out
@@ -67,8 +81,9 @@ def to_bars(rows: list[list], start: dt.date, end: dt.date) -> list[tuple]:
     return [seen[k] for k in sorted(seen)]
 
 
-async def fetch_bars(token: str, start: dt.date, end: dt.date, fetch_chunk, progress=None, delay: float = CHUNK_DELAY_SECONDS) -> list[tuple]:
-    plan, rows = chunk_ranges(start, end), []
+async def fetch_bars(token: str, start: dt.date, end: dt.date, fetch_chunk, progress=None, delay: float = CHUNK_DELAY_SECONDS,
+                     bar_minutes: int = 15) -> list[tuple]:
+    plan, rows = chunk_ranges(start, end, bar_minutes), []
     for n, (a, b) in enumerate(plan, 1):
         if n > 1:
             await asyncio.sleep(delay)
@@ -97,28 +112,30 @@ async def _run(job_id: str, req: RunRequest) -> None:
             return []
 
         async def fetch_chunk(a: dt.datetime, b: dt.datetime) -> list[list]:
-            return await fetch_candles("FIFTEEN_MINUTE", a, b)
+            return await fetch_candles(INTERVAL_BY_BAR[req.bar_minutes], a, b)
 
+        entry_start = parse_entry_start(req.entry_start)
         bars = await fetch_bars(token, req.from_date, req.to_date, fetch_chunk,
-                                progress=lambda d, t: job.update(done=d, total=t))
+                                progress=lambda d, t: job.update(done=d, total=t), bar_minutes=req.bar_minutes)
         if not bars:
             raise RuntimeError("Angel One returned no 15-minute candles for this range")
         # Days where one 15-minute candle broke both ends of the first candle: order the break from the real
         # 1-minute candles of just that candle, so the day gets a single CALL or PUT.
         minute_bars: dict[dt.date, list[tuple]] = {}
-        todo = engine.ambiguous_candles(bars, req.exit_mode)
+        todo = engine.ambiguous_candles(bars, req.exit_mode, req.bar_minutes, entry_start)
         job.update(phase="resolving", done=0, total=len(todo))
         for n, (day, start) in enumerate(sorted(todo.items()), 1):
             await asyncio.sleep(CHUNK_DELAY_SECONDS)
             try:
-                raw = await fetch_candles("ONE_MINUTE", start, start + dt.timedelta(minutes=14))
+                raw = await fetch_candles("ONE_MINUTE", start, start + dt.timedelta(minutes=req.bar_minutes - 1))
                 minute_bars[day] = to_bars(raw, day, day)
             except Exception:  # noqa: BLE001 - that day simply stays unresolved (flagged), the run continues
                 minute_bars[day] = []
             job.update(done=n)
-        rows, summary = engine.run_backtest(bars, req.exit_mode, minute_bars)
+        rows, summary = engine.run_backtest(bars, req.exit_mode, minute_bars, req.bar_minutes, entry_start)
         _results[req.symbol] = {
-            "symbol": req.symbol, "token": token, "exit_mode": req.exit_mode, "from": req.from_date.isoformat(), "to": req.to_date.isoformat(),
+            "symbol": req.symbol, "token": token, "exit_mode": req.exit_mode,
+            "bar_minutes": req.bar_minutes, "entry_start": req.entry_start or None, "from": req.from_date.isoformat(), "to": req.to_date.isoformat(),
             "generated_at": dt.datetime.now(IST).isoformat(timespec="seconds"), "summary": summary,
             "rows": [r.as_dict() for r in rows],
         }
@@ -131,6 +148,15 @@ async def _run(job_id: str, req: RunRequest) -> None:
 async def start_run(req: RunRequest) -> dict:
     if req.symbol not in INDEX_TOKENS:
         raise HTTPException(400, f"symbol must be one of {list(INDEX_TOKENS)}")
+    if req.bar_minutes not in engine.BAR_MINUTES:
+        raise HTTPException(400, f"bar_minutes must be one of {list(engine.BAR_MINUTES)}")
+    try:
+        start_t = parse_entry_start(req.entry_start)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    lay = engine.bar_layout(req.bar_minutes)
+    if start_t is not None and not (lay["first_end"] <= start_t <= lay["last_start"]):
+        raise HTTPException(400, f"entry_start must be between {lay['first_end']:%H:%M} and {lay['last_start']:%H:%M} for {req.bar_minutes}-minute candles")
     if req.exit_mode not in engine.EXIT_MODES:
         raise HTTPException(400, f"exit_mode must be one of {list(engine.EXIT_MODES)}")
     if req.from_date > req.to_date:
@@ -184,7 +210,7 @@ async def export_result(symbol: str) -> Response:
     if symbol not in _results:
         raise HTTPException(404, "no result yet; run the backtest first")
     res = _results[symbol]
-    name = f"breakout15_{symbol}_{res['from']}_{res['to']}.xlsx"
+    name = f"breakout15_{symbol}_{res['from']}_{res['to']}_{res.get('bar_minutes', 15)}m.xlsx"
     return Response(
         build_xlsx(res),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
