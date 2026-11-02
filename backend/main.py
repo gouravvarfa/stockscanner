@@ -19,6 +19,7 @@ from backend.api import ranking as ranking_api
 from backend.api import scan as scan_api
 from backend.api import scan_jobs as scan_jobs_api
 from backend.api import scanner as scanner_api
+from backend.api import gfs_backtest as gfs_backtest_api
 from backend.api import system_one_backtest as system_one_backtest_api
 from backend.api import top_bottom as top_bottom_api
 from backend.api import tradingview as tradingview_api
@@ -75,6 +76,7 @@ app.include_router(logs_api.router)
 app.include_router(chart_api.router)
 app.include_router(top_bottom_api.router)
 app.include_router(system_one_backtest_api.router)
+app.include_router(gfs_backtest_api.router)
 app.include_router(live_api.router)
 
 app.include_router(breakout15_api.router)

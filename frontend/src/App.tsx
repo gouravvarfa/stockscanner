@@ -11,6 +11,7 @@ import { Dashboard } from "./pages/Dashboard";
 import { StockScanner } from "./pages/StockScanner";
 import { Strategies } from "./pages/Strategies";
 import { SystemOneBacktestPage } from "./pages/SystemOneBacktestPage";
+import { GFSBacktestPage } from "./pages/GFSBacktestPage";
 import { ExpiryLevel1 } from "./pages/ExpiryLevel1";
 import { ExpiryLevel5 } from "./pages/ExpiryLevel5";
 import { CupBreakoutPage } from "./pages/CupBreakoutPage";
@@ -40,6 +41,7 @@ export default function App() {
             <Route path="/" element={<Dashboard />} />
             <Route path="/strategies" element={<Strategies />} />
             <Route path="/strategies/system-one" element={<SystemOneBacktestPage />} />
+            <Route path="/strategies/gfs" element={<GFSBacktestPage />} />
             <Route path="/expiry-level-1" element={<ExpiryLevel1 />} />
             <Route path="/expiry-level-5" element={<ExpiryLevel5 />} />
             <Route path="/cup-breakout" element={<CupBreakoutPage />} />

@@ -23,7 +23,7 @@ from backend.services.top_bottom_backtest_service import InsufficientDataError, 
 router = APIRouter(prefix="/api/system-one", tags=["system-one"])
 
 
-def _serialize(stored: service.StoredSystemOneBacktest) -> SystemOneBacktestOut:
+def serialize_backtest(stored: service.StoredSystemOneBacktest) -> SystemOneBacktestOut:
     result = stored.result
     summary = result.summary()
     return SystemOneBacktestOut(
@@ -109,7 +109,7 @@ async def run_backtest(request: SystemOneBacktestRequest) -> SystemOneBacktestOu
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except Exception as exc:  # noqa: BLE001 — one bad symbol/response must never crash the app
         raise HTTPException(status_code=502, detail=f"Angel One error: {exc}") from exc
-    return _serialize(stored)
+    return serialize_backtest(stored)
 
 
 @router.get("/backtest/{backtest_id}/export")

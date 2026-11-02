@@ -50,12 +50,14 @@ function themeColors() {
 interface Props {
   result: SystemOneBacktest;
   focusedTradeNumber: number | null;
+  /** GFS: the stop is a fixed price per trade, not the trailing 20 MA. */
+  fixedStop?: boolean;
 }
 
 /** Weekly candles + 20 MA, entry/exit markers, and an RSI(14) pane with the
  *  60 trigger line. Every series comes straight from the backtest response,
  *  so what is drawn is exactly what the strategy evaluated. */
-export function SystemOneChart({ result, focusedTradeNumber }: Props) {
+export function SystemOneChart({ result, focusedTradeNumber, fixedStop = false }: Props) {
   const intraday = isIntraday(result.timeframe);
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -184,9 +186,20 @@ export function SystemOneChart({ result, focusedTradeNumber }: Props) {
   return (
     <div>
       <p className="so-chart-legend">
-        <span style={{ color: "#f59e0b", fontWeight: 600 }}>Orange</span> = 20 MA (the stop for each {timeframeNoun(result.timeframe)} candle is the previous candle&apos;s
-        value; exit at the open on a gap below it, otherwise at the stop when the low touches it) · <span style={{ color: "#7c3aed", fontWeight: 600 }}>Purple</span> = RSI(14), buy trigger
-        when it crosses above the dashed 60 line.{" "}
+        {fixedStop ? (
+          <>
+            <span style={{ color: "#f59e0b", fontWeight: 600 }}>Orange</span> = 20 MA (reference only). Each trade&apos;s stop is
+            fixed at its Initial Stop price; exit at the open on a gap below it, otherwise at the stop when the low
+            touches it · <span style={{ color: "#7c3aed", fontWeight: 600 }}>Purple</span> = daily RSI(14); entries come
+            when it is between 38 and 42.
+          </>
+        ) : (
+          <>
+            <span style={{ color: "#f59e0b", fontWeight: 600 }}>Orange</span> = 20 MA (the stop for each {timeframeNoun(result.timeframe)} candle is the previous candle&apos;s
+            value; exit at the open on a gap below it, otherwise at the stop when the low touches it) · <span style={{ color: "#7c3aed", fontWeight: 600 }}>Purple</span> = RSI(14), buy trigger
+            when it crosses above the dashed 60 line.
+          </>
+        )}{" "}
         {focusedTradeNumber === null
           ? "Click a trade row to zoom to it."
           : `Zoomed to trade #${focusedTradeNumber}. Click the row again to zoom out.`}

@@ -104,3 +104,19 @@ class SystemOneBacktestConfig(BaseModel):
 
 
 DEFAULT_SYSTEM_ONE_BACKTEST_CONFIG = SystemOneBacktestConfig()
+
+
+class GFSBacktestConfig(SystemOneBacktestConfig):
+    """GFS trade backtest (backend/strategies/gfs_backtest.py). Deliberately
+    separate from GFSConfig (the live screener's 38-45 band): changing these
+    never affects the scan. Runs on DAILY candles; risk sizing is inherited from
+    the System One backtest, the stop is the fixed N-candle low above."""
+
+    monthly_rsi_min: float = 60.0  # monthly RSI must be ABOVE this
+    weekly_rsi_min: float = 60.0  # weekly RSI must be ABOVE this
+    daily_rsi_min: float = 38.0  # daily RSI "near 40": inclusive band
+    daily_rsi_max: float = 42.0
+    stop_candles: int = 3  # stop = low of the first of the last N candles up to the entry candle
+
+
+DEFAULT_GFS_BACKTEST_CONFIG = GFSBacktestConfig()
