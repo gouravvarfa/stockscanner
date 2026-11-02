@@ -82,6 +82,8 @@ export interface SystemOneBacktest {
   };
   trades: SystemOneTrade[];
   candles: SystemOneCandle[];
+  weekly_candles?: SystemOneCandle[]; // GFS only
+  monthly_candles?: SystemOneCandle[]; // GFS only
   skipped_signals: SystemOneSkippedSignal[];
   yearly: SystemOneYear[];
   equity_curve: SystemOneEquityPoint[];

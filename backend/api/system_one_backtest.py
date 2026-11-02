@@ -23,6 +23,12 @@ from backend.services.top_bottom_backtest_service import InsufficientDataError, 
 router = APIRouter(prefix="/api/system-one", tags=["system-one"])
 
 
+def _candle_out(c) -> SystemOneCandleOut:
+    return SystemOneCandleOut(
+        date=c.date.to_pydatetime(), open=c.open, high=c.high, low=c.low, close=c.close, rsi=c.rsi, ma=c.ma,
+    )
+
+
 def serialize_backtest(stored: service.StoredSystemOneBacktest) -> SystemOneBacktestOut:
     result = stored.result
     summary = result.summary()
@@ -60,6 +66,8 @@ def serialize_backtest(stored: service.StoredSystemOneBacktest) -> SystemOneBack
             )
             for c in result.series
         ],
+        weekly_candles=[_candle_out(c) for c in result.weekly_series],
+        monthly_candles=[_candle_out(c) for c in result.monthly_series],
         trades=[
             SystemOneTradeOut(
                 trade_number=t.trade_number,

@@ -130,6 +130,9 @@ class SystemOneBacktestResult:
     warnings: list[str] = field(default_factory=list)
     candles_used: int = 0
     series: list[SeriesPoint] = field(default_factory=list)  # candles inside the requested window
+    # GFS only: completed weekly / monthly bars (with their RSI) inside the window, for the extra charts.
+    weekly_series: list[SeriesPoint] = field(default_factory=list)
+    monthly_series: list[SeriesPoint] = field(default_factory=list)
 
     def summary(self) -> SystemOneSummary:
         closed = [t for t in self.trades if t.status == "CLOSED"]
@@ -253,8 +256,10 @@ def run_ma_stop_backtest(
     fixed_stop_candles: int | None = None,
 ) -> SystemOneBacktestResult:
     """`fixed_stop_candles=None` (System One): stop is the trailing previous-candle
-    20 MA. `fixed_stop_candles=k` (GFS): stop is FIXED at the low of the first of
-    the k candles ending on the entry candle; the 20 MA is not used at all.
+    20 MA. `fixed_stop_candles=k` (GFS): stop starts at the low of the first of the k
+    candles ending on the entry candle, then TRAILS UP: on each later candle it is
+    the low of the first of the k candles ending on the previous candle, and it
+    never moves down. The 20 MA is not used at all.
 
     Everything after the signal — next-candle-close entry, 20 MA sizing,
     trailing previous-MA stop, one trade at a time — is shared; only
@@ -366,8 +371,13 @@ def run_ma_stop_backtest(
         exit_idx = None
         exit_price = None
         exit_reason = "OPEN"
+        trailing_stop = stop_loss
         for j in range(entry_idx + 1, n):
-            stop_level = stop_loss if fixed_stop_candles is not None else ma_values[j - 1]
+            if fixed_stop_candles is not None:
+                trailing_stop = max(trailing_stop, lows[j - fixed_stop_candles])
+                stop_level = trailing_stop
+            else:
+                stop_level = ma_values[j - 1]
             if _is_missing(stop_level):
                 continue
             suffix = "STOP" if fixed_stop_candles is not None else "MA"

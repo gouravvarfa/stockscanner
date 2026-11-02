@@ -5,12 +5,14 @@ const API_BASE = import.meta.env.VITE_API_BASE ?? "http://127.0.0.1:8000";
 // The GFS backtest returns exactly the System One result shape (daily candles).
 export type GFSBacktest = SystemOneBacktest;
 
-export async function runGfsBacktest(req: {
+export type GfsVariant = "gfs" | "advanced";
+
+export async function runGfsBacktest(variant: GfsVariant, req: {
   symbol: string;
   from_date: string;
   to_date: string;
 }): Promise<GFSBacktest> {
-  const res = await fetch(`${API_BASE}/api/gfs/backtest`, {
+  const res = await fetch(`${API_BASE}/api/${variant === "advanced" ? "advanced-gfs" : "gfs"}/backtest`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(req),

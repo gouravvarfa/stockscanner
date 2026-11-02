@@ -96,6 +96,8 @@ class SystemOneBacktestOut(BaseModel):
     summary: SystemOneSummaryOut
     trades: list[SystemOneTradeOut]
     candles: list[SystemOneCandleOut]
+    weekly_candles: list[SystemOneCandleOut] = []  # GFS only
+    monthly_candles: list[SystemOneCandleOut] = []  # GFS only
     skipped_signals: list[SystemOneSkippedOut]
     yearly: list[SystemOneYearOut]
     equity_curve: list[SystemOneEquityPointOut]

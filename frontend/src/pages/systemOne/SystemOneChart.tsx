@@ -37,7 +37,7 @@ function compareTime(a: Time, b: Time): number {
   return typeof a === "number" && typeof b === "number" ? a - b : String(a).localeCompare(String(b));
 }
 
-function themeColors() {
+export function themeColors() {
   const root = document.documentElement;
   const isDark =
     root.getAttribute("data-theme") === "dark" ||
@@ -188,10 +188,9 @@ export function SystemOneChart({ result, focusedTradeNumber, fixedStop = false }
       <p className="so-chart-legend">
         {fixedStop ? (
           <>
-            <span style={{ color: "#f59e0b", fontWeight: 600 }}>Orange</span> = 20 MA (reference only). Each trade&apos;s stop is
-            fixed at its Initial Stop price; exit at the open on a gap below it, otherwise at the stop when the low
-            touches it · <span style={{ color: "#7c3aed", fontWeight: 600 }}>Purple</span> = daily RSI(14); entries come
-            when it is between 38 and 42.
+            <span style={{ color: "#f59e0b", fontWeight: 600 }}>Orange</span> = 20 MA (reference only). The stop starts at the low of
+            the first of the last 3 candles and trails up to the low of the candle 3 back; exit at the open on a gap
+            below it, otherwise at the stop when the low touches it · <span style={{ color: "#7c3aed", fontWeight: 600 }}>Purple</span> = daily RSI(14).
           </>
         ) : (
           <>

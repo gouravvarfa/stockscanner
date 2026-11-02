@@ -93,20 +93,37 @@ def test_engine_enters_next_candle_close_with_ma_stop():
         assert t.quantity >= 1
 
 
-def test_stop_is_fixed_low_of_first_of_three_candles_and_exits_when_touched():
+def test_stop_trails_up_by_the_low_of_three_candles_back_and_exits_when_touched():
     df = daily(noisy_uptrend())
     result = run_gfs_backtest(df, CFG)
+    assert result.trades
+    lows, opens = df["low"].tolist(), df["open"].tolist()
     for t in result.trades:
-        pos = df.index.get_loc(t.entry_date)
-        assert t.stop_loss == df["low"].iloc[pos - 2]
-        assert t.stop_loss < t.entry_price
+        e = df.index.get_loc(t.entry_date)
+        assert t.stop_loss == lows[e - 2] < t.entry_price
+        stop, expected = t.stop_loss, None
+        for j in range(e + 1, len(df)):
+            stop = max(stop, lows[j - 3])
+            if opens[j] < stop:
+                expected = (j, opens[j], "GAP_OPEN_BELOW_STOP")
+                break
+            if lows[j] <= stop:
+                expected = (j, stop, "STOP_HIT")
+                break
+        if expected is None:
+            assert t.status == "OPEN"
+        else:
+            assert (df.index.get_loc(t.exit_date), t.exit_price, t.exit_reason) == expected
+
+
+def test_stop_never_moves_down():
+    # Climb, then a deep drop below the early lows: the exit must be at/above the INITIAL stop's level,
+    # because the stop already trailed up during the climb.
+    closes = noisy_uptrend()
+    df = daily(closes)
+    for t in run_gfs_backtest(df, CFG).trades:
         if t.status == "CLOSED":
-            exit_row = df.loc[t.exit_date]
-            if t.exit_reason == "GAP_OPEN_BELOW_STOP":
-                assert exit_row["open"] < t.stop_loss and t.exit_price == exit_row["open"]
-            else:
-                assert t.exit_reason == "STOP_HIT"
-                assert exit_row["low"] <= t.stop_loss and t.exit_price == t.stop_loss
+            assert t.exit_price >= min(t.stop_loss, df.loc[t.exit_date, "open"])
 
 
 def test_signal_is_skipped_when_entry_is_not_above_the_stop():
@@ -126,3 +143,51 @@ def test_too_little_data_is_a_warning_not_a_crash():
     result = run_gfs_backtest(daily([100.0] * 10), CFG)
     assert result.trades == []
     assert result.warnings
+
+
+# ---- Advanced GFS: same rules, daily RSI must be ABOVE 60 -------------------
+
+from backend.config.strategy_config import AdvancedGFSBacktestConfig  # noqa: E402
+from backend.strategies.gfs_backtest import run_advanced_gfs_backtest  # noqa: E402
+
+ADV = AdvancedGFSBacktestConfig()
+
+
+def test_advanced_signals_need_daily_rsi_above_60_with_weekly_and_monthly_above_60():
+    df = daily(noisy_uptrend())
+    flags, d_rsi = _gfs_setup_signals(df, ADV)
+    days = [i for i, f in enumerate(flags) if f]
+    assert days
+    weekly = rsi(to_weekly(df)["close"], 14).reindex(df.index, method="ffill")
+    monthly = rsi(to_monthly(df)["close"], 14).reindex(df.index, method="ffill")
+    for i in days:
+        assert d_rsi[i] > 60
+        assert weekly.iloc[i] > 60 and monthly.iloc[i] > 60
+
+
+def test_advanced_and_gfs_signals_never_overlap_on_the_same_day():
+    df = daily(noisy_uptrend())
+    gfs = _gfs_setup_signals(df, CFG)[0]
+    adv = _gfs_setup_signals(df, ADV)[0]
+    assert not any(a and g for a, g in zip(adv, gfs))
+
+
+def test_advanced_uses_same_entry_and_trailing_stop_engine():
+    df = daily(noisy_uptrend())
+    result = run_advanced_gfs_backtest(df, ADV)
+    lows = df["low"].tolist()
+    for t in result.trades:
+        e = df.index.get_loc(t.entry_date)
+        assert t.entry_price == df["close"].iloc[e]
+        assert t.stop_loss == lows[e - 2] < t.entry_price
+
+
+def test_weekly_and_monthly_series_are_completed_bars_with_rsi_inside_the_window():
+    df = daily(noisy_uptrend())
+    cut = df.index[900]
+    result = run_gfs_backtest(df, CFG, from_date=cut.to_pydatetime())
+    assert result.weekly_series and result.monthly_series
+    assert all(p.date >= cut for p in result.weekly_series + result.monthly_series)
+    assert result.weekly_series[-1].date <= df.index[-1]
+    assert result.monthly_series[-1].date <= df.index[-1]
+    assert any(p.rsi is not None for p in result.weekly_series) and any(p.rsi is not None for p in result.monthly_series)

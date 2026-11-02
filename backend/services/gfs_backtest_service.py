@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import datetime as dt
 import uuid
+from collections.abc import Callable
 
 from backend.config.strategy_config import DEFAULT_GFS_BACKTEST_CONFIG, GFSBacktestConfig
 from backend.providers.angelone_provider import AngelOneProvider
@@ -21,6 +22,9 @@ from backend.services.top_bottom_backtest_service import (
     _resolve_instrument,
 )
 from backend.strategies.gfs_backtest import run_gfs_backtest
+from backend.strategies.system_one_backtest import SystemOneBacktestResult
+
+BacktestRunner = Callable[..., SystemOneBacktestResult]
 
 TIMEFRAME = "1D"
 
@@ -39,6 +43,7 @@ async def run_for_symbol(
     from_date: dt.datetime,
     to_date: dt.datetime,
     config: GFSBacktestConfig = DEFAULT_GFS_BACKTEST_CONFIG,
+    runner: BacktestRunner = run_gfs_backtest,
 ) -> StoredSystemOneBacktest:
     if from_date > to_date:
         raise TopBottomValidationError("from_date must not be after to_date.")
@@ -54,7 +59,7 @@ async def run_for_symbol(
             f"available from {candles.index[0].date()} to {candles.index[-1].date()}."
         )
 
-    result = run_gfs_backtest(candles, config, from_date=from_date, to_date=to_date)
+    result = runner(candles, config, from_date=from_date, to_date=to_date)
     if candles.index[0] > from_date + _COVERAGE_SLACK:
         result.warnings.append(
             f"Daily data is only available from {candles.index[0].date()}, so the backtest starts there, "

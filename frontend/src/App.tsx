@@ -42,6 +42,7 @@ export default function App() {
             <Route path="/strategies" element={<Strategies />} />
             <Route path="/strategies/system-one" element={<SystemOneBacktestPage />} />
             <Route path="/strategies/gfs" element={<GFSBacktestPage />} />
+            <Route path="/strategies/advanced-gfs" element={<GFSBacktestPage variant="advanced" />} />
             <Route path="/expiry-level-1" element={<ExpiryLevel1 />} />
             <Route path="/expiry-level-5" element={<ExpiryLevel5 />} />
             <Route path="/cup-breakout" element={<CupBreakoutPage />} />

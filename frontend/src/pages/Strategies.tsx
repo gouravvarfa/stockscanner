@@ -65,14 +65,14 @@ export function Strategies() {
                 </div>
               </>
             );
-            // System One and GFS open their backtest pages; the other cards are info-only.
-            const backtestRoute = name === "Strategy One" ? "/strategies/system-one" : name === "GFS" ? "/strategies/gfs" : null;
+            // System One, GFS and Advanced GFS open their backtest pages; the other cards are info-only.
+            const backtestRoute = name === "Strategy One" ? "/strategies/system-one" : name === "GFS" ? "/strategies/gfs" : name === "Advanced GFS" ? "/strategies/advanced-gfs" : null;
             return backtestRoute ? (
               <Link
                 key={name}
                 to={backtestRoute}
                 className="strategy-card strategy-card-link"
-                aria-label={`Open ${name === "GFS" ? "GFS" : "System One"} backtest`}
+                aria-label={`Open ${name === "Strategy One" ? "System One" : name} backtest`}
               >
                 {body}
                 <span className="strategy-card-cta">Open backtest →</span>

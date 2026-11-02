@@ -116,7 +116,21 @@ class GFSBacktestConfig(SystemOneBacktestConfig):
     weekly_rsi_min: float = 60.0  # weekly RSI must be ABOVE this
     daily_rsi_min: float = 38.0  # daily RSI "near 40": inclusive band
     daily_rsi_max: float = 42.0
+    daily_min_exclusive: bool = False  # the GFS band is inclusive at 38
     stop_candles: int = 3  # stop = low of the first of the last N candles up to the entry candle
 
 
 DEFAULT_GFS_BACKTEST_CONFIG = GFSBacktestConfig()
+
+
+class AdvancedGFSBacktestConfig(GFSBacktestConfig):
+    """Advanced GFS backtest: identical to GFS except the daily RSI must be
+    ABOVE 60 (no upper limit) instead of sitting in the 38-42 band. Separate
+    from AdvancedGFSConfig (the live screener's 59-65 / 65 / 68 thresholds)."""
+
+    daily_rsi_min: float = 60.0
+    daily_rsi_max: float = 100.0
+    daily_min_exclusive: bool = True  # "above 60" means strictly greater
+
+
+DEFAULT_ADVANCED_GFS_BACKTEST_CONFIG = AdvancedGFSBacktestConfig()
