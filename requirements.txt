@@ -15,3 +15,4 @@ redis
 openpyxl
 pytest
 pytest-asyncio
+truststore

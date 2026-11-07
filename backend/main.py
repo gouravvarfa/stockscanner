@@ -3,6 +3,17 @@ from __future__ import annotations
 import logging
 from contextlib import asynccontextmanager
 
+# Verify TLS against the operating system's trust store instead of certifi's
+# bundle alone. Antivirus HTTPS scanning (e.g. Avast Web Shield) re-signs traffic
+# with a root that is installed in Windows but unknown to certifi, which makes
+# every Angel One call fail with CERTIFICATE_VERIFY_FAILED. Verification stays on.
+try:
+    import truststore
+
+    truststore.inject_into_ssl()
+except ImportError:  # optional: without it, certifi's bundle is used
+    pass
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 

@@ -15,6 +15,7 @@ import {
 } from "lightweight-charts";
 import type { SystemOneBacktest } from "../../services/systemOneBacktestApi";
 import { isIntraday, timeframeNoun } from "./timeframes";
+import type { ChartTimeSync } from "./chartTimeSync";
 
 // Daily/weekly candles carry only a date, so they use plain "YYYY-MM-DD" times
 // (no timezone shifting). Hourly candles need a time of day: the backend sends
@@ -50,14 +51,16 @@ export function themeColors() {
 interface Props {
   result: SystemOneBacktest;
   focusedTradeNumber: number | null;
-  /** GFS: the stop is a fixed price per trade, not the trailing 20 MA. */
-  fixedStop?: boolean;
+  /** GFS: the buy trigger is the GFS setup (not an RSI cross of 60), so the legend says so. */
+  gfsSetup?: boolean;
+  /** GFS: keeps this chart's date window equal to the weekly/monthly charts. */
+  sync?: ChartTimeSync;
 }
 
 /** Weekly candles + 20 MA, entry/exit markers, and an RSI(14) pane with the
  *  60 trigger line. Every series comes straight from the backtest response,
  *  so what is drawn is exactly what the strategy evaluated. */
-export function SystemOneChart({ result, focusedTradeNumber, fixedStop = false }: Props) {
+export function SystemOneChart({ result, focusedTradeNumber, gfsSetup = false, sync }: Props) {
   const intraday = isIntraday(result.timeframe);
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -108,8 +111,10 @@ export function SystemOneChart({ result, focusedTradeNumber, fixedStop = false }
     candleRef.current = candles;
     maRef.current = ma;
     rsiRef.current = rsi;
+    const unsync = sync?.add(chart, container);
 
     return () => {
+      unsync?.();
       chart.remove();
       chartRef.current = null;
       candleRef.current = null;
@@ -117,7 +122,7 @@ export function SystemOneChart({ result, focusedTradeNumber, fixedStop = false }
       rsiRef.current = null;
       markersRef.current = null;
     };
-  }, []);
+  }, [sync]);
 
   // Data effect: depends only on `result`, so focusing a trade never reloads data.
   useEffect(() => {
@@ -160,8 +165,10 @@ export function SystemOneChart({ result, focusedTradeNumber, fixedStop = false }
   useEffect(() => {
     const chart = chartRef.current;
     if (!chart) return;
+    // Programmatic moves go through the sync group so weekly/monthly follow.
+    const move = (fn: () => void) => (sync ? sync.drive(chart, fn) : fn());
     if (focusedTradeNumber === null) {
-      chart.timeScale().fitContent();
+      move(() => chart.timeScale().fitContent());
       return;
     }
     const trade = result.trades.find((t) => t.trade_number === focusedTradeNumber);
@@ -170,14 +177,16 @@ export function SystemOneChart({ result, focusedTradeNumber, fixedStop = false }
     try {
       // About 10 weeks of context on a daily/weekly chart, 5 days on an intraday one.
       const pad = intraday ? 5 : 70;
-      chart.timeScale().setVisibleRange({
-        from: shiftDays(trade.entry_date, -pad, intraday),
-        to: shiftDays(end, pad, intraday),
-      });
+      move(() =>
+        chart.timeScale().setVisibleRange({
+          from: shiftDays(trade.entry_date, -pad, intraday),
+          to: shiftDays(end, pad, intraday),
+        }),
+      );
     } catch {
       // A range the library cannot satisfy must not take the page down.
     }
-  }, [focusedTradeNumber, result, intraday]);
+  }, [focusedTradeNumber, result, intraday, sync]);
 
   if (result.candles.length === 0) {
     return <div className="state-subtitle">No candles to draw for this period.</div>;
@@ -186,11 +195,12 @@ export function SystemOneChart({ result, focusedTradeNumber, fixedStop = false }
   return (
     <div>
       <p className="so-chart-legend">
-        {fixedStop ? (
+        {gfsSetup ? (
           <>
-            <span style={{ color: "#f59e0b", fontWeight: 600 }}>Orange</span> = 20 MA (reference only). The stop starts at the low of
-            the first of the last 3 candles and trails up to the low of the candle 3 back; exit at the open on a gap
-            below it, otherwise at the stop when the low touches it · <span style={{ color: "#7c3aed", fontWeight: 600 }}>Purple</span> = daily RSI(14).
+            <span style={{ color: "#7c3aed", fontWeight: 600 }}>Purple</span> = daily RSI(14). Entry is the next candle&apos;s
+            close after the signal. The stop starts at the lowest low of the last 5 candles, moves to the entry after a
+            close 1R above it, then trails up while the last 3 candles make higher lows. Exit at the open on a gap below
+            the stop, at the stop when the low touches it, or at the close when the weekly RSI is below 60.
           </>
         ) : (
           <>

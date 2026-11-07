@@ -48,7 +48,7 @@ class SystemOneTrade:
     signal_date: pd.Timestamp
     entry_date: pd.Timestamp
     entry_price: float
-    stop_loss: float  # 20 SMA at entry, frozen
+    stop_loss: float  # initial stop at entry (System One: 20 SMA, frozen; GFS: lowest low of the last N candles)
     risk_per_share: float
     risk_per_trade: float
     quantity: int
@@ -56,7 +56,7 @@ class SystemOneTrade:
     exit_date: pd.Timestamp | None = None
     exit_price: float | None = None
     pnl_amount: float | None = None  # gross, closed trades only
-    exit_reason: str = "OPEN"  # STOP_AT_MA | GAP_OPEN_BELOW_MA | STOP_HIT | GAP_OPEN_BELOW_STOP | OPEN
+    exit_reason: str = "OPEN"  # STOP_AT_MA | GAP_OPEN_BELOW_MA | STOP_HIT | GAP_OPEN_BELOW_STOP | WEEKLY_RSI_EXIT | OPEN
     holding_periods: int = 0  # candles held (to the exit, or to the last candle while open)
     pnl_pct: float | None = None  # pnl as % of entry price, closed trades only
     r_multiple: float | None = None  # pnl / planned risk per trade, closed trades only
@@ -253,17 +253,10 @@ def run_ma_stop_backtest(
     signal_rule: SignalRule,
     from_date: dt.datetime | None = None,
     to_date: dt.datetime | None = None,
-    fixed_stop_candles: int | None = None,
 ) -> SystemOneBacktestResult:
-    """`fixed_stop_candles=None` (System One): stop is the trailing previous-candle
-    20 MA. `fixed_stop_candles=k` (GFS): stop starts at the low of the first of the k
-    candles ending on the entry candle, then TRAILS UP: on each later candle it is
-    the low of the first of the k candles ending on the previous candle, and it
-    never moves down. The 20 MA is not used at all.
-
-    Everything after the signal — next-candle-close entry, 20 MA sizing,
+    """Everything after the signal — next-candle-close entry, 20 MA sizing,
     trailing previous-MA stop, one trade at a time — is shared; only
-    `signal_rule` differs between strategies (System One, GFS)."""
+    `signal_rule` differs between strategies (System One, GFS, Advanced GFS)."""
     result = SystemOneBacktestResult()
     if ohlcv is None or ohlcv.empty or "close" not in ohlcv.columns:
         result.warnings.append("No candle data available.")
@@ -319,25 +312,12 @@ def run_ma_stop_backtest(
             break
 
         entry_price = closes[entry_idx]
-        if fixed_stop_candles is not None:
-            first = entry_idx - (fixed_stop_candles - 1)
-            stop_loss = lows[first] if first >= 0 else None
-            if stop_loss is None or entry_price <= stop_loss:
-                result.skipped.append(SkippedSignal(
-                    dates[signal_idx],
-                    "Not enough candles for the stop." if stop_loss is None else
-                    f"Entry price {entry_price:.2f} is not above the stop {stop_loss:.2f} "
-                    f"(low of the first of the last {fixed_stop_candles} candles); risk per share would be zero or negative.",
-                ))
-                i += 1
-                continue
-        else:
-            stop_loss = ma_values[entry_idx]
-        if fixed_stop_candles is None and _is_missing(stop_loss):
+        stop_loss = ma_values[entry_idx]
+        if _is_missing(stop_loss):
             result.skipped.append(SkippedSignal(dates[signal_idx], "20 MA not available on the entry candle."))
             i += 1
             continue
-        if fixed_stop_candles is None and entry_price <= stop_loss:
+        if entry_price <= stop_loss:
             result.skipped.append(SkippedSignal(
                 dates[signal_idx],
                 f"Entry price {entry_price:.2f} is not above the 20 MA {stop_loss:.2f}; risk per share would be zero or negative.",
@@ -371,21 +351,15 @@ def run_ma_stop_backtest(
         exit_idx = None
         exit_price = None
         exit_reason = "OPEN"
-        trailing_stop = stop_loss
         for j in range(entry_idx + 1, n):
-            if fixed_stop_candles is not None:
-                trailing_stop = max(trailing_stop, lows[j - fixed_stop_candles])
-                stop_level = trailing_stop
-            else:
-                stop_level = ma_values[j - 1]
+            stop_level = ma_values[j - 1]
             if _is_missing(stop_level):
                 continue
-            suffix = "STOP" if fixed_stop_candles is not None else "MA"
             if opens[j] < stop_level:
-                exit_idx, exit_price, exit_reason = j, opens[j], f"GAP_OPEN_BELOW_{suffix}"
+                exit_idx, exit_price, exit_reason = j, opens[j], "GAP_OPEN_BELOW_MA"
                 break
             if lows[j] <= stop_level:
-                exit_idx, exit_price, exit_reason = j, stop_level, "STOP_HIT" if suffix == "STOP" else "STOP_AT_MA"
+                exit_idx, exit_price, exit_reason = j, stop_level, "STOP_AT_MA"
                 break
 
         if exit_idx is not None:
@@ -396,7 +370,7 @@ def run_ma_stop_backtest(
             trade.holding_periods = exit_idx - entry_idx
             trade.data_flag = (
                 "Low-vs-High order inside the candle is unknown; a touched stop is assumed hit"
-                if exit_reason in ("STOP_AT_MA", "STOP_HIT") else "Gap fill at the candle's open"
+                if exit_reason == "STOP_AT_MA" else "Gap fill at the candle's open"
             )
             trade.pnl_amount = (trade.exit_price - entry_price) * quantity
             trade.pnl_pct = (trade.exit_price - entry_price) / entry_price * 100.0

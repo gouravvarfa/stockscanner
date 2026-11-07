@@ -1,4 +1,4 @@
-"""GFS trade backtest: setup/signal rule and the shared entry/stop engine.
+"""GFS trade backtest: setup/signal rule, entry and the staged stop.
 
 Fixtures are synthetic daily candles, no Angel One calls. The expectations are
 properties that follow from the rules (band edges, fresh-signal-only, completed
@@ -12,7 +12,7 @@ import pandas as pd
 from backend.config.strategy_config import GFSBacktestConfig
 from backend.indicators.resample import to_monthly, to_weekly
 from backend.indicators.rsi import rsi
-from backend.strategies.gfs_backtest import _gfs_setup_signals, run_gfs_backtest
+from backend.strategies.gfs_backtest import _gfs_setup_signals, _initial_stop, _manage_trade, run_gfs_backtest
 
 CFG = GFSBacktestConfig()
 
@@ -79,56 +79,102 @@ def CFG_flags(df):
     return _gfs_setup_signals(df, CFG)[0]
 
 
-def test_engine_enters_next_candle_close_with_ma_stop():
+def test_engine_enters_next_candle_close_with_the_5_candle_low_stop_and_sizes_by_it():
     df = daily(noisy_uptrend())
     result = run_gfs_backtest(df, CFG)
     assert result.trades
     flags, _ = _gfs_setup_signals(df, CFG)
     signal_dates = {df.index[i] for i, f in enumerate(flags) if f}
+    lows = df["low"].tolist()
     for t in result.trades:
+        e = df.index.get_loc(t.entry_date)
         assert t.signal_date in signal_dates
         assert t.entry_date > t.signal_date
         assert t.entry_price == df.loc[t.entry_date, "close"]
-        assert t.stop_loss < t.entry_price
-        assert t.quantity >= 1
+        assert t.stop_loss == min(lows[e - 4 : e + 1]) < t.entry_price
+        assert t.risk_per_share == t.entry_price - t.stop_loss
+        assert t.quantity == int(CFG.risk_per_trade / t.risk_per_share + 1e-9)
 
 
-def test_stop_trails_up_by_the_low_of_three_candles_back_and_exits_when_touched():
-    df = daily(noisy_uptrend())
-    result = run_gfs_backtest(df, CFG)
-    assert result.trades
-    lows, opens = df["low"].tolist(), df["open"].tolist()
-    for t in result.trades:
-        e = df.index.get_loc(t.entry_date)
-        assert t.stop_loss == lows[e - 2] < t.entry_price
-        stop, expected = t.stop_loss, None
-        for j in range(e + 1, len(df)):
-            stop = max(stop, lows[j - 3])
-            if opens[j] < stop:
-                expected = (j, opens[j], "GAP_OPEN_BELOW_STOP")
-                break
-            if lows[j] <= stop:
-                expected = (j, stop, "STOP_HIT")
-                break
-        if expected is None:
-            assert t.status == "OPEN"
-        else:
-            assert (df.index.get_loc(t.exit_date), t.exit_price, t.exit_reason) == expected
-
-
-def test_stop_never_moves_down():
-    # Climb, then a deep drop below the early lows: the exit must be at/above the INITIAL stop's level,
-    # because the stop already trailed up during the climb.
-    closes = noisy_uptrend()
-    df = daily(closes)
-    for t in run_gfs_backtest(df, CFG).trades:
-        if t.status == "CLOSED":
-            assert t.exit_price >= min(t.stop_loss, df.loc[t.exit_date, "open"])
+def test_one_trade_at_a_time_and_exit_reasons_are_known():
+    result = run_gfs_backtest(daily(noisy_uptrend()), CFG)
+    closed = [t for t in result.trades if t.status == "CLOSED"]
+    assert closed
+    for t in closed:
+        assert t.exit_reason in {"STOP_HIT", "GAP_OPEN_BELOW_STOP", "WEEKLY_RSI_EXIT"}
+        assert t.exit_date > t.entry_date
+    for prev, nxt in zip(result.trades, result.trades[1:]):
+        assert prev.status == "CLOSED" and nxt.signal_date > prev.exit_date
 
 
 def test_signal_is_skipped_when_entry_is_not_above_the_stop():
+    # A falling market that still fires the setup: the 5-candle low sits above the entry.
     result = run_gfs_backtest(daily(uptrend_with_dips()), CFG)
-    assert result.skipped and all("not above the stop" in sk.reason for sk in result.skipped)
+    assert all("not above the stop" in sk.reason for sk in result.skipped)
+
+
+# --- the staged stop, on hand-made candles --------------------------------------------------
+
+def manage(opens, lows, closes, entry_idx, entry_price, stop, weekly=None):
+    weekly = weekly if weekly is not None else [70.0] * len(closes)
+    return _manage_trade(opens, lows, closes, weekly, entry_idx, entry_price, stop, CFG)
+
+
+def test_initial_stop_is_the_lowest_low_of_the_last_5_candles_entry_included():
+    lows = [10, 9, 8, 12, 11, 13]
+    assert _initial_stop(lows, 5, 5) == 8  # candles 1..5
+    assert _initial_stop(lows, 4, 5) == 8  # candles 0..4
+    assert _initial_stop(lows, 3, 5) is None  # not enough candles
+
+
+def test_breakeven_after_a_close_one_r_above_entry():
+    # entry 100, stop 94 -> R = 6. Candle 1 closes at 106 (+1R), so the stop moves to 100.
+    opens = [100, 101, 106]
+    lows = [95, 99, 99.5]
+    closes = [100, 106, 101]
+    assert manage(opens, lows, closes, 0, 100.0, 94.0) == (2, 100.0, "STOP_HIT")
+
+
+def test_no_breakeven_before_one_r():
+    # Closes only +5 (< 1R = 6): the stop stays at 94 and a dip to 99.5 does not exit.
+    opens = [100, 101, 105]
+    lows = [95, 99, 99.5]
+    closes = [100, 105, 101]
+    assert manage(opens, lows, closes, 0, 100.0, 94.0) == (None, None, "OPEN")
+
+
+def test_stop_trails_to_the_oldest_low_while_lows_keep_rising():
+    # Initial stop 90, R = 10 so breakeven (needs a close of 110) never fires.
+    lows = [95.0, 96.0, 97.0, 98.0, 99.0, 100.0, 97.5]
+    opens = [100.0, 100.0, 100.0, 100.0, 101.0, 102.0, 100.0]
+    closes = [100.0, 100.0, 100.0, 101.0, 102.0, 103.0, 99.0]
+    # After candle 5 the stop is the low of candle 3 (98); candle 6's low 97.5 touches it.
+    assert manage(opens, lows, closes, 2, 100.0, 90.0) == (6, 98.0, "STOP_HIT")
+
+
+def test_sideways_market_does_not_trail_the_stop():
+    # Flat lows: no higher-low run, so the stop stays at the initial 90.
+    flat = [96.0] * 8
+    opens = [100.0] * 8
+    closes = [100.0] * 8
+    assert manage(opens, flat, closes, 2, 100.0, 90.0) == (None, None, "OPEN")
+    # ...and a later drop is only stopped at that initial level.
+    lows = flat[:-1] + [89.0]
+    assert manage(opens, lows, closes, 2, 100.0, 90.0) == (7, 90.0, "STOP_HIT")
+
+
+def test_gap_open_below_the_stop_fills_at_the_open():
+    opens, lows, closes = [100.0, 88.0], [95.0, 87.0], [100.0, 89.0]
+    assert manage(opens, lows, closes, 0, 100.0, 90.0) == (1, 88.0, "GAP_OPEN_BELOW_STOP")
+
+
+def test_exit_at_the_close_when_the_weekly_rsi_falls_below_60():
+    opens, lows, closes = [100.0, 100.0, 101.0], [95.0, 99.0, 100.0], [100.0, 101.0, 102.0]
+    weekly = [70.0, 70.0, 59.0]
+    assert manage(opens, lows, closes, 0, 100.0, 90.0, weekly) == (2, 102.0, "WEEKLY_RSI_EXIT")
+    # a stop hit on the same candle wins over the RSI exit (it is checked first)
+    lows2 = [95.0, 99.0, 89.0]
+    assert manage(opens, lows2, closes, 0, 100.0, 90.0, weekly) == (2, 90.0, "STOP_HIT")
 
 
 def test_from_date_drops_earlier_signals_but_keeps_warmup():
@@ -172,14 +218,14 @@ def test_advanced_and_gfs_signals_never_overlap_on_the_same_day():
     assert not any(a and g for a, g in zip(adv, gfs))
 
 
-def test_advanced_uses_same_entry_and_trailing_stop_engine():
+def test_advanced_uses_same_entry_and_stop_engine():
     df = daily(noisy_uptrend())
     result = run_advanced_gfs_backtest(df, ADV)
     lows = df["low"].tolist()
     for t in result.trades:
         e = df.index.get_loc(t.entry_date)
         assert t.entry_price == df["close"].iloc[e]
-        assert t.stop_loss == lows[e - 2] < t.entry_price
+        assert t.stop_loss == min(lows[e - 4 : e + 1]) < t.entry_price
 
 
 def test_weekly_and_monthly_series_are_completed_bars_with_rsi_inside_the_window():

@@ -110,14 +110,18 @@ class GFSBacktestConfig(SystemOneBacktestConfig):
     """GFS trade backtest (backend/strategies/gfs_backtest.py). Deliberately
     separate from GFSConfig (the live screener's 38-45 band): changing these
     never affects the scan. Runs on DAILY candles; risk sizing is inherited from
-    the System One backtest, the stop is the fixed N-candle low above."""
+    the System One backtest, the stop is the staged GFS stop described in gfs_backtest.py."""
 
     monthly_rsi_min: float = 60.0  # monthly RSI must be ABOVE this
     weekly_rsi_min: float = 60.0  # weekly RSI must be ABOVE this
     daily_rsi_min: float = 38.0  # daily RSI "near 40": inclusive band
     daily_rsi_max: float = 42.0
     daily_min_exclusive: bool = False  # the GFS band is inclusive at 38
-    stop_candles: int = 3  # stop = low of the first of the last N candles up to the entry candle
+    # Stop loss (see gfs_backtest.py): initial stop, breakeven, trailing, setup-break exit.
+    initial_stop_candles: int = 5  # initial stop = lowest low of the last N candles, entry candle included
+    breakeven_r: float = 1.0  # once a close is this many R above entry, the stop moves up to the entry price
+    trail_candles: int = 3  # trail only while the last N candles each made a higher low; stop -> oldest of them
+    weekly_rsi_exit_below: float = 60.0  # exit at the close when the completed weekly RSI is below this
 
 
 DEFAULT_GFS_BACKTEST_CONFIG = GFSBacktestConfig()

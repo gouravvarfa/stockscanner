@@ -13,7 +13,7 @@ export interface SystemOneTrade {
   exit_date: string | null;
   pnl_amount: number | null;
   status: "OPEN" | "CLOSED";
-  exit_reason: "STOP_AT_MA" | "GAP_OPEN_BELOW_MA" | "STOP_HIT" | "GAP_OPEN_BELOW_STOP" | "OPEN";
+  exit_reason: "STOP_AT_MA" | "GAP_OPEN_BELOW_MA" | "STOP_HIT" | "GAP_OPEN_BELOW_STOP" | "WEEKLY_RSI_EXIT" | "OPEN";
   holding_periods: number;
   pnl_pct: number | null;
   r_multiple: number | null;

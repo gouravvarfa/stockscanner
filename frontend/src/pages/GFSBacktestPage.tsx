@@ -1,9 +1,10 @@
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { EquitySearchBox } from "./topBottom/EquitySearchBox";
 import { SystemOneChart } from "./systemOne/SystemOneChart";
 import { EquityCurve } from "./systemOne/EquityCurve";
 import { HigherTimeframeChart } from "./systemOne/HigherTimeframeChart";
+import { ChartTimeSync } from "./systemOne/chartTimeSync";
 import { runGfsBacktest, type GFSBacktest, type GfsVariant } from "../services/gfsBacktestApi";
 
 function fmtMoney(v: number | null | undefined): string {
@@ -50,6 +51,9 @@ export function GFSBacktestPage({ variant = "gfs" }: { variant?: GfsVariant }) {
   const [focusedTrade, setFocusedTrade] = useState<number | null>(null);
 
   const chartRef = useRef<HTMLDivElement>(null);
+  // Daily, weekly and monthly charts share one date window (a fresh group per result).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const timeSync = useMemo(() => new ChartTimeSync(), [result?.backtest_id]);
 
   function openTradeChart(tradeNumber: number) {
     setFocusedTrade(tradeNumber);
@@ -93,10 +97,13 @@ export function GFSBacktestPage({ variant = "gfs" }: { variant?: GfsVariant }) {
           </Link>
           <h1>{title}</h1>
           <p className="page-subtitle">
-            Daily-chart backtest. A setup needs monthly RSI above 60, weekly RSI above 60 and daily RSI {dailyRule}. The signal is the first day all three hold; enter at the next candle&apos;s close. The stop
-            starts at the low of the first of the last 3 candles (entry candle included), then trails up: on each new
-            candle it is the low of the candle 3 back, and it never moves down. The trade exits as soon as a candle
-            opens below the stop or its low touches it. A signal is skipped if the entry is not above that stop. One trade at a time. Risk is 1% of ₹10,00,000 (₹10,000) per trade. All P&amp;L is gross.
+            Daily-chart backtest. A setup needs monthly RSI above 60, weekly RSI above 60 and daily RSI {dailyRule}. The signal is the first day all three hold; enter at the next candle&apos;s close. The initial
+            stop is the lowest low of the last 5 candles (entry candle included); a signal is skipped if the entry is not above it.
+            Once a candle closes 1R above the entry (R = entry minus initial stop) the stop moves to the entry price. While the
+            last 3 candles each make a higher low, the stop trails up to the oldest of those lows; in a sideways market it stays
+            put, and it never moves down. The trade exits when a candle opens below the stop (at the open), when its low touches
+            the stop (at the stop), or at the close when the completed weekly RSI is below 60. There is no profit target. One
+            trade at a time. Risk is 1% of ₹10,00,000 (₹10,000) per trade. All P&amp;L is gross. One trade at a time. Risk is 1% of ₹10,00,000 (₹10,000) per trade. All P&amp;L is gross.
           </p>
         </div>
       </div>
@@ -187,19 +194,19 @@ export function GFSBacktestPage({ variant = "gfs" }: { variant?: GfsVariant }) {
 
           <div className="card" ref={chartRef}>
             <h2 style={{ marginTop: 0 }}>Daily Chart</h2>
-            <SystemOneChart key={result.backtest_id} result={result} focusedTradeNumber={focusedTrade} fixedStop />
+            <SystemOneChart key={result.backtest_id} result={result} focusedTradeNumber={focusedTrade} gfsSetup sync={timeSync} />
           </div>
 
           <div className="card">
             <h2 style={{ marginTop: 0 }}>Weekly Chart</h2>
-            <p className="so-chart-legend">Weekly RSI must be above the dashed 60 line. Completed weeks only.</p>
-            <HigherTimeframeChart key={`w-${result.backtest_id}`} candles={result.weekly_candles ?? []} />
+            <p className="so-chart-legend">Weekly RSI must be above the dashed 60 line. Green band = RSI above 60 (green line: first week above, red line: week it fell back to 60 or below). Completed weeks only. Moves together with the daily and monthly charts.</p>
+            <HigherTimeframeChart key={`w-${result.backtest_id}`} candles={result.weekly_candles ?? []} sync={timeSync} />
           </div>
 
           <div className="card">
             <h2 style={{ marginTop: 0 }}>Monthly Chart</h2>
-            <p className="so-chart-legend">Monthly RSI must be above the dashed 60 line. Completed months only.</p>
-            <HigherTimeframeChart key={`m-${result.backtest_id}`} candles={result.monthly_candles ?? []} />
+            <p className="so-chart-legend">Monthly RSI must be above the dashed 60 line. Green band = RSI above 60 (green line: first month above, red line: month it fell back to 60 or below). Completed months only. Moves together with the daily and weekly charts.</p>
+            <HigherTimeframeChart key={`m-${result.backtest_id}`} candles={result.monthly_candles ?? []} sync={timeSync} />
           </div>
 
           <div className="card">
@@ -254,7 +261,7 @@ export function GFSBacktestPage({ variant = "gfs" }: { variant?: GfsVariant }) {
                     <th>Signal Date</th>
                     <th>Entry Date</th>
                     <th className="num-cell">Entry Price</th>
-                    <th className="num-cell">Initial Stop (3-candle low)</th>
+                    <th className="num-cell">Initial Stop (5-candle low)</th>
                     <th className="num-cell">Risk Per Share</th>
                     <th className="num-cell">Quantity</th>
                     <th className="num-cell">Planned Risk</th>

@@ -9,10 +9,15 @@ import {
 } from "lightweight-charts";
 import type { SystemOneCandle } from "../../services/systemOneBacktestApi";
 import { themeColors } from "./SystemOneChart";
+import { computeRsiBands, RsiBandsPrimitive } from "./rsiBands";
+import type { ChartTimeSync } from "./chartTimeSync";
 
 /** Plain candles + RSI(14) pane with the 60 line, for the weekly / monthly
- *  charts the GFS setup reads. Data is exactly what the backend evaluated. */
-export function HigherTimeframeChart({ candles }: { candles: SystemOneCandle[] }) {
+ *  charts the GFS setup reads. Data is exactly what the backend evaluated.
+ *  Green shading + dashed lines mark where RSI is above 60 (red line = the bar
+ *  it fell back to 60 or below). `sync` keeps the date window equal to the
+ *  other charts in the group. */
+export function HigherTimeframeChart({ candles, sync }: { candles: SystemOneCandle[]; sync?: ChartTimeSync }) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -42,11 +47,20 @@ export function HigherTimeframeChart({ candles }: { candles: SystemOneCandle[] }
     rsi.createPriceLine({
       price: 60, color: c.ref, lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: "60",
     });
+    // Shade (and draw start/end lines for) every stretch where RSI is above 60,
+    // in both the price pane and the RSI pane.
+    const bands = computeRsiBands(candles, 60);
+    series.attachPrimitive(new RsiBandsPrimitive(bands));
+    rsi.attachPrimitive(new RsiBandsPrimitive(bands));
     chart.panes()[0]?.setStretchFactor(3);
     chart.panes()[1]?.setStretchFactor(1);
     chart.timeScale().fitContent();
-    return () => chart.remove();
-  }, [candles]);
+    const unsync = sync?.add(chart, container);
+    return () => {
+      unsync?.();
+      chart.remove();
+    };
+  }, [candles, sync]);
 
   if (candles.length === 0) {
     return <div className="state-subtitle">No completed bars to draw for this period.</div>;

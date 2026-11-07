@@ -25,7 +25,7 @@ class SystemOneTradeOut(BaseModel):
     exit_date: dt.datetime | None
     pnl_amount: float | None  # None for an OPEN trade — never a fabricated 0
     status: str  # "OPEN" | "CLOSED"
-    exit_reason: str  # STOP_AT_MA | GAP_OPEN_BELOW_MA | OPEN
+    exit_reason: str  # STOP_AT_MA | GAP_OPEN_BELOW_MA | STOP_HIT | GAP_OPEN_BELOW_STOP | WEEKLY_RSI_EXIT | OPEN
     holding_periods: int  # candles (weeks on 1W)
     pnl_pct: float | None
     r_multiple: float | None
