@@ -73,11 +73,7 @@ export function FuturesSearchBox({ onSelect, selected }: Props) {
                 <div className="tb-search-result-title">{c.underlying} FUT</div>
                 <div className="tb-search-result-meta">
                   Expiry: {c.expiry} · Exchange: {c.exch_seg}{c.commodity ? " · Commodity" : c.is_index ? " · Index" : ""}
-                  {c.commodity && (
-                    results.some((x) => x.underlying === c.underlying && x.expiry < c.expiry)
-                      ? " · Later expiry: history only since it was listed (short)"
-                      : " · Nearest expiry: longest history"
-                  )}
+                  {c.commodity && " · Nearest expiry (full history)"}
                 </div>
               </button>
             ))}

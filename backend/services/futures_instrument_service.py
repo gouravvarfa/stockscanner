@@ -61,6 +61,17 @@ class NotAFutureError(ValueError):
     into one."""
 
 
+def _nearest_commodity_only(contracts: list[FutureContract]) -> list[FutureContract]:
+    """MCX gold/silver: only the nearest expiry of each underlying is offered. Angel One returns the full history
+    (back to 2019) only for that contract; later expiries have data only since they were listed, so a backtest on
+    them is incomplete. Stock and index futures are left exactly as they were."""
+    nearest: dict[str, str] = {}
+    for c in contracts:
+        if c.commodity and (c.underlying not in nearest or c.expiry < nearest[c.underlying]):
+            nearest[c.underlying] = c.expiry
+    return [c for c in contracts if not c.commodity or c.expiry == nearest[c.underlying]]
+
+
 def _is_allowed(contract: FutureContract) -> bool:
     return contract.commodity or contract.is_index or contract.underlying.upper() in ALLOWED_FNO_STOCK_UNDERLYINGS
 
@@ -68,14 +79,15 @@ def _is_allowed(contract: FutureContract) -> bool:
 async def search_futures(query: str, limit: int = 25) -> list[FutureContract]:
     """Every live futures contract (all expiries) whose underlying matches `query`."""
     raw = await scrip_master.search_futures(query, limit=limit * 3)
-    return [c for c in raw if _is_allowed(c)][:limit]
+    return _nearest_commodity_only([c for c in raw if _is_allowed(c)])[:limit]
 
 
 async def list_contracts(underlying: str) -> list[FutureContract]:
     """All live expiries for one underlying, nearest expiry first."""
     raw = await scrip_master.get_future_contracts(underlying)
     # The master search is a prefix match (GOLD also returns GOLDM, SILVER also SILVERM): keep exactly this underlying.
-    return [c for c in raw if _is_allowed(c) and c.underlying.upper() == underlying.strip().upper()]
+    return _nearest_commodity_only(
+        [c for c in raw if _is_allowed(c) and c.underlying.upper() == underlying.strip().upper()])
 
 
 async def nearest_contract(underlying: str) -> FutureContract | None:

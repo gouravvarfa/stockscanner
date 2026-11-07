@@ -40,6 +40,7 @@ async def test_gold_search_returns_the_whole_gold_family_with_point_values(maste
     found = await futures_service.search_futures("GOLD")
     names = {c.underlying for c in found}
     assert names == {"GOLD", "GOLDM", "GOLDGUINEA", "GOLDPETAL"}
+    assert len(found) == 4  # one (nearest) expiry per underlying, not every listed expiry
     assert all(c.exch_seg == "MCX" and c.commodity and not c.is_index for c in found)
     by_name = {c.underlying: c for c in found}
     assert by_name["GOLD"].point_value == 100 and by_name["GOLDM"].point_value == 10
@@ -63,15 +64,29 @@ async def test_equity_futures_search_is_unchanged(master):
     assert [c.underlying for c in found] == ["RELIANCE"] and not found[0].commodity and found[0].point_value == 0
 
 
-async def test_list_contracts_keeps_exactly_the_asked_underlying_nearest_first(master):
+async def test_commodities_offer_only_the_nearest_expiry_because_later_ones_lack_history(master):
     gold = await futures_service.list_contracts("GOLD")  # a prefix search would also return GOLDM etc.
-    assert [c.underlying for c in gold] == ["GOLD", "GOLD"] and [c.expiry for c in gold] == ["2026-12-04", "2027-02-05"]
-    assert [c.expiry for c in await futures_service.list_contracts("goldm")] == ["2026-12-04", "2027-02-05"]
+    assert [(c.underlying, c.expiry) for c in gold] == [("GOLD", "2026-12-04")]
+    assert [c.expiry for c in await futures_service.list_contracts("goldm")] == ["2026-12-04"]
+    assert [(c.underlying, c.expiry) for c in await futures_service.search_futures("SILVER")] == [
+        ("SILVER", "2026-12-04"), ("SILVERM", "2027-02-26"), ("SILVERMIC", "2027-02-26")]
+
+
+async def test_stock_futures_keep_every_expiry(monkeypatch):
+    rows = [_row("RELIANCE", "29DEC2026", "20", 500, seg="NFO", typ="FUTSTK"), _row("RELIANCE", "28JAN2027", "21", 500, seg="NFO", typ="FUTSTK")]
+
+    async def fake():
+        return rows
+
+    monkeypatch.setattr(scrip_master, "_fetch_scrip_master", fake)
+    assert [c.expiry for c in await futures_service.list_contracts("RELIANCE")] == ["2026-12-29", "2027-01-28"]
 
 
 async def test_resolve_picks_the_nearest_expiry_or_the_exact_one(master):
     assert (await futures_service.resolve_contract("GOLDM", None)).token == "3"
-    assert (await futures_service.resolve_contract("GOLDM", "2027-02-05")).token == "4"
+    assert (await futures_service.resolve_contract("GOLDM", "2026-12-04")).token == "3"
+    with pytest.raises(futures_service.NotAFutureError, match="Available expiries: 2026-12-04"):
+        await futures_service.resolve_contract("GOLDM", "2027-02-05")  # later expiry: not offered (short history)
     with pytest.raises(futures_service.NotAFutureError):
         await futures_service.resolve_contract("GOLDM", "2030-01-01")
     with pytest.raises(futures_service.NotAFutureError, match="NSE/MCX"):
