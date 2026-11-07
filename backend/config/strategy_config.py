@@ -115,7 +115,7 @@ class GFSBacktestConfig(SystemOneBacktestConfig):
     monthly_rsi_min: float = 60.0  # monthly RSI must be ABOVE this
     weekly_rsi_min: float = 60.0  # weekly RSI must be ABOVE this
     daily_rsi_min: float = 38.0  # daily RSI "near 40": inclusive band
-    daily_rsi_max: float = 42.0
+    daily_rsi_max: float = 45.0
     daily_min_exclusive: bool = False  # the GFS band is inclusive at 38
     # Stop loss (see gfs_backtest.py): initial stop, breakeven, trailing, setup-break exit.
     initial_stop_candles: int = 5  # initial stop = lowest low of the last N candles, entry candle included

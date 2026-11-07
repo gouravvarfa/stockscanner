@@ -28,7 +28,7 @@ const TODAY = new Date().toISOString().slice(0, 10);
 
 export function GFSBacktestPage({ variant = "gfs" }: { variant?: GfsVariant }) {
   const title = variant === "advanced" ? "Advanced GFS" : "GFS";
-  const dailyRule = variant === "advanced" ? "above 60" : "between 38 and 42 (near 40)";
+  const dailyRule = variant === "advanced" ? "above 60" : "between 38 and 45";
   // Inputs live in the URL so a refresh or a shared link keeps the same stock and dates.
   const [params, setParams] = useSearchParams();
   const symbol = params.get("symbol") ?? "ADANIGREEN";

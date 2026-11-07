@@ -6,7 +6,7 @@ this one simulates the actual trades. Pure logic only: no network, no I/O.
 
 Rules:
   * Setup  : on a daily candle ALL of these hold -
-               monthly RSI(14) > 60, weekly RSI(14) > 60, daily RSI(14) in [38, 42].
+               monthly RSI(14) > 60, weekly RSI(14) > 60, daily RSI(14) in [38, 45].
   * Signal : the first candle where the setup holds after it did not hold on the
              previous candle (so a stock sitting in the zone gives one signal,
              not one per day).
