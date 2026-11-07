@@ -10,6 +10,8 @@ than silently scanned.
 """
 from __future__ import annotations
 
+import difflib
+import re
 from dataclasses import dataclass
 
 from backend.providers import angelone_scrip_master as scrip_master
@@ -38,7 +40,37 @@ def search_equities(query: str, limit: int = 25) -> list[str]:
     universe = universe_loader.load_a_group_universe()
     starts = [s for s in universe if s.startswith(q)]
     contains = [s for s in universe if q in s and not s.startswith(q)]
-    return (starts + contains)[:limit]
+    found = starts + contains
+
+    # Also match by company name ("Divi's Laboratories"), ignoring punctuation.
+    def norm(text: str) -> str:
+        return re.sub(r"[^A-Z0-9 ]", "", text.upper())
+
+    nq = norm(q)
+    q_tokens = nq.split()
+    squashed = nq.replace(" ", "")
+    for s in universe:
+        if s in found:
+            continue
+        name = norm(universe_loader.company_name_for(s) or "")
+        tokens = name.split()
+        if squashed and squashed in s.replace(" ", ""):
+            found.append(s)
+        elif q_tokens and all(any(t.startswith(qt) for t in tokens) for qt in q_tokens):
+            found.append(s)
+
+    # Typo tolerance ("Devis Labs" -> DIVISLAB): fuzzy fallback only if nothing matched.
+    if not found:
+        close = difflib.get_close_matches(squashed, universe, n=limit, cutoff=0.6)
+        found = close or difflib.get_close_matches(
+            squashed, [s for s in universe], n=limit, cutoff=0.5
+        )
+        if not found:
+            for s in universe:
+                name = norm(universe_loader.company_name_for(s) or "").replace(" ", "")
+                if name and difflib.SequenceMatcher(None, squashed, name[: len(squashed) + 4]).ratio() >= 0.7:
+                    found.append(s)
+    return found[:limit]
 
 
 async def resolve_equity(symbol: str) -> EquityInstrument:
