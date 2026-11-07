@@ -118,7 +118,9 @@ class AngelOneProvider:
         now_naive = now_ist.replace(tzinfo=None)
         if not include_partial:
             if interval == "ONE_DAY":
-                df = drop_incomplete_trailing_daily_bar(df, now_naive)
+                # MCX trades until 23:30 (23:55 in the US-DST months): its day is not complete at NSE's 15:30.
+                df = drop_incomplete_trailing_daily_bar(
+                    df, now_naive, dt.time(23, 55) if exch_seg == "MCX" else dt.time(15, 30))
             else:
                 df = drop_incomplete_trailing_bars(df, INTERVAL_MINUTES[interval], now_naive)
 

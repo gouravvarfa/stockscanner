@@ -145,7 +145,7 @@ export function TopBottomBacktest() {
                 }}
               >
                 <option value="EQUITY">NSE Equity</option>
-                <option value="FUTURES">NFO Futures</option>
+                <option value="FUTURES">Futures (NFO + MCX Gold/Silver)</option>
               </select>
             </label>
           </div>
@@ -214,7 +214,7 @@ export function TopBottomBacktest() {
           contract && (
             <p className="tb-selected-line">
               Selected: <strong>{contract.underlying} FUT</strong> · Expiry {contract.expiry} · {contract.exch_seg}
-              {contract.is_index ? " · Index Future" : " · Stock Future"}
+              {contract.commodity ? ` · Commodity Future · ₹${contract.point_value ?? 0} per point per lot` : contract.is_index ? " · Index Future" : " · Stock Future"}
             </p>
           )
         )}

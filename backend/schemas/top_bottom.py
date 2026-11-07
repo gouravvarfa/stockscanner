@@ -15,6 +15,8 @@ class FutureContractOut(BaseModel):
     expiry: str
     is_index: bool
     lot_size: int
+    commodity: bool = False
+    point_value: int = 0
 
 
 class PricePointOut(BaseModel):

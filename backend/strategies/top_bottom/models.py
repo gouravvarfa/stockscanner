@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from typing import Literal
 
 Direction = Literal["BUY", "SELL"]
-InstrumentClass = Literal["STOCK", "INDEX"]
+InstrumentClass = Literal["STOCK", "INDEX", "COMMODITY"]
 ExitReason = Literal["TRAILING_STOP_REVERSAL", "END_OF_BACKTEST"]
 
 @dataclass(frozen=True)

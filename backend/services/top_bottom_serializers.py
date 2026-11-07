@@ -91,4 +91,5 @@ def serialize_contract(c) -> FutureContractOut:  # c: FutureContract
     return FutureContractOut(
         underlying=c.underlying, trading_symbol=c.trading_symbol, token=c.token,
         exch_seg=c.exch_seg, expiry=c.expiry, is_index=c.is_index, lot_size=c.lot_size,
+        commodity=getattr(c, "commodity", False), point_value=getattr(c, "point_value", 0),
     )

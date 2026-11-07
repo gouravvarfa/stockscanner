@@ -14,6 +14,9 @@ Two layers of defense against a non-futures symbol leaking through:
      in case a stale/delisted FUTSTK row briefly lingers in the master.
 Index futures (NIFTY, BANKNIFTY, FINNIFTY, MIDCPNIFTY) are always allowed
 without the stock allow-list, since they are not stocks.
+MCX gold/silver futures (GOLD, GOLDM, GOLDGUINEA, GOLDPETAL, SILVER, SILVERM,
+SILVERMIC) are allowed too: the scrip master layer only ever returns those
+seven underlyings from MCX (see COMMODITY_POINT_VALUE).
 """
 from __future__ import annotations
 
@@ -59,7 +62,7 @@ class NotAFutureError(ValueError):
 
 
 def _is_allowed(contract: FutureContract) -> bool:
-    return contract.is_index or contract.underlying.upper() in ALLOWED_FNO_STOCK_UNDERLYINGS
+    return contract.commodity or contract.is_index or contract.underlying.upper() in ALLOWED_FNO_STOCK_UNDERLYINGS
 
 
 async def search_futures(query: str, limit: int = 25) -> list[FutureContract]:
@@ -71,7 +74,8 @@ async def search_futures(query: str, limit: int = 25) -> list[FutureContract]:
 async def list_contracts(underlying: str) -> list[FutureContract]:
     """All live expiries for one underlying, nearest expiry first."""
     raw = await scrip_master.get_future_contracts(underlying)
-    return [c for c in raw if _is_allowed(c)]
+    # The master search is a prefix match (GOLD also returns GOLDM, SILVER also SILVERM): keep exactly this underlying.
+    return [c for c in raw if _is_allowed(c) and c.underlying.upper() == underlying.strip().upper()]
 
 
 async def nearest_contract(underlying: str) -> FutureContract | None:
@@ -91,7 +95,7 @@ async def resolve_contract(underlying: str, expiry: str | None) -> FutureContrac
     contracts = await list_contracts(underlying)
     if not contracts:
         raise NotAFutureError(
-            f"'{underlying}' has no live NSE futures contract. "
+            f"'{underlying}' has no live NSE/MCX futures contract. "
             "Top-Bottom strategy is available only for Futures."
         )
     if expiry is None:

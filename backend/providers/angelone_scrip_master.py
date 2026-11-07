@@ -14,7 +14,7 @@ import httpx
 from backend.core.cache import cache
 
 SCRIP_MASTER_URL = "https://margincalculator.angelone.in/OpenAPI_File/files/OpenAPIScripMaster.json"
-CACHE_KEY = "angelone:scrip_master:v3"  # v3: broadened to include NFO index futures for Top-Bottom Backtesting
+CACHE_KEY = "angelone:scrip_master:v4"  # v4: adds MCX gold/silver futures for Top-Bottom Backtesting
 CACHE_TTL_SECONDS = 24 * 3600
 
 # NSE: equities ("") + indices ("AMXIDX"). NFO: stock futures ("FUTSTK") and
@@ -22,6 +22,18 @@ CACHE_TTL_SECONDS = 24 * 3600
 # are deliberately excluded, this project never trades options.
 RELEVANT_NSE_TYPES = {"", "AMXIDX"}
 RELEVANT_NFO_TYPES = {"FUTSTK", "FUTIDX"}
+
+# MCX commodity futures (Top-Bottom only): the gold and silver family. `FUTCOM` rows of every other commodity
+# are dropped so the cached master stays small. Value = rupees of profit/loss per 1.00 price point per lot,
+# from MCX's contract specs (price quote unit vs lot size) — Angel One's own `lotsize` is the lot in the
+# trading unit (e.g. 1 for GOLD = 1 kg, quoted per 10 g), so it cannot be used as the P&L multiplier:
+#   GOLD 1 kg (quote /10 g) -> 100 | GOLDM 100 g (quote /10 g) -> 10 | GOLDGUINEA 8 g (quote /8 g) -> 1
+#   GOLDPETAL 1 g (quote /1 g) -> 1 | SILVER 30 kg (quote /kg) -> 30 | SILVERM 5 kg -> 5 | SILVERMIC 1 kg -> 1
+RELEVANT_MCX_TYPES = {"FUTCOM"}
+COMMODITY_POINT_VALUE: dict[str, int] = {
+    "GOLD": 100, "GOLDM": 10, "GOLDGUINEA": 1, "GOLDPETAL": 1,
+    "SILVER": 30, "SILVERM": 5, "SILVERMIC": 1,
+}
 
 
 @dataclass
@@ -52,6 +64,8 @@ async def _download_and_filter() -> list[dict]:
         for row in rows
         if (row.get("exch_seg") == "NSE" and row.get("instrumenttype") in RELEVANT_NSE_TYPES)
         or (row.get("exch_seg") == "NFO" and row.get("instrumenttype") in RELEVANT_NFO_TYPES)
+        or (row.get("exch_seg") == "MCX" and row.get("instrumenttype") in RELEVANT_MCX_TYPES
+            and row.get("name") in COMMODITY_POINT_VALUE)
     ]
     del rows  # the full ~150k-row list is no longer needed
     cache.set(CACHE_KEY, filtered, CACHE_TTL_SECONDS)
@@ -148,10 +162,12 @@ class FutureContract:
     underlying: str  # scrip master "name" — e.g. "RELIANCE", "NIFTY"
     trading_symbol: str  # e.g. "RELIANCE29SEP26FUT"
     token: str
-    exch_seg: str  # always "NFO"
+    exch_seg: str  # "NFO" (stock/index futures) or "MCX" (gold/silver futures)
     expiry: str  # ISO date "2026-09-29"
     is_index: bool  # True for FUTIDX (NIFTY/BANKNIFTY/...), False for FUTSTK
     lot_size: int  # real exchange lot size, straight from Angel One's own scrip master — never guessed
+    commodity: bool = False  # True for MCX gold/silver futures
+    point_value: int = 0  # commodities only: rupees per 1.00 price point per lot (see COMMODITY_POINT_VALUE)
 
 
 async def search_futures(query: str, limit: int = 25) -> list[FutureContract]:
@@ -174,8 +190,11 @@ async def search_futures(query: str, limit: int = 25) -> list[FutureContract]:
     matches = [
         row
         for row in rows
-        if row.get("exch_seg") == "NFO"
-        and row.get("instrumenttype") in RELEVANT_NFO_TYPES
+        if (
+            (row.get("exch_seg") == "NFO" and row.get("instrumenttype") in RELEVANT_NFO_TYPES)
+            or (row.get("exch_seg") == "MCX" and row.get("instrumenttype") in RELEVANT_MCX_TYPES
+                and row.get("name") in COMMODITY_POINT_VALUE)
+        )
         and str(row.get("name", "")).upper().startswith(q)
     ]
     matches.sort(key=lambda r: (r["name"], _parse_expiry(r.get("expiry", ""))))
@@ -184,10 +203,12 @@ async def search_futures(query: str, limit: int = 25) -> list[FutureContract]:
             underlying=row["name"],
             trading_symbol=row["symbol"],
             token=row["token"],
-            exch_seg="NFO",
+            exch_seg=row.get("exch_seg", "NFO"),
             expiry=_parse_expiry(row.get("expiry", "")).date().isoformat(),
             is_index=row.get("instrumenttype") == "FUTIDX",
             lot_size=int(float(row.get("lotsize") or 0)),
+            commodity=row.get("exch_seg") == "MCX",
+            point_value=COMMODITY_POINT_VALUE.get(row.get("name"), 0) if row.get("exch_seg") == "MCX" else 0,
         )
         for row in matches[:limit]
     ]

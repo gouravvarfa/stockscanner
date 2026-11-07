@@ -72,7 +72,7 @@ export function FuturesSearchBox({ onSelect, selected }: Props) {
               >
                 <div className="tb-search-result-title">{c.underlying} FUT</div>
                 <div className="tb-search-result-meta">
-                  Expiry: {c.expiry} · Exchange: {c.exch_seg}{c.is_index ? " · Index" : ""}
+                  Expiry: {c.expiry} · Exchange: {c.exch_seg}{c.commodity ? " · Commodity" : c.is_index ? " · Index" : ""}
                 </div>
               </button>
             ))}

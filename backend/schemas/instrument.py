@@ -15,8 +15,8 @@ class InstrumentTyped(BaseModel):
 
     @model_validator(mode="after")
     def _classify(self):
-        # Index underlyings (NIFTY, BANKNIFTY...) only ever trade as futures.
-        if getattr(self, "instrument_class", None) == "INDEX":
+        # Index underlyings (NIFTY, BANKNIFTY...) and MCX commodities only ever trade as futures.
+        if getattr(self, "instrument_class", None) in ("INDEX", "COMMODITY"):
             self.instrument_type = "FUTURE"
         else:
             self.instrument_type = get_instrument_type(getattr(self, "symbol", None))

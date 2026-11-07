@@ -72,6 +72,8 @@ _results_lock = threading.Lock()
 
 
 def _instrument_class(contract: FutureContract) -> InstrumentClass:
+    if contract.commodity:
+        return "COMMODITY"
     return "INDEX" if contract.is_index else "STOCK"
 
 
@@ -119,7 +121,9 @@ async def _resolve_instrument(symbol: str, instrument_type: str, expiry: str | N
             exch_seg=contract.exch_seg,
             expiry=contract.expiry,
             instrument_class=_instrument_class(contract),
-            lot_size=contract.lot_size,
+            # Commodities: rupees per price point per lot (MCX spec), not Angel One's trading-unit lot — see
+            # COMMODITY_POINT_VALUE. Equity/index/stock futures keep the real exchange lot size.
+            lot_size=contract.point_value if contract.commodity else contract.lot_size,
         )
 
     raise TopBottomValidationError(

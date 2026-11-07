@@ -26,6 +26,8 @@ export interface FutureContract {
   expiry: string;
   is_index: boolean;
   lot_size: number;
+  commodity?: boolean;
+  point_value?: number;
 }
 
 export interface TopBottomSignal {
@@ -116,7 +118,7 @@ export interface BacktestResult {
   symbol: string;
   trading_symbol: string;
   expiry: string;
-  instrument_class: "STOCK" | "INDEX";
+  instrument_class: "STOCK" | "INDEX" | "COMMODITY";
   exch_seg: string;
   timeframe: string;
   starting_capital: number;

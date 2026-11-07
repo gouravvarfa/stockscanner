@@ -52,7 +52,7 @@ def build_excel(result: BacktestResult) -> bytes:
         ("Total Trades", s.total_trades), ("Buy Trades", s.buy_trades), ("Sell Trades", s.sell_trades),
         ("Winning Trades", s.winning_trades), ("Losing Trades", s.losing_trades), ("Win Rate %", round(s.win_rate, 2)),
         ("Net P&L %", round(s.net_pnl_pct, 2)), ("Net P&L (Points)", round(sum(t.pnl_points or 0 for t in result.trades), 2)),
-        ("Lot Size", lot_size or "N/A"),
+        ("Rs. per point per lot (MCX)" if result.instrument_class == "COMMODITY" else "Lot Size", lot_size or "N/A"),
         ("Net P&L (Rs.)", round(net_pnl_amount, 2) if net_pnl_amount is not None else "N/A"),
         ("Profit Factor", round(s.profit_factor, 2) if s.profit_factor is not None else "N/A"),
         ("Max Drawdown %", round(s.max_drawdown_pct, 2)), ("Average Holding (days)", round(s.average_holding_days, 2)),
