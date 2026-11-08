@@ -5,7 +5,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
-VALID_STRATEGIES = {"Strategy One", "GFS", "Advanced GFS", "PRD", "NRD", "Value Buy"}
+VALID_STRATEGIES = {"Strategy One", "GFS", "Advanced GFS", "50 GFS", "PRD", "NRD", "Value Buy"}
 VALID_DIVERGENCE_TYPES = {"PRD", "NRD"}
 
 

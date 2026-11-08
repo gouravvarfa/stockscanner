@@ -17,6 +17,7 @@ from backend.screeners.stock_analysis import StockAnalysisResult, analyze_stock
 from backend.services import universe_loader
 from backend.strategies.advanced_gfs import evaluate_advanced_gfs
 from backend.strategies.gfs import evaluate_gfs
+from backend.strategies.gfs50 import evaluate_gfs50
 from backend.strategies.nrd import evaluate_nrd
 from backend.strategies.prd import evaluate_prd
 from backend.strategies.strategy_one import evaluate_strategy_one
@@ -36,7 +37,7 @@ STOCK_HISTORY_DAYS = MONTHLY_RSI_LOOKBACK_DAYS
 
 PRD_FORMING_KEY = "PRD Forming"
 NRD_FORMING_KEY = "NRD Forming"
-ALL_SIGNAL_STRATEGY_NAMES = ["Strategy One", "GFS", "Advanced GFS", "PRD", "NRD", "Value Buy"]
+ALL_SIGNAL_STRATEGY_NAMES = ["Strategy One", "GFS", "Advanced GFS", "50 GFS", "PRD", "NRD", "Value Buy"]
 
 
 @dataclass
@@ -161,6 +162,7 @@ def _evaluate_all_strategies(
         ("Strategy One", evaluate_strategy_one(result)),
         ("GFS", evaluate_gfs(result, multi_strategy_config.gfs)),
         ("Advanced GFS", evaluate_advanced_gfs(result, multi_strategy_config.advanced_gfs)),
+        ("50 GFS", evaluate_gfs50(result, multi_strategy_config.gfs50)),
         ("PRD", evaluate_prd(result, ohlcv, multi_strategy_config.prd)),
         ("NRD", evaluate_nrd(result, ohlcv, multi_strategy_config.nrd)),
     ]

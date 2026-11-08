@@ -1,11 +1,11 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { EquitySearchBox } from "./topBottom/EquitySearchBox";
 import { SystemOneChart } from "./systemOne/SystemOneChart";
 import { EquityCurve } from "./systemOne/EquityCurve";
 import { HigherTimeframeChart } from "./systemOne/HigherTimeframeChart";
 import { ChartTimeSync } from "./systemOne/chartTimeSync";
-import { runGfsBacktest, type GFSBacktest, type GfsVariant } from "../services/gfsBacktestApi";
+import { gfsExportUrl, gfsPagePath, runGfsBacktest, type GFSBacktest, type GfsVariant } from "../services/gfsBacktestApi";
 
 function fmtMoney(v: number | null | undefined): string {
   return v === null || v === undefined || Number.isNaN(v)
@@ -27,8 +27,13 @@ function pnlColor(v: number | null | undefined): string | undefined {
 const TODAY = new Date().toISOString().slice(0, 10);
 
 export function GFSBacktestPage({ variant = "gfs" }: { variant?: GfsVariant }) {
-  const title = variant === "advanced" ? "Advanced GFS" : "GFS";
-  const dailyRule = variant === "advanced" ? "above 60" : "between 38 and 45";
+  const title = variant === "advanced" ? "Advanced GFS" : variant === "gfs50" ? "50 GFS" : "GFS";
+  const setupRule =
+    variant === "advanced"
+      ? "monthly RSI, weekly RSI and daily RSI all above 60"
+      : variant === "gfs50"
+        ? "monthly RSI above 60, weekly RSI above 60 and daily RSI above 50"
+        : "monthly RSI above 60, weekly RSI above 60 and daily RSI between 38 and 45";
   // Inputs live in the URL so a refresh or a shared link keeps the same stock and dates.
   const [params, setParams] = useSearchParams();
   const symbol = params.get("symbol") ?? "ADANIGREEN";
@@ -82,12 +87,28 @@ export function GFSBacktestPage({ variant = "gfs" }: { variant?: GfsVariant }) {
     }
   }
 
+  // Opened from the All Stocks list with ?run=1: run once so the chart is already there.
+  useEffect(() => {
+    if (params.get("run") !== "1") return;
+    setParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete("run");
+        return next;
+      },
+      { replace: true },
+    );
+    void handleRun();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const s = result?.summary;
 
   return (
     <div className="page">
       <div className="page-header">
         <div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
           <Link to="/strategies" className="so-back-link">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M19 12H5" />
@@ -95,9 +116,13 @@ export function GFSBacktestPage({ variant = "gfs" }: { variant?: GfsVariant }) {
             </svg>
             Strategies
           </Link>
+          <Link to={`${gfsPagePath(variant)}/stocks`} className="so-back-link">
+            All Stocks
+          </Link>
+          </div>
           <h1>{title}</h1>
           <p className="page-subtitle">
-            Daily-chart backtest. A setup needs monthly RSI above 60, weekly RSI above 60 and daily RSI {dailyRule}. The signal is the first day all three hold; enter at the next candle&apos;s close. The initial
+            Daily-chart backtest. A setup needs {setupRule}. The signal is the first day all three hold; enter at the next candle&apos;s close. The initial
             stop is the lowest low of the last 5 candles (entry candle included); a signal is skipped if the entry is not above it.
             Once a candle closes 1R above the entry (R = entry minus initial stop) the stop moves to the entry price. While the
             last 3 candles each make a higher low, the stop trails up to the oldest of those lows; in a sideways market it stays
@@ -134,6 +159,13 @@ export function GFSBacktestPage({ variant = "gfs" }: { variant?: GfsVariant }) {
             {loading && <span className="tb-spinner" aria-hidden="true" />}
             {loading ? "Running…" : "Run Backtest"}
           </button>
+          {result && (
+            <a href={gfsExportUrl(variant, result.backtest_id)}>
+              <button type="button" className="tb-btn tb-btn-secondary">
+                Download Excel
+              </button>
+            </a>
+          )}
           {invalidRange && <span className="tb-config-hint">From Date must not be after To Date.</span>}
         </div>
       </div>

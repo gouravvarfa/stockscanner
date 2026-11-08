@@ -46,7 +46,7 @@ def validate_strategy_fields(payload: TradingViewWebhookPayload) -> None:
     if not payload.signal:
         raise TradingViewValidationError("Payload declares signal=false — TradingView should only alert on confirmed conditions")
 
-    if payload.strategy in ("Strategy One", "GFS", "Advanced GFS"):
+    if payload.strategy in ("Strategy One", "GFS", "Advanced GFS", "50 GFS"):
         if payload.daily_rsi is None or payload.weekly_rsi is None or payload.monthly_rsi is None:
             raise TradingViewValidationError(f"{payload.strategy} requires daily_rsi, weekly_rsi, and monthly_rsi")
 

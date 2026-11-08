@@ -41,6 +41,8 @@ import pandas as pd
 
 from backend.config.strategy_config import (
     DEFAULT_ADVANCED_GFS_BACKTEST_CONFIG,
+    DEFAULT_GFS50_BACKTEST_CONFIG,
+    Gfs50BacktestConfig,
     DEFAULT_GFS_BACKTEST_CONFIG,
     AdvancedGFSBacktestConfig,
     GFSBacktestConfig,
@@ -98,15 +100,22 @@ def _rsi_series(df: pd.DataFrame, config: GFSBacktestConfig) -> "tuple[list[floa
     return daily_rsi, weekly_rsi, monthly_rsi
 
 
-def _gfs_setup_signals(df: pd.DataFrame, config: GFSBacktestConfig) -> "tuple[list[bool], list[float]]":
+def gfs_setup_flags(df: pd.DataFrame, config: GFSBacktestConfig) -> "tuple[list[bool], list[float], list[float], list[float]]":
+    """Per daily candle: does the whole setup hold? Also returns the daily, weekly
+    and monthly RSI (weekly/monthly = latest COMPLETED bar). Shared by the
+    backtest and the all-stocks list so both always apply the same rule."""
     daily_rsi, weekly_rsi, monthly_rsi = _rsi_series(df, config)
-
     setup = [
         _ok(m, lambda v: v > config.monthly_rsi_min)
         and _ok(w, lambda v: v > config.weekly_rsi_min)
         and _ok(d, lambda v: _daily_ok(v, config))
         for d, w, m in zip(daily_rsi, weekly_rsi, monthly_rsi)
     ]
+    return setup, daily_rsi, weekly_rsi, monthly_rsi
+
+
+def _gfs_setup_signals(df: pd.DataFrame, config: GFSBacktestConfig) -> "tuple[list[bool], list[float]]":
+    setup, daily_rsi, _, _ = gfs_setup_flags(df, config)
     flags = [False] + [setup[k] and not setup[k - 1] for k in range(1, len(setup))]
     return flags, daily_rsi
 
@@ -255,6 +264,17 @@ def run_advanced_gfs_backtest(
     from_date: dt.datetime | None = None,
     to_date: dt.datetime | None = None,
 ) -> SystemOneBacktestResult:
-    """Advanced GFS: same as GFS (monthly and weekly RSI > 60, entry on the next
-    candle close, same staged stop) but the daily RSI must be above 60."""
+    """Advanced GFS: monthly, weekly and daily RSI must all be above 60; entry on
+    the next candle close, same staged stop as GFS."""
+    return run_gfs_backtest(ohlcv, config, from_date, to_date)
+
+
+def run_gfs50_backtest(
+    ohlcv: pd.DataFrame,
+    config: Gfs50BacktestConfig = DEFAULT_GFS50_BACKTEST_CONFIG,
+    from_date: dt.datetime | None = None,
+    to_date: dt.datetime | None = None,
+) -> SystemOneBacktestResult:
+    """50 GFS: monthly and weekly RSI above 60 and daily RSI above 50; entry on
+    the next candle close, same staged stop as GFS."""
     return run_gfs_backtest(ohlcv, config, from_date, to_date)

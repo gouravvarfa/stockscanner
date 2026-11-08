@@ -31,6 +31,7 @@ from backend.api import scan as scan_api
 from backend.api import scan_jobs as scan_jobs_api
 from backend.api import scanner as scanner_api
 from backend.api import advanced_gfs_backtest as advanced_gfs_backtest_api
+from backend.api import gfs50_backtest as gfs50_backtest_api
 from backend.api import gfs_backtest as gfs_backtest_api
 from backend.api import system_one_backtest as system_one_backtest_api
 from backend.api import top_bottom as top_bottom_api
@@ -90,6 +91,7 @@ app.include_router(top_bottom_api.router)
 app.include_router(system_one_backtest_api.router)
 app.include_router(gfs_backtest_api.router)
 app.include_router(advanced_gfs_backtest_api.router)
+app.include_router(gfs50_backtest_api.router)
 app.include_router(live_api.router)
 
 app.include_router(breakout15_api.router)

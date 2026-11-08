@@ -112,6 +112,7 @@ export const STRATEGY_NAMES = [
   "Strategy One",
   "GFS",
   "Advanced GFS",
+  "50 GFS",
   "PRD",
   "NRD",
   "Value Buy",

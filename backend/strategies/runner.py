@@ -6,13 +6,14 @@ from backend.config.multi_strategy_config import MultiStrategyConfig
 from backend.screeners.stock_analysis import StockAnalysisResult
 from backend.strategies.advanced_gfs import evaluate_advanced_gfs
 from backend.strategies.gfs import evaluate_gfs
+from backend.strategies.gfs50 import evaluate_gfs50
 from backend.strategies.nrd import evaluate_nrd
 from backend.strategies.prd import evaluate_prd
 from backend.strategies.strategy_one import evaluate_strategy_one
 from backend.strategies.types import StrategySignal
 from backend.strategies.value_buy import evaluate_value_buy
 
-ALL_STRATEGY_NAMES = ["Strategy One", "GFS", "Advanced GFS", "PRD", "NRD", "Value Buy"]
+ALL_STRATEGY_NAMES = ["Strategy One", "GFS", "Advanced GFS", "50 GFS", "PRD", "NRD", "Value Buy"]
 
 
 def evaluate_all_strategies(
@@ -30,6 +31,7 @@ def evaluate_all_strategies(
         "Strategy One": evaluate_strategy_one(result),
         "GFS": evaluate_gfs(result, config.gfs),
         "Advanced GFS": evaluate_advanced_gfs(result, config.advanced_gfs),
+        "50 GFS": evaluate_gfs50(result, config.gfs50),
         "PRD": evaluate_prd(result, daily_ohlcv, config.prd),
         "NRD": evaluate_nrd(result, daily_ohlcv, config.nrd),
         "Value Buy": evaluate_value_buy(result, daily_ohlcv, config.value_buy),

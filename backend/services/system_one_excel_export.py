@@ -33,8 +33,34 @@ TRADE_HEADERS = [
 _PNL_COL = TRADE_HEADERS.index("P&L (Rs)") + 1
 
 
-def file_name(stored: StoredSystemOneBacktest) -> str:
-    return f"system_one_{stored.symbol}_{stored.timeframe}_{stored.from_date:%Y%m%d}_{stored.to_date:%Y%m%d}.xlsx"
+# GFS-family backtests run on daily candles with a 5-candle-low stop, so two headers differ.
+GFS_TRADE_HEADERS = [
+    "Initial Stop (5-candle low)" if h.startswith("Initial Stop") else "Holding Days" if h == "Holding Weeks" else h
+    for h in TRADE_HEADERS
+]
+
+
+def file_name(stored: StoredSystemOneBacktest, prefix: str = "system_one") -> str:
+    return f"{prefix}_{stored.symbol}_{stored.timeframe}_{stored.from_date:%Y%m%d}_{stored.to_date:%Y%m%d}.xlsx"
+
+
+def _setup_rows(config) -> list[tuple[str, object]]:
+    """The GFS-family entry/exit rule thresholds (absent for System One)."""
+    if not hasattr(config, "daily_rsi_min"):
+        return []
+    daily = (
+        f"> {config.daily_rsi_min:g}" if config.daily_rsi_max >= 100 and config.daily_min_exclusive
+        else f"{config.daily_rsi_min:g} - {config.daily_rsi_max:g}"
+    )
+    return [
+        ("Setup: Monthly RSI", f"> {config.monthly_rsi_min:g}"),
+        ("Setup: Weekly RSI", f"> {config.weekly_rsi_min:g}"),
+        ("Setup: Daily RSI", daily),
+        ("Initial Stop (lowest low of last N candles)", config.initial_stop_candles),
+        ("Breakeven after (R)", config.breakeven_r),
+        ("Trail after N higher lows", config.trail_candles),
+        ("Exit when weekly RSI below", config.weekly_rsi_exit_below),
+    ]
 
 
 def _autosize(ws, min_width: int = 12, max_width: int = 60) -> None:
@@ -43,7 +69,8 @@ def _autosize(ws, min_width: int = 12, max_width: int = 60) -> None:
         ws.column_dimensions[get_column_letter(col_cells[0].column)].width = min(max(length + 2, min_width), max_width)
 
 
-def build_excel(stored: StoredSystemOneBacktest) -> bytes:
+def build_excel(stored: StoredSystemOneBacktest, strategy: str = "System One") -> bytes:
+    trade_headers = TRADE_HEADERS if strategy == "System One" else GFS_TRADE_HEADERS
     wb = openpyxl.Workbook()
 
     # ---- Sheet 1: Trades — one row per trade, header on row 1 ---------------
@@ -56,8 +83,8 @@ def build_excel(stored: StoredSystemOneBacktest) -> bytes:
     def _when(ts):
         return None if ts is None else (ts.to_pydatetime() if intraday else ts.date())
 
-    ws.append(TRADE_HEADERS)
-    for c in range(1, len(TRADE_HEADERS) + 1):
+    ws.append(trade_headers)
+    for c in range(1, len(trade_headers) + 1):
         cell = ws.cell(row=1, column=c)
         cell.fill, cell.font, cell.border = HEADER_FILL, HEADER_FONT, THIN_BORDER
         cell.alignment = Alignment(horizontal="center")
@@ -74,7 +101,7 @@ def build_excel(stored: StoredSystemOneBacktest) -> bytes:
                          (7, "0"), (8, MONEY_FORMAT), (9, date_format), (10, MONEY_FORMAT), (13, PNL_FORMAT),
                          (14, "0.00"), (15, "0.00"), (16, PNL_FORMAT)):
             ws.cell(row=row, column=col).number_format = fmt
-        for col in range(1, len(TRADE_HEADERS) + 1):
+        for col in range(1, len(trade_headers) + 1):
             ws.cell(row=row, column=col).border = THIN_BORDER
         pnl_cell = ws.cell(row=row, column=_PNL_COL)
         if t.pnl_amount is not None and t.pnl_amount > 0:
@@ -89,7 +116,7 @@ def build_excel(stored: StoredSystemOneBacktest) -> bytes:
     summary = wb.create_sheet("Summary")
     summary.append(["Field", "Value"])
     rows = [
-        ("Strategy", "System One"),
+        ("Strategy", strategy),
         ("Symbol", stored.symbol),
         ("Trading Symbol", stored.trading_symbol),
         ("Timeframe", stored.timeframe),
@@ -97,6 +124,7 @@ def build_excel(stored: StoredSystemOneBacktest) -> bytes:
         ("To Date", stored.to_date.date()),
         ("Data Available From", stored.data_available_from.date()),
         ("Data Available To", stored.data_available_to.date()),
+        *_setup_rows(stored.config),
         ("Reference Capital", stored.config.reference_capital),
         ("Risk Per Trade %", stored.config.risk_per_trade_pct),
         ("Risk Per Trade", stored.config.risk_per_trade),

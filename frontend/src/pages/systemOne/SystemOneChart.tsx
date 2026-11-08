@@ -16,6 +16,7 @@ import {
 import type { SystemOneBacktest } from "../../services/systemOneBacktestApi";
 import { isIntraday, timeframeNoun } from "./timeframes";
 import type { ChartTimeSync } from "./chartTimeSync";
+import { attachOhlcLegend, type OhlcBar } from "./ohlcLegend";
 
 // Daily/weekly candles carry only a date, so they use plain "YYYY-MM-DD" times
 // (no timezone shifting). Hourly candles need a time of day: the backend sends
@@ -68,6 +69,8 @@ export function SystemOneChart({ result, focusedTradeNumber, gfsSetup = false, s
   const maRef = useRef<ISeriesApi<"Line"> | null>(null);
   const rsiRef = useRef<ISeriesApi<"Line"> | null>(null);
   const markersRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
+  const legendBarsRef = useRef<OhlcBar[]>([]);
+  const legendRefreshRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -112,8 +115,14 @@ export function SystemOneChart({ result, focusedTradeNumber, gfsSetup = false, s
     maRef.current = ma;
     rsiRef.current = rsi;
     const unsync = sync?.add(chart, container);
+    // The legend reads the bars from a ref so it always shows the current result.
+    const detachLegend = attachOhlcLegend(container, chart, candles, legendBarsRef.current, c);
+
+    legendRefreshRef.current = detachLegend.refresh;
 
     return () => {
+      legendRefreshRef.current = null;
+      detachLegend();
       unsync?.();
       chart.remove();
       chartRef.current = null;
@@ -130,9 +139,10 @@ export function SystemOneChart({ result, focusedTradeNumber, gfsSetup = false, s
     if (!chart || !candleRef.current || !maRef.current || !rsiRef.current) return;
 
     chart.applyOptions({ timeScale: { timeVisible: intraday, secondsVisible: false } });
-    candleRef.current.setData(
-      result.candles.map((k) => ({ time: toTime(k.date, intraday), open: k.open, high: k.high, low: k.low, close: k.close })),
-    );
+    const bars = result.candles.map((k) => ({ time: toTime(k.date, intraday), open: k.open, high: k.high, low: k.low, close: k.close }));
+    legendBarsRef.current.splice(0, legendBarsRef.current.length, ...bars);
+    candleRef.current.setData(bars);
+    legendRefreshRef.current?.();
     maRef.current.setData(
       result.candles.filter((k) => k.ma !== null).map((k) => ({ time: toTime(k.date, intraday), value: k.ma as number })),
     );

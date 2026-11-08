@@ -74,4 +74,4 @@ def test_non_qualifying_stock_reports_false_everywhere_but_still_present():
     result = make_result(daily_rsi=50.0, weekly_rsi=50.0, monthly_rsi=50.0)
     signals = evaluate_all_strategies(result, _flat_daily_ohlcv(), DEFAULT_MULTI_STRATEGY_CONFIG)
     assert all(not s.qualifies for s in signals.values())
-    assert len(signals) == 6
+    assert len(signals) == 7

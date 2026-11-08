@@ -116,6 +116,15 @@ def _advanced_gfs_strength(signal: StrategySignal, cfg) -> StrengthBreakdown:
     return StrengthBreakdown(components=components, strength=_mean(list(components.values())))
 
 
+def _gfs50_strength(signal: StrategySignal, cfg) -> StrengthBreakdown:
+    components = {
+        "daily_above_min": _above_min_strength(signal.daily_rsi, cfg.daily_min),
+        "weekly_above_min": _above_min_strength(signal.weekly_rsi, cfg.weekly_min),
+        "monthly_above_min": _above_min_strength(signal.monthly_rsi, cfg.monthly_min),
+    }
+    return StrengthBreakdown(components=components, strength=_mean(list(components.values())))
+
+
 def _best_divergence(signal: StrategySignal) -> dict[str, Any] | None:
     divergences = signal.extra.get("divergences")
     if isinstance(divergences, list) and divergences:
@@ -211,6 +220,7 @@ _STRATEGY_STRENGTH_FUNCS = {
     "Strategy One": lambda signal, cfg: _system_one_strength(signal),
     "GFS": lambda signal, cfg: _gfs_strength(signal, cfg.gfs),
     "Advanced GFS": lambda signal, cfg: _advanced_gfs_strength(signal, cfg.advanced_gfs),
+    "50 GFS": lambda signal, cfg: _gfs50_strength(signal, cfg.gfs50),
     "PRD": lambda signal, cfg: _prd_strength(signal, cfg.prd),
     "NRD": lambda signal, cfg: _nrd_strength(signal, cfg.nrd),
     "Value Buy": lambda signal, cfg: _value_buy_strength(signal, cfg.value_buy),

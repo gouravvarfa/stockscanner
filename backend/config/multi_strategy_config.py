@@ -22,6 +22,14 @@ class AdvancedGFSConfig(BaseModel):
     monthly_min: float = 68.0
 
 
+class Gfs50Config(BaseModel):
+    """50 GFS live screener: daily RSI above `daily_min` (no upper limit),
+    weekly and monthly RSI above 60 (same as GFS)."""
+    daily_min: float = 50.0
+    weekly_min: float = 60.0
+    monthly_min: float = 60.0
+
+
 class PRDConfig(BaseModel):
     """
     PRD (Positive Reversal Divergence) = a genuine Positive Reversal (price
@@ -73,6 +81,7 @@ class ValueBuyConfig(BaseModel):
 class MultiStrategyConfig(BaseModel):
     gfs: GFSConfig = Field(default_factory=GFSConfig)
     advanced_gfs: AdvancedGFSConfig = Field(default_factory=AdvancedGFSConfig)
+    gfs50: Gfs50Config = Field(default_factory=Gfs50Config)
     prd: PRDConfig = Field(default_factory=PRDConfig)
     nrd: NRDConfig = Field(default_factory=NRDConfig)
     value_buy: ValueBuyConfig = Field(default_factory=ValueBuyConfig)

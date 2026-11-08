@@ -128,8 +128,8 @@ DEFAULT_GFS_BACKTEST_CONFIG = GFSBacktestConfig()
 
 
 class AdvancedGFSBacktestConfig(GFSBacktestConfig):
-    """Advanced GFS backtest: identical to GFS except the daily RSI must be
-    ABOVE 60 (no upper limit) instead of sitting in the 38-42 band. Separate
+    """Advanced GFS backtest: monthly, weekly AND daily RSI must all be ABOVE 60
+    (no upper limit on daily) instead of the GFS 38-45 daily band. Separate
     from AdvancedGFSConfig (the live screener's 59-65 / 65 / 68 thresholds)."""
 
     daily_rsi_min: float = 60.0
@@ -138,3 +138,15 @@ class AdvancedGFSBacktestConfig(GFSBacktestConfig):
 
 
 DEFAULT_ADVANCED_GFS_BACKTEST_CONFIG = AdvancedGFSBacktestConfig()
+
+
+class Gfs50BacktestConfig(GFSBacktestConfig):
+    """50 GFS backtest: same as Advanced GFS (monthly and weekly RSI above 60,
+    same staged stop/exit) but the daily trigger is simply RSI ABOVE 50."""
+
+    daily_rsi_min: float = 50.0
+    daily_rsi_max: float = 100.0
+    daily_min_exclusive: bool = True  # "above 50" means strictly greater
+
+
+DEFAULT_GFS50_BACKTEST_CONFIG = Gfs50BacktestConfig()

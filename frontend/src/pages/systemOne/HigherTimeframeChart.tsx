@@ -11,6 +11,7 @@ import type { SystemOneCandle } from "../../services/systemOneBacktestApi";
 import { themeColors } from "./SystemOneChart";
 import { computeRsiBands, RsiBandsPrimitive } from "./rsiBands";
 import type { ChartTimeSync } from "./chartTimeSync";
+import { attachOhlcLegend } from "./ohlcLegend";
 
 /** Plain candles + RSI(14) pane with the 60 line, for the weekly / monthly
  *  charts the GFS setup reads. Data is exactly what the backend evaluated.
@@ -35,9 +36,9 @@ export function HigherTimeframeChart({ candles, sync }: { candles: SystemOneCand
       upColor: c.up, downColor: c.down, borderUpColor: c.up, borderDownColor: c.down,
       wickUpColor: c.up, wickDownColor: c.down,
     });
-    series.setData(
-      candles.map((k) => ({ time: k.date.slice(0, 10) as Time, open: k.open, high: k.high, low: k.low, close: k.close })),
-    );
+    const bars = candles.map((k) => ({ time: k.date.slice(0, 10) as Time, open: k.open, high: k.high, low: k.low, close: k.close }));
+    series.setData(bars);
+    const detachLegend = attachOhlcLegend(container, chart, series, bars, c);
     const rsi = chart.addSeries(
       LineSeries,
       { color: c.rsi, lineWidth: 2, title: "RSI 14", priceLineVisible: false },
@@ -57,6 +58,7 @@ export function HigherTimeframeChart({ candles, sync }: { candles: SystemOneCand
     chart.timeScale().fitContent();
     const unsync = sync?.add(chart, container);
     return () => {
+      detachLegend();
       unsync?.();
       chart.remove();
     };

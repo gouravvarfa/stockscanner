@@ -15,7 +15,7 @@ import { FilterIcon } from "../components/icons";
 // summary cards / totals stay exactly as before.
 type TabName = StrategyName | "PRD Forming" | "NRD Forming";
 const TAB_NAMES: TabName[] = [
-  "Strategy One", "GFS", "Advanced GFS", "PRD", "PRD Forming", "NRD", "NRD Forming", "Value Buy",
+  "Strategy One", "GFS", "Advanced GFS", "50 GFS", "PRD", "PRD Forming", "NRD", "NRD Forming", "Value Buy",
 ];
 
 type SortKey = "symbol" | "daily_rsi" | "weekly_rsi" | "monthly_rsi" | "score" | "price";

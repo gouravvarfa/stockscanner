@@ -65,8 +65,8 @@ export function Strategies() {
                 </div>
               </>
             );
-            // System One, GFS and Advanced GFS open their backtest pages; the other cards are info-only.
-            const backtestRoute = name === "Strategy One" ? "/strategies/system-one" : name === "GFS" ? "/strategies/gfs" : name === "Advanced GFS" ? "/strategies/advanced-gfs" : null;
+            // System One, GFS, Advanced GFS and 50 GFS open their backtest pages; the other cards are info-only.
+            const backtestRoute = name === "Strategy One" ? "/strategies/system-one" : name === "GFS" ? "/strategies/gfs" : name === "Advanced GFS" ? "/strategies/advanced-gfs" : name === "50 GFS" ? "/strategies/gfs-50" : null;
             return backtestRoute ? (
               <Link
                 key={name}

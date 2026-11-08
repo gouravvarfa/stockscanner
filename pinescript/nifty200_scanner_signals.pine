@@ -83,6 +83,12 @@ agfsMonthlyMin = input.float(68.0, "Advanced GFS Monthly RSI Min")
 
 advGfsCondition = dailyRSI >= agfsDailyMin and dailyRSI <= agfsDailyMax and weeklyRSI > agfsWeeklyMin and monthlyRSI > agfsMonthlyMin
 
+// 50 GFS - Gfs50Config defaults: daily > 50, weekly > 60, monthly > 60.
+gfs50DailyMin = input.float(50.0, "50 GFS Daily RSI Min")
+gfs50WeeklyMin = input.float(60.0, "50 GFS Weekly RSI Min")
+gfs50MonthlyMin = input.float(60.0, "50 GFS Monthly RSI Min")
+gfs50Condition = dailyRSI > gfs50DailyMin and weeklyRSI > gfs50WeeklyMin and monthlyRSI > gfs50MonthlyMin
+
 // ---------------------------------------------------------------------------
 // PRD / NRD - backend/strategies/prd.py + nrd.py. PRD/NRD detect Cardwell's
 // "Positive Reversal" / "Negative Reversal" pattern - NOT regular bullish/
@@ -226,6 +232,9 @@ if barstate.isconfirmed
     if advGfsCondition
         alert('{"source":"tradingview","symbol":"' + syminfo.ticker + '","exchange":"' + syminfo.prefix + '","strategy":"Advanced GFS","timeframe":"' + timeframe.period + '","signal_date":"' + f_isoTime() + '","daily_rsi":' + str.tostring(dailyRSI, "#.##") + ',"weekly_rsi":' + str.tostring(weeklyRSI, "#.##") + ',"monthly_rsi":' + str.tostring(monthlyRSI, "#.##") + ',"signal":true,"secret":"' + webhookSecret + '"}', alert.freq_once_per_bar_close)
 
+    if gfs50Condition
+        alert('{"source":"tradingview","symbol":"' + syminfo.ticker + '","exchange":"' + syminfo.prefix + '","strategy":"50 GFS","timeframe":"' + timeframe.period + '","signal_date":"' + f_isoTime() + '","daily_rsi":' + str.tostring(dailyRSI, "#.##") + ',"weekly_rsi":' + str.tostring(weeklyRSI, "#.##") + ',"monthly_rsi":' + str.tostring(monthlyRSI, "#.##") + ',"signal":true,"secret":"' + webhookSecret + '"}', alert.freq_once_per_bar_close)
+
     if prdConfirmed
         alert('{"source":"tradingview","symbol":"' + syminfo.ticker + '","exchange":"' + syminfo.prefix + '","strategy":"PRD","timeframe":"' + timeframe.period + '","signal_date":"' + f_isoTime() + '","daily_rsi":' + str.tostring(dailyRSI, "#.##") + ',"weekly_rsi":' + str.tostring(weeklyRSI, "#.##") + ',"monthly_rsi":' + str.tostring(monthlyRSI, "#.##") + ',"signal":true,"divergence_type":"PRD","divergence_timeframe":"' + prdTimeframe + '","secret":"' + webhookSecret + '"}', alert.freq_once_per_bar_close)
 
@@ -241,6 +250,7 @@ if barstate.isconfirmed
 // ---------------------------------------------------------------------------
 plotshape(gfsCondition, title = "GFS", style = shape.triangleup, location = location.belowbar, color = color.blue, size = size.tiny)
 plotshape(advGfsCondition, title = "Advanced GFS", style = shape.triangleup, location = location.belowbar, color = color.purple, size = size.tiny)
+plotshape(gfs50Condition, title = "50 GFS", style = shape.triangleup, location = location.belowbar, color = color.teal, size = size.tiny)
 plotshape(prdConfirmed, title = "PRD", style = shape.labelup, location = location.belowbar, color = color.green, size = size.tiny, text = "PRD")
 plotshape(nrdConfirmed, title = "NRD", style = shape.labeldown, location = location.abovebar, color = color.red, size = size.tiny, text = "NRD")
 plotshape(vbCondition, title = "Value Buy", style = shape.circle, location = location.belowbar, color = color.orange, size = size.tiny)

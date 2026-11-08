@@ -8,6 +8,7 @@ import { Header } from "./components/Header";
 import { LogsPanel } from "./components/LogsPanel";
 import { Sidebar } from "./components/Sidebar";
 import { Dashboard } from "./pages/Dashboard";
+import { GFSUniversePage } from "./pages/GFSUniversePage";
 import { StockScanner } from "./pages/StockScanner";
 import { Strategies } from "./pages/Strategies";
 import { SystemOneBacktestPage } from "./pages/SystemOneBacktestPage";
@@ -43,6 +44,10 @@ export default function App() {
             <Route path="/strategies/system-one" element={<SystemOneBacktestPage />} />
             <Route path="/strategies/gfs" element={<GFSBacktestPage />} />
             <Route path="/strategies/advanced-gfs" element={<GFSBacktestPage variant="advanced" />} />
+            <Route path="/strategies/gfs-50" element={<GFSBacktestPage variant="gfs50" />} />
+            <Route path="/strategies/gfs/stocks" element={<GFSUniversePage variant="gfs" />} />
+            <Route path="/strategies/advanced-gfs/stocks" element={<GFSUniversePage variant="advanced" />} />
+            <Route path="/strategies/gfs-50/stocks" element={<GFSUniversePage variant="gfs50" />} />
             <Route path="/expiry-level-1" element={<ExpiryLevel1 />} />
             <Route path="/expiry-level-5" element={<ExpiryLevel5 />} />
             <Route path="/cup-breakout" element={<CupBreakoutPage />} />

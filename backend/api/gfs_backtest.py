@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
 
+from backend.api.gfs_universe import add_universe_routes
 from backend.api.system_one_backtest import serialize_backtest
 from backend.schemas.gfs_backtest import GFSBacktestRequest
 from backend.schemas.system_one_backtest import SystemOneBacktestOut
@@ -10,6 +11,7 @@ from backend.services.provider_factory import get_angelone_provider
 from backend.services.top_bottom_backtest_service import InsufficientDataError, TopBottomValidationError
 
 router = APIRouter(prefix="/api/gfs", tags=["gfs"])
+add_universe_routes(router, "gfs")
 
 
 @router.post("/backtest", response_model=SystemOneBacktestOut)
@@ -25,3 +27,8 @@ async def run_backtest(request: GFSBacktestRequest) -> SystemOneBacktestOut:
     out = serialize_backtest(stored)
     out.note = service.PNL_NOTE
     return out
+
+
+@router.get("/backtest/{backtest_id}/export")
+async def export_backtest(backtest_id: str):
+    return service.export_response(backtest_id, "GFS", "gfs")

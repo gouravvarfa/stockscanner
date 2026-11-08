@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { api, type TradingViewSignal, type TradingViewStatus } from "../services/api";
 
-const STRATEGIES = ["Strategy One", "GFS", "Advanced GFS", "PRD", "NRD", "Value Buy"];
+const STRATEGIES = ["Strategy One", "GFS", "Advanced GFS", "50 GFS", "PRD", "NRD", "Value Buy"];
 
 function fmt(value: number | null | undefined, digits = 1): string {
   return value === null || value === undefined || Number.isNaN(value) ? "—" : value.toFixed(digits);
