@@ -98,11 +98,25 @@ export function SystemOneChart({ result, focusedTradeNumber, gfsSetup = false, s
 
     const rsi = chart.addSeries(
       LineSeries,
-      { color: c.rsi, lineWidth: 2, title: "RSI 14", priceLineVisible: false },
+      {
+        color: c.rsi, lineWidth: 2, title: "RSI 14", priceLineVisible: false,
+        // Keep 40 and 60 (with some room around them) inside the RSI pane even when RSI stays in a narrow
+        // band, so both reference lines are always on screen.
+        autoscaleInfoProvider: (original: () => { priceRange: { minValue: number; maxValue: number } | null; margins?: { above: number; below: number } } | null) => {
+          const base = original();
+          const lo = Math.min(base?.priceRange?.minValue ?? 30, 30);
+          const hi = Math.max(base?.priceRange?.maxValue ?? 70, 70);
+          return { priceRange: { minValue: lo, maxValue: hi }, margins: base?.margins };
+        },
+      },
       1,
     );
+    // Solid lines across the whole RSI pane: 60 = buy trigger (green), 40 = lower line (red).
     rsi.createPriceLine({
-      price: 60, color: c.ref, lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: "60",
+      price: 60, color: c.up, lineWidth: 2, lineStyle: LineStyle.Solid, axisLabelVisible: true, title: "60",
+    });
+    rsi.createPriceLine({
+      price: 40, color: c.down, lineWidth: 2, lineStyle: LineStyle.Solid, axisLabelVisible: true, title: "40",
     });
 
     // Stretch factors rather than setHeight(): each setHeight takes space from a
@@ -216,7 +230,7 @@ export function SystemOneChart({ result, focusedTradeNumber, gfsSetup = false, s
           <>
             <span style={{ color: "#f59e0b", fontWeight: 600 }}>Orange</span> = 20 MA (the stop for each {timeframeNoun(result.timeframe)} candle is the previous candle&apos;s
             value; exit at the open on a gap below it, otherwise at the stop when the low touches it) · <span style={{ color: "#7c3aed", fontWeight: 600 }}>Purple</span> = RSI(14), buy trigger
-            when it crosses above the dashed 60 line.
+            when it crosses above the green 60 line (red line = 40).
           </>
         )}{" "}
         {focusedTradeNumber === null

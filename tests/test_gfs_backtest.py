@@ -9,10 +9,12 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from backend.config.strategy_config import GFSBacktestConfig
+from backend.config.strategy_config import DEFAULT_GFS50_BACKTEST_CONFIG, GFSBacktestConfig
 from backend.indicators.resample import to_monthly, to_weekly
 from backend.indicators.rsi import rsi
-from backend.strategies.gfs_backtest import _gfs_setup_signals, _initial_stop, _manage_trade, run_gfs_backtest
+from backend.strategies.gfs_backtest import (
+    _gfs_setup_signals, _initial_stop, _manage_trade, gfs_setup_flags, run_gfs50_backtest, run_gfs_backtest,
+)
 
 CFG = GFSBacktestConfig()
 
@@ -237,3 +239,82 @@ def test_weekly_and_monthly_series_are_completed_bars_with_rsi_inside_the_window
     assert result.weekly_series[-1].date <= df.index[-1]
     assert result.monthly_series[-1].date <= df.index[-1]
     assert any(p.rsi is not None for p in result.weekly_series) and any(p.rsi is not None for p in result.monthly_series)
+
+
+# ---- 50 GFS: daily RSI inside 50-55 ---------------------------------------------
+
+G50 = DEFAULT_GFS50_BACKTEST_CONFIG
+
+
+def test_gfs50_config_is_the_50_to_55_band_inclusive_with_monthly_and_weekly_above_60():
+    assert (G50.daily_rsi_min, G50.daily_rsi_max, G50.daily_min_exclusive) == (50.0, 55.0, False)
+    assert G50.monthly_rsi_min == 60 and G50.weekly_rsi_min == 60
+
+
+def test_gfs50_band_edges_50_and_55_are_in_and_just_outside_is_out():
+    from backend.strategies.gfs_backtest import _daily_ok
+
+    assert _daily_ok(50.0, G50) and _daily_ok(55.0, G50) and _daily_ok(52.5, G50)
+    assert not _daily_ok(49.99, G50) and not _daily_ok(55.01, G50) and not _daily_ok(80.0, G50)
+    # the old "above 50, no upper limit" rule is gone: a strong daily RSI no longer triggers
+    assert not _daily_ok(70.0, G50)
+
+
+def walk(seed: int) -> list[float]:
+    rng = np.random.default_rng(seed)
+    return list(100 * np.exp(np.cumsum(rng.normal(0.0012, 0.015, 1500))))
+
+
+def test_gfs50_every_signal_has_the_daily_rsi_inside_the_band_and_higher_timeframes_above_60():
+    df = daily(noisy_uptrend())
+    flags, d_rsi = _gfs_setup_signals(df, G50)
+    days = [i for i, f in enumerate(flags) if f]
+    assert days, "fixture should produce at least one 50 GFS signal"
+    weekly = rsi(to_weekly(df)["close"], 14).reindex(df.index, method="ffill")
+    monthly = rsi(to_monthly(df)["close"], 14).reindex(df.index, method="ffill")
+    for i in days:
+        assert 50.0 <= d_rsi[i] <= 55.0
+        assert weekly.iloc[i] > 60 and monthly.iloc[i] > 60
+
+
+def test_gfs50_signal_fires_once_per_visit_to_the_band_not_once_per_day_inside_it():
+    setup, d_rsi, _, _ = gfs_setup_flags(daily(noisy_uptrend()), G50)
+    flags, _ = _gfs_setup_signals(daily(noisy_uptrend()), G50)
+    for i in range(1, len(flags)):
+        if flags[i]:
+            assert setup[i] and not setup[i - 1]  # first candle inside the band after being outside
+    inside_runs = sum(1 for i in range(1, len(setup)) if setup[i] and not setup[i - 1])
+    assert sum(flags) == inside_runs
+
+
+def test_gfs50_catches_support_taken_anywhere_in_the_band_on_different_stocks():
+    """Different random walks dip into 50-55 at different RSI levels and times: every one of them signals,
+    and every signal sits inside the band."""
+    for seed in (3, 5, 11, 21, 42):
+        flags, d_rsi = _gfs_setup_signals(daily(walk(seed)), G50)
+        assert sum(flags) >= 10, seed
+        assert all(50.0 <= d_rsi[i] <= 55.0 for i, f in enumerate(flags) if f)
+    # a band nudged one point up or down moves the signals, so the 50-55 band is really what is applied
+    base = _gfs_setup_signals(daily(walk(3)), G50)[0]
+    lower = _gfs_setup_signals(daily(walk(3)), GFSBacktestConfig(daily_rsi_min=44.0, daily_rsi_max=49.0))[0]
+    assert base != lower
+
+
+def test_gfs50_backtest_runs_and_uses_the_same_staged_stop_as_gfs():
+    df = daily(noisy_uptrend())
+    result = run_gfs50_backtest(df)
+    flags, _ = _gfs_setup_signals(df, G50)
+    signal_dates = {df.index[i] for i, f in enumerate(flags) if f}
+    lows = df["low"].tolist()
+    for t in result.trades:
+        e = df.index.get_loc(t.entry_date)
+        assert t.signal_date in signal_dates
+        assert t.stop_loss == min(lows[e - 4 : e + 1]) < t.entry_price
+        assert t.entry_price == df.loc[t.entry_date, "close"]
+
+
+def test_gfs_and_advanced_gfs_bands_are_unchanged():
+    from backend.config.strategy_config import DEFAULT_ADVANCED_GFS_BACKTEST_CONFIG as ADV
+
+    assert (CFG.daily_rsi_min, CFG.daily_rsi_max) == (38.0, 45.0) or (CFG.daily_rsi_min, CFG.daily_rsi_max) == (38.0, 45)
+    assert (ADV.daily_rsi_min, ADV.daily_rsi_max, ADV.daily_min_exclusive) == (60.0, 100.0, True)

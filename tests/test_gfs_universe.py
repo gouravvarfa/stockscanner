@@ -21,21 +21,40 @@ def _uptrend(days: int = 1500) -> pd.DataFrame:
     return pd.DataFrame({"open": close, "high": close + 1, "low": close - 1, "close": close}, index=idx)
 
 
+def _pullback(days: int = 1500) -> pd.DataFrame:
+    """A steady climb (weekly and monthly RSI far above 60) whose last 5 candles pull back just enough to
+    leave the daily RSI inside the 50 GFS band of 50-55."""
+    idx = pd.bdate_range(end="2026-11-06", periods=days)
+    close, price = [], 100.0
+    for k in range(days):
+        price *= 0.994 if k >= days - 5 else 1.003
+        close.append(price)
+    s = pd.Series(close, index=idx)
+    return pd.DataFrame({"open": s, "high": s, "low": s, "close": s}, index=idx)
+
+
 def _downtrend(days: int = 1500) -> pd.DataFrame:
     df = _uptrend(days)
     return (df.max().max() * 2 - df).clip(lower=1)
 
 
-def test_strong_uptrend_is_listed_for_50_gfs_and_advanced_but_not_gfs():
-    df = _uptrend()
+def test_a_stock_with_daily_rsi_in_50_to_55_is_listed_for_50_gfs_only():
+    df = _pullback()
     row = service.evaluate_stock("TESTCO", df, DEFAULT_GFS50_BACKTEST_CONFIG)
     assert row is not None
     assert row.symbol == "TESTCO"
     assert row.data_from == df.index[0].date() and row.data_to == df.index[-1].date()
-    assert row.daily_rsi > 50 and row.weekly_rsi > 60 and row.monthly_rsi > 60
+    assert 50 <= row.daily_rsi <= 55 and row.weekly_rsi > 60 and row.monthly_rsi > 60
     assert row.data_from <= row.in_setup_since <= row.data_to
+    # Advanced GFS needs daily RSI above 60 and GFS needs 38-45: neither band holds at 50-55.
+    assert service.evaluate_stock("TESTCO", df, DEFAULT_ADVANCED_GFS_BACKTEST_CONFIG) is None
+    assert service.evaluate_stock("TESTCO", df, DEFAULT_GFS_BACKTEST_CONFIG) is None
+
+
+def test_a_strong_uptrend_is_listed_for_advanced_gfs_but_no_longer_for_50_gfs():
+    df = _uptrend()  # daily RSI far above 55
     assert service.evaluate_stock("TESTCO", df, DEFAULT_ADVANCED_GFS_BACKTEST_CONFIG) is not None
-    # GFS needs daily RSI inside 38-45, which a strong uptrend is not.
+    assert service.evaluate_stock("TESTCO", df, DEFAULT_GFS50_BACKTEST_CONFIG) is None
     assert service.evaluate_stock("TESTCO", df, DEFAULT_GFS_BACKTEST_CONFIG) is None
 
 
@@ -50,7 +69,7 @@ def test_universe_endpoint_runs_in_background_and_lists_qualifying_stocks(monkey
     symbols = ["UPCO", "DOWNCO", "BROKENCO"]
     monkeypatch.setattr(service.universe_loader, "load_a_group_universe", lambda: symbols)
     monkeypatch.setattr(service.universe_loader, "company_name_for", lambda s: f"{s} Limited")
-    frames = {"UPCO": _uptrend(), "DOWNCO": _downtrend()}
+    frames = {"UPCO": _pullback(), "DOWNCO": _downtrend()}
 
     async def fake_fetch(provider, symbol, days):
         if symbol not in frames:
@@ -87,7 +106,7 @@ def test_rows_stream_in_while_the_scan_is_still_running(monkeypatch):
     async def fake_fetch(provider, symbol, days):
         if symbol == "SLOWCO":
             await release["event"].wait()  # still fetching while UPCO is already done
-        return _uptrend()
+        return _pullback()
 
     monkeypatch.setattr(service, "fetch_daily_ohlcv", fake_fetch)
     monkeypatch.setattr("backend.api.gfs_universe.get_angelone_provider", lambda: object())

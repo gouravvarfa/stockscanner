@@ -53,5 +53,5 @@ def test_gfs_family_excel_export_endpoints():
         assert "Holding Days" in [c.value for c in wb["Trades"][1]]
         summary = {r[0].value: r[1].value for r in wb["Summary"].iter_rows(min_row=2)}
         assert summary["Strategy"] == name
-        assert summary["Setup: Daily RSI"] == "> 50"
+        assert summary["Setup: Daily RSI"] == "50 - 55"
     assert client.get("/api/gfs50/backtest/nope/export").status_code == 404

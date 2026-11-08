@@ -32,7 +32,7 @@ export function GFSBacktestPage({ variant = "gfs" }: { variant?: GfsVariant }) {
     variant === "advanced"
       ? "monthly RSI, weekly RSI and daily RSI all above 60"
       : variant === "gfs50"
-        ? "monthly RSI above 60, weekly RSI above 60 and daily RSI above 50"
+        ? "monthly RSI above 60, weekly RSI above 60 and daily RSI between 50 and 55 (any dip into this band is a signal)"
         : "monthly RSI above 60, weekly RSI above 60 and daily RSI between 38 and 45";
   // Inputs live in the URL so a refresh or a shared link keeps the same stock and dates.
   const [params, setParams] = useSearchParams();
