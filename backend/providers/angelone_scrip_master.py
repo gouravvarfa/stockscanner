@@ -7,6 +7,7 @@ published SmartAPI docs.
 from __future__ import annotations
 
 import asyncio
+import json
 from dataclasses import dataclass
 
 import httpx
@@ -52,22 +53,33 @@ class ScripMatch:
 _inflight: dict[int, "asyncio.Future[list[dict]]"] = {}
 
 
+def _is_relevant(row: dict) -> bool:
+    return (
+        (row.get("exch_seg") == "NSE" and row.get("instrumenttype") in RELEVANT_NSE_TYPES)
+        or (row.get("exch_seg") == "NFO" and row.get("instrumenttype") in RELEVANT_NFO_TYPES)
+        or (row.get("exch_seg") == "MCX" and row.get("instrumenttype") in RELEVANT_MCX_TYPES
+            and row.get("name") in COMMODITY_POINT_VALUE)
+    )
+
+
+def _keep_relevant(obj: dict) -> dict | None:
+    """json object_hook: runs on every row AS IT IS PARSED, so the ~140k irrelevant rows are dropped at once
+    instead of all being built first and filtered afterwards (that peaked at ~240 MB; this peaks at ~90 MB)."""
+    if "exch_seg" in obj and not _is_relevant(obj):
+        return None
+    return obj
+
+
 async def _download_and_filter() -> list[dict]:
     async with httpx.AsyncClient(timeout=60.0) as client:
         response = await client.get(SCRIP_MASTER_URL)
     response.raise_for_status()
-    rows = response.json()
-    del response  # drop the 35 MB raw body before building the filtered list
-
-    filtered = [
-        row
-        for row in rows
-        if (row.get("exch_seg") == "NSE" and row.get("instrumenttype") in RELEVANT_NSE_TYPES)
-        or (row.get("exch_seg") == "NFO" and row.get("instrumenttype") in RELEVANT_NFO_TYPES)
-        or (row.get("exch_seg") == "MCX" and row.get("instrumenttype") in RELEVANT_MCX_TYPES
-            and row.get("name") in COMMODITY_POINT_VALUE)
-    ]
-    del rows  # the full ~150k-row list is no longer needed
+    body = response.content
+    del response  # the response object holds a second copy of the raw body
+    rows = json.loads(body, object_hook=_keep_relevant)
+    del body  # drop the 35 MB raw body as soon as it is parsed
+    filtered = [row for row in rows if row is not None and _is_relevant(row)]
+    del rows
     cache.set(CACHE_KEY, filtered, CACHE_TTL_SECONDS)
     return filtered
 

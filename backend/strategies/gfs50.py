@@ -9,7 +9,7 @@ def evaluate_gfs50(result: StockAnalysisResult, config: Gfs50Config) -> Strategy
     d, w, m = result.daily.rsi, result.weekly.rsi, result.monthly.rsi
 
     conditions = {
-        "daily_rsi_above_min": d is not None and d > config.daily_min,
+        "daily_rsi_in_band": d is not None and config.daily_min <= d <= config.daily_max,
         "weekly_rsi_above_min": w is not None and w > config.weekly_min,
         "monthly_rsi_above_min": m is not None and m > config.monthly_min,
     }
@@ -17,7 +17,7 @@ def evaluate_gfs50(result: StockAnalysisResult, config: Gfs50Config) -> Strategy
 
     if qualifies:
         explanation = (
-            f"50 GFS qualified: Daily RSI {d:.1f} > {config.daily_min}, "
+            f"50 GFS qualified: Daily RSI {d:.1f} is between {config.daily_min:g} and {config.daily_max:g}, "
             f"Weekly RSI {w:.1f} > {config.weekly_min}, Monthly RSI {m:.1f} > {config.monthly_min}."
         )
     else:

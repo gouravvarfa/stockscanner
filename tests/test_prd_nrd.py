@@ -155,18 +155,36 @@ def test_nrd_confirmed_zero_bars_ago():
     assert signal.extra["status"] == "NRD_CONFIRMED"
 
 
-def test_nrd_confirmed_fifteen_bars_ago():
-    sig = _negative_reversal_signal(25.0, 20.0, leg2_bar=LAST_BAR - 15)
-    result = make_result(daily_divergences=[sig], daily_last_bar_index=LAST_BAR)
-    signal = evaluate_nrd(result, confirmed_frame(), NRDConfig())
-    assert signal.qualifies
+def test_nrd_confirmed_within_the_daily_freshness_window():
+    for ago in (0, 1, 3):
+        sig = _negative_reversal_signal(25.0, 20.0, leg2_bar=LAST_BAR - ago)
+        result = make_result(daily_divergences=[sig], daily_last_bar_index=LAST_BAR)
+        assert evaluate_nrd(result, confirmed_frame(), NRDConfig()).qualifies, ago
 
 
-def test_nrd_rejects_sixteen_bars_ago():
-    sig = _negative_reversal_signal(25.0, 20.0, leg2_bar=LAST_BAR - 16)
+def test_nrd_old_signal_is_dropped_so_the_same_stock_does_not_keep_coming_back():
+    """The ACC problem: a setup confirmed weeks ago still sat in the scan because the window was 15 bars."""
+    for ago in (4, 8, 15):
+        sig = _negative_reversal_signal(25.0, 20.0, leg2_bar=LAST_BAR - ago)
+        result = make_result(daily_divergences=[sig], daily_last_bar_index=LAST_BAR)
+        assert not evaluate_nrd(result, confirmed_frame(), NRDConfig()).qualifies, ago
+
+
+def test_nrd_freshness_is_per_timeframe_weekly_2_and_monthly_1():
+    ok_w = make_result(weekly_divergences=[_negative_reversal_signal(25.0, 20.0, leg2_bar=LAST_BAR - 2)], weekly_last_bar_index=LAST_BAR)
+    old_w = make_result(weekly_divergences=[_negative_reversal_signal(25.0, 20.0, leg2_bar=LAST_BAR - 13)], weekly_last_bar_index=LAST_BAR)  # ACC: 13 weeks old
+    ok_m = make_result(monthly_divergences=[_negative_reversal_signal(25.0, 20.0, leg2_bar=LAST_BAR - 1)], monthly_last_bar_index=LAST_BAR)
+    old_m = make_result(monthly_divergences=[_negative_reversal_signal(25.0, 20.0, leg2_bar=LAST_BAR - 6)], monthly_last_bar_index=LAST_BAR)
+    q = lambda r: evaluate_nrd(r, confirmed_frame(), NRDConfig()).qualifies  # noqa: E731
+    assert q(ok_w) and not q(old_w) and q(ok_m) and not q(old_m)
+
+
+def test_nrd_freshness_window_is_configurable():
+    sig = _negative_reversal_signal(25.0, 20.0, leg2_bar=LAST_BAR - 8)
     result = make_result(daily_divergences=[sig], daily_last_bar_index=LAST_BAR)
-    signal = evaluate_nrd(result, confirmed_frame(), NRDConfig())
-    assert not signal.qualifies
+    wide = NRDConfig(fresh_bars={"daily": 15, "weekly": 15, "monthly": 15})
+    assert evaluate_nrd(result, confirmed_frame(), wide).qualifies
+    assert not evaluate_nrd(result, confirmed_frame(), NRDConfig(fresh_bars={"daily": 15, "weekly": 15, "monthly": 15}, lookback_bars=5)).qualifies
 
 
 def test_nrd_rejects_leg_rsi_exactly_at_threshold():

@@ -241,21 +241,21 @@ def test_weekly_and_monthly_series_are_completed_bars_with_rsi_inside_the_window
     assert any(p.rsi is not None for p in result.weekly_series) and any(p.rsi is not None for p in result.monthly_series)
 
 
-# ---- 50 GFS: daily RSI inside 50-55 ---------------------------------------------
+# ---- 50 GFS: daily RSI inside 50-59 ---------------------------------------------
 
 G50 = DEFAULT_GFS50_BACKTEST_CONFIG
 
 
-def test_gfs50_config_is_the_50_to_55_band_inclusive_with_monthly_and_weekly_above_60():
-    assert (G50.daily_rsi_min, G50.daily_rsi_max, G50.daily_min_exclusive) == (50.0, 55.0, False)
+def test_gfs50_config_is_the_50_to_59_band_inclusive_with_monthly_and_weekly_above_60():
+    assert (G50.daily_rsi_min, G50.daily_rsi_max, G50.daily_min_exclusive) == (50.0, 59.0, False)
     assert G50.monthly_rsi_min == 60 and G50.weekly_rsi_min == 60
 
 
-def test_gfs50_band_edges_50_and_55_are_in_and_just_outside_is_out():
+def test_gfs50_band_edges_50_and_59_are_in_and_just_outside_is_out():
     from backend.strategies.gfs_backtest import _daily_ok
 
-    assert _daily_ok(50.0, G50) and _daily_ok(55.0, G50) and _daily_ok(52.5, G50)
-    assert not _daily_ok(49.99, G50) and not _daily_ok(55.01, G50) and not _daily_ok(80.0, G50)
+    assert _daily_ok(50.0, G50) and _daily_ok(59.0, G50) and _daily_ok(54.5, G50)
+    assert not _daily_ok(49.99, G50) and not _daily_ok(59.01, G50) and not _daily_ok(80.0, G50)
     # the old "above 50, no upper limit" rule is gone: a strong daily RSI no longer triggers
     assert not _daily_ok(70.0, G50)
 
@@ -273,7 +273,7 @@ def test_gfs50_every_signal_has_the_daily_rsi_inside_the_band_and_higher_timefra
     weekly = rsi(to_weekly(df)["close"], 14).reindex(df.index, method="ffill")
     monthly = rsi(to_monthly(df)["close"], 14).reindex(df.index, method="ffill")
     for i in days:
-        assert 50.0 <= d_rsi[i] <= 55.0
+        assert 50.0 <= d_rsi[i] <= 59.0
         assert weekly.iloc[i] > 60 and monthly.iloc[i] > 60
 
 
@@ -288,13 +288,13 @@ def test_gfs50_signal_fires_once_per_visit_to_the_band_not_once_per_day_inside_i
 
 
 def test_gfs50_catches_support_taken_anywhere_in_the_band_on_different_stocks():
-    """Different random walks dip into 50-55 at different RSI levels and times: every one of them signals,
+    """Different random walks dip into 50-59 at different RSI levels and times: every one of them signals,
     and every signal sits inside the band."""
     for seed in (3, 5, 11, 21, 42):
         flags, d_rsi = _gfs_setup_signals(daily(walk(seed)), G50)
         assert sum(flags) >= 10, seed
-        assert all(50.0 <= d_rsi[i] <= 55.0 for i, f in enumerate(flags) if f)
-    # a band nudged one point up or down moves the signals, so the 50-55 band is really what is applied
+        assert all(50.0 <= d_rsi[i] <= 59.0 for i, f in enumerate(flags) if f)
+    # a band nudged one point up or down moves the signals, so the 50-59 band is really what is applied
     base = _gfs_setup_signals(daily(walk(3)), G50)[0]
     lower = _gfs_setup_signals(daily(walk(3)), GFSBacktestConfig(daily_rsi_min=44.0, daily_rsi_max=49.0))[0]
     assert base != lower

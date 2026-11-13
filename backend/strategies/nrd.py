@@ -118,7 +118,8 @@ def evaluate_nrd(result: StockAnalysisResult, daily_ohlcv: pd.DataFrame, config:
                 continue
             leg_rsi_ok = sig.first_rsi < config.leg_rsi_max and sig.second_rsi < config.leg_rsi_max
             bars_ago = reading.last_bar_index - sig.second_point.index
-            fresh = 0 <= bars_ago <= config.lookback_bars
+            # "Latest only": also bounded by the per-timeframe freshness (daily 3 / weekly 2 / monthly 1 by default)
+            fresh = 0 <= bars_ago <= min(config.lookback_bars, config.fresh_bars.get(timeframe, config.lookback_bars))
             if leg_rsi_ok and fresh:
                 detail = divergence_signal_detail(sig, timeframe)
                 detail["bars_ago"] = bars_ago

@@ -17,6 +17,7 @@ from dataclasses import dataclass
 import pandas as pd
 
 from backend.config.strategy_config import DEFAULT_GFS_BACKTEST_CONFIG, GFSBacktestConfig
+from backend.core.runtime import keep
 from backend.providers.angelone_provider import AngelOneProvider
 from backend.services.gfs_universe_service import backtest_priority
 from backend.services.system_one_backtest_service import PNL_NOTE, StoredSystemOneBacktest, _store
@@ -46,7 +47,8 @@ __all__ = ["PNL_NOTE", "run_for_symbol", "export_response"]
 # changing dates, or opening a stock from the All Stocks list again, is then instant.
 # Short TTL, because the latest daily candle changes while the market is open.
 _CANDLE_CACHE_TTL = dt.timedelta(minutes=15)
-_CANDLE_CACHE_MAX = 40
+# The server stores nothing on Render (512 MB): there every run refetches. Locally it remembers 40 stocks.
+_CANDLE_CACHE_MAX = keep(40, 0)
 
 
 @dataclass
@@ -84,7 +86,7 @@ async def run_for_symbol(
         with backtest_priority():
             instrument = await _resolve_instrument(key, "EQUITY", None)
             candles = await _fetch_ohlcv(angelone, instrument, TIMEFRAME, need_from)
-        if not candles.empty:
+        if not candles.empty and _CANDLE_CACHE_MAX > 0:
             _candle_cache[key] = _CachedCandles(instrument, candles.copy(), need_from, dt.datetime.now())
             _candle_cache.move_to_end(key)
             while len(_candle_cache) > _CANDLE_CACHE_MAX:

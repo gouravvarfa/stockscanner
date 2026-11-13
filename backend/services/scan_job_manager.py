@@ -36,6 +36,7 @@ from pathlib import Path
 from typing import Any, Awaitable, Callable, Literal
 
 from backend.core.cache import cache
+from backend.core.runtime import keep, rss_mb
 
 logger = logging.getLogger("scanner.scan_job_manager")
 
@@ -119,6 +120,10 @@ class ScanJob:
         self._durations.append(now - self._last_tick)
         self._last_tick = now
         self.processed += 1
+        if self.processed % 100 == 0 or self.processed == self.total:
+            mem = rss_mb()
+            if mem is not None:  # Render's limit is 512 MB: this line in the logs shows how close a scan gets
+                logger.info("%s scan %s: %d/%d stocks, process memory %d MB", self.scan_type, self.job_id, self.processed, self.total, mem)
         self.current_symbol = symbol
         if self._sync is not None:
             self._sync.on_progress(symbol, success, error)  # queues in memory only; never raises
@@ -274,7 +279,7 @@ MAX_CONCURRENT_JOBS_PER_SCAN_TYPE = 3
 # cache below (get_cached_result/set_cached_result) is a SEPARATE, already-
 # persisted copy of each scan type's final result, so nothing user-visible
 # is lost by evicting an old job object.
-MAX_COMPLETED_JOBS_RETAINED_PER_TYPE = 5
+MAX_COMPLETED_JOBS_RETAINED_PER_TYPE = keep(5, 2)
 
 
 class JobManager:

@@ -23,9 +23,10 @@ class AdvancedGFSConfig(BaseModel):
 
 
 class Gfs50Config(BaseModel):
-    """50 GFS live screener: daily RSI above `daily_min` (no upper limit),
-    weekly and monthly RSI above 60 (same as GFS)."""
+    """50 GFS live screener: daily RSI inside [daily_min, daily_max] (inclusive, 50-59), weekly and
+    monthly RSI above 60 (same as GFS). Same band as the 50 GFS backtest."""
     daily_min: float = 50.0
+    daily_max: float = 59.0
     weekly_min: float = 60.0
     monthly_min: float = 60.0
 
@@ -43,6 +44,11 @@ class PRDConfig(BaseModel):
     """
     leg_rsi_min: float = 60.0
     lookback_bars: int = 7
+    # "Latest only" (2026-11-13): a confirmed signal is reported only while it is still NEW on its own
+    # timeframe: it must have been confirmed within the last N candles (daily / weekly / monthly). Without
+    # this, one monthly or weekly setup stayed in the scan for 15 weeks/months and the same old stocks kept
+    # coming back on every scan.
+    fresh_bars: dict[str, int] = Field(default_factory=lambda: {"daily": 3, "weekly": 2, "monthly": 1})
     # PRD_FORMING only: valid A -> B distance (in completed candles) between a
     # confirmed historical swing low A and the developing B (latest candle).
     forming_min_ab_bars: int = 3
@@ -67,6 +73,11 @@ class NRDConfig(BaseModel):
     """
     leg_rsi_max: float = 40.0
     lookback_bars: int = 15
+    # "Latest only" (2026-11-13): a confirmed signal is reported only while it is still NEW on its own
+    # timeframe: it must have been confirmed within the last N candles (daily / weekly / monthly). Without
+    # this, one monthly or weekly setup stayed in the scan for 15 weeks/months and the same old stocks kept
+    # coming back on every scan.
+    fresh_bars: dict[str, int] = Field(default_factory=lambda: {"daily": 3, "weekly": 2, "monthly": 1})
     forming_min_ab_bars: int = 3
     forming_max_ab_bars: int = 15
     forming_a_pivot_bars: int = 1

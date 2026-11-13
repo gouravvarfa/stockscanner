@@ -3,20 +3,26 @@ from backend.strategies.gfs50 import evaluate_gfs50
 from tests.strategy_helpers import make_result
 
 
-def test_gfs50_qualifies_when_daily_above_50():
-    signal = evaluate_gfs50(make_result(daily_rsi=50.5, weekly_rsi=65.0, monthly_rsi=70.0), Gfs50Config())
-    assert signal.qualifies
-    assert signal.strategy == "50 GFS"
+def test_gfs50_qualifies_when_daily_is_inside_50_to_59_including_both_ends():
+    for d in (50.0, 50.5, 54.0, 58.9, 59.0):
+        signal = evaluate_gfs50(make_result(daily_rsi=d, weekly_rsi=65.0, monthly_rsi=70.0), Gfs50Config())
+        assert signal.qualifies, d
+        assert signal.strategy == "50 GFS"
 
 
-def test_gfs50_has_no_daily_upper_limit():
-    assert evaluate_gfs50(make_result(daily_rsi=80.0, weekly_rsi=65.0, monthly_rsi=70.0), Gfs50Config()).qualifies
+def test_gfs50_rejects_daily_outside_the_band():
+    # ABCAPITAL-style: daily RSI 63.96 is above the band, so it must NOT be listed any more
+    for d in (63.96, 59.1, 80.0, 49.9, 40.0):
+        signal = evaluate_gfs50(make_result(daily_rsi=d, weekly_rsi=65.0, monthly_rsi=70.0), Gfs50Config())
+        assert not signal.qualifies, d
+        assert not signal.conditions["daily_rsi_in_band"]
 
 
-def test_gfs50_rejects_daily_at_exactly_50():
-    signal = evaluate_gfs50(make_result(daily_rsi=50.0, weekly_rsi=65.0, monthly_rsi=70.0), Gfs50Config())
-    assert not signal.qualifies
-    assert not signal.conditions["daily_rsi_above_min"]
+def test_gfs50_live_screener_and_backtest_use_the_same_50_59_band():
+    from backend.config.strategy_config import DEFAULT_GFS50_BACKTEST_CONFIG as BT
+
+    live = Gfs50Config()
+    assert (live.daily_min, live.daily_max) == (BT.daily_rsi_min, BT.daily_rsi_max) == (50.0, 59.0)
 
 
 def test_gfs50_rejects_weak_weekly_or_monthly():
@@ -53,5 +59,5 @@ def test_gfs_family_excel_export_endpoints():
         assert "Holding Days" in [c.value for c in wb["Trades"][1]]
         summary = {r[0].value: r[1].value for r in wb["Summary"].iter_rows(min_row=2)}
         assert summary["Strategy"] == name
-        assert summary["Setup: Daily RSI"] == "50 - 55"
+        assert summary["Setup: Daily RSI"] == "50 - 59"
     assert client.get("/api/gfs50/backtest/nope/export").status_code == 404

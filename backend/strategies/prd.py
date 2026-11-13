@@ -150,6 +150,21 @@ def _confirmed_reference(ohlc: pd.DataFrame, config: PRDConfig, r: pd.Series | N
     }
 
 
+def _confirmed_streak(ohlc: pd.DataFrame, config: PRDConfig, r: pd.Series, limit: int) -> int:
+    """How many consecutive latest candles (counting the latest one) PRD_CONFIRMED held, looking back at most
+    limit + 1 candles. 1 = it became true on the latest candle. RSI is causal, so the series is simply cut."""
+    n, streak = len(ohlc), 0
+    for k in range(limit + 1):
+        end = n - k
+        if end < 2 * config.confirm_rsi_pivot_bars + 2:
+            break
+        ref = _confirmed_reference(ohlc.iloc[:end], config, r.iloc[:end])
+        if not (ref and ref["passed"]):
+            break
+        streak += 1
+    return streak
+
+
 def evaluate_prd(result: StockAnalysisResult, daily_ohlcv: pd.DataFrame, config: PRDConfig) -> StrategySignal:
     """
     PRD = Positive Reversal (price higher low + RSI lower low, at two
@@ -216,7 +231,11 @@ def evaluate_prd(result: StockAnalysisResult, daily_ohlcv: pd.DataFrame, config:
 
         # ---- PRD_CONFIRMED (new, independent definition) -------------------
         ref = _confirmed_reference(ohlc, config, tf_rsi)
-        confirmed = bool(ref and ref["passed"])
+        holds_now = bool(ref and ref["passed"])
+        fresh_limit = config.fresh_bars.get(timeframe, 1)
+        streak = _confirmed_streak(ohlc, config, tf_rsi, fresh_limit) if holds_now else 0
+        recent = holds_now and streak <= fresh_limit  # it turned true within the last `fresh_limit` candles
+        confirmed = recent
 
         conditions[f"{timeframe}_positive_reversal_structure"] = has_structure
         conditions[f"{timeframe}_leg_rsi_above_min"] = any(
@@ -228,6 +247,7 @@ def evaluate_prd(result: StockAnalysisResult, daily_ohlcv: pd.DataFrame, config:
         conditions[f"{timeframe}_developing_b_structure"] = len(developing) > 0
         for name, ok in (ref["checks"] if ref else {}).items():
             conditions[f"{timeframe}_confirm_{name}"] = ok
+        conditions[f"{timeframe}_confirmed_is_recent"] = recent if holds_now else False
         conditions[f"{timeframe}_confirmed"] = confirmed
 
         if developing and not candle_confirmed:
@@ -251,7 +271,8 @@ def evaluate_prd(result: StockAnalysisResult, daily_ohlcv: pd.DataFrame, config:
                 "a_date": ref["reference_price_low_date"], "a_low": ref["reference_price_low"],
                 "b_date": ref["current_candle_date"], "b_low": ref["current_close"],
                 "a_rsi": ref["reference_rsi"], "b_rsi": ref["current_rsi"],
-                "rsi1": ref["reference_rsi"], "rsi2": ref["current_rsi"], "bars_ago": 0, "fresh": True,
+                "rsi1": ref["reference_rsi"], "rsi2": ref["current_rsi"], "bars_ago": streak - 1, "fresh": True,
+                "confirmed_for_candles": streak,
                 "price_change_pct": price_change_pct,
                 "ab_distance": ref["current_bar"] - ref["ref_bar"],
             })

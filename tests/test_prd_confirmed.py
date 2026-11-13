@@ -120,3 +120,54 @@ def test_confirmed_wins_overall_when_any_timeframe_passes(monkeypatch):
     sig = evaluate_prd(make_result(), confirmed_frame(), PRDConfig())
     assert sig.qualifies
     assert sig.extra["status"] == "PRD_CONFIRMED"
+
+
+# ---- "latest only": a PRD_CONFIRMED that has been true for many candles is not reported again ----
+
+def _install_persistent_rsi(monkeypatch, true_for: int):
+    """RSI stub in which the reference pivot A (70) sits far back and B's RSI is 65 (below A, above 60) on the
+    LAST `true_for` candles and 80 (above A: not confirmed) before them. Same RSI on every timeframe's cut."""
+    import pandas as pd
+
+    def _rsi(close, period=14):
+        n = len(close)
+        vals = pd.Series(80.0, index=close.index)
+        if n > 41:
+            vals.iloc[n - 41] = 70.0  # a real 1-bar RSI low far back, A
+            vals.iloc[n - true_for :] = 65.0  # (weekly/monthly cuts are too short to confirm anything)
+        return vals
+
+    monkeypatch.setattr(prd_mod, "rsi", _rsi)
+
+
+def _long_frame():
+    import pandas as pd
+
+    idx = pd.bdate_range("2024-01-01", periods=60)
+    low = [100.0] * 60
+    low[60 - 41] = 90.0
+    return pd.DataFrame({"open": [101.0] * 60, "high": [110.0] * 60, "low": low, "close": [102.0] * 60, "volume": [1000] * 60}, index=idx)
+
+
+def test_prd_confirmed_on_the_latest_candle_is_reported(monkeypatch):
+    _install_persistent_rsi(monkeypatch, true_for=1)
+    sig = evaluate_prd(make_result(), _long_frame(), PRDConfig())
+    assert sig.qualifies and sig.extra["divergences"][0]["confirmed_for_candles"] == 1 and sig.extra["divergences"][0]["bars_ago"] == 0
+
+
+def test_prd_confirmed_within_the_daily_window_of_3_candles_is_reported(monkeypatch):
+    _install_persistent_rsi(monkeypatch, true_for=3)
+    assert evaluate_prd(make_result(), _long_frame(), PRDConfig()).qualifies
+
+
+def test_prd_confirmed_for_many_candles_is_dropped_as_old(monkeypatch):
+    _install_persistent_rsi(monkeypatch, true_for=10)  # true on 10 straight candles: an old, repeating signal
+    sig = evaluate_prd(make_result(), _long_frame(), PRDConfig())
+    assert not sig.qualifies
+    assert sig.conditions["daily_confirmed_is_recent"] is False and sig.conditions["daily_confirmed"] is False
+
+
+def test_prd_freshness_window_is_configurable(monkeypatch):
+    _install_persistent_rsi(monkeypatch, true_for=10)
+    wide = PRDConfig(fresh_bars={"daily": 12, "weekly": 12, "monthly": 12})
+    assert evaluate_prd(make_result(), _long_frame(), wide).qualifies

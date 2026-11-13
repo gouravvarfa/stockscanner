@@ -275,7 +275,7 @@ def run_gfs50_backtest(
     from_date: dt.datetime | None = None,
     to_date: dt.datetime | None = None,
 ) -> SystemOneBacktestResult:
-    """50 GFS: monthly and weekly RSI above 60 and daily RSI inside 50-55 (inclusive); a
+    """50 GFS: monthly and weekly RSI above 60 and daily RSI inside 50-59 (inclusive); a
     signal is the first candle inside the band, entry on the next candle close, same
     staged stop as GFS."""
     return run_gfs_backtest(ohlcv, config, from_date, to_date)

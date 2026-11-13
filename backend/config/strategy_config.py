@@ -142,12 +142,12 @@ DEFAULT_ADVANCED_GFS_BACKTEST_CONFIG = AdvancedGFSBacktestConfig()
 
 class Gfs50BacktestConfig(GFSBacktestConfig):
     """50 GFS backtest: monthly and weekly RSI above 60 (same staged stop/exit as GFS) and the
-    daily RSI inside the 50-55 band. A stock that takes support anywhere in that band fires a
+    daily RSI inside the 50-59 band. A stock that takes support anywhere in that band fires a
     signal on the first candle it is inside it (inclusive at both ends, like the GFS band)."""
 
     daily_rsi_min: float = 50.0
-    daily_rsi_max: float = 55.0
-    daily_min_exclusive: bool = False  # 50 and 55 themselves are inside the band
+    daily_rsi_max: float = 59.0
+    daily_min_exclusive: bool = False  # 50 and 59 themselves are inside the band
 
 
 DEFAULT_GFS50_BACKTEST_CONFIG = Gfs50BacktestConfig()

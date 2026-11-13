@@ -13,11 +13,13 @@ from __future__ import annotations
 
 import datetime as dt
 import threading
+from collections import OrderedDict
 from dataclasses import dataclass
 
 import pandas as pd
 
 from backend.config.cup_config import DEFAULT_CUP_CONFIG
+from backend.core.runtime import keep
 from backend.indicators.resample import resample_ohlcv
 from backend.providers.angelone_provider import AngelOneProvider
 from backend.providers.angelone_scrip_master import FutureContract
@@ -67,7 +69,10 @@ class InsufficientDataError(RuntimeError):
 # .../equity and .../export all read the SAME already-computed result
 # rather than re-running anything. Cleared on process restart; this module
 # has no requirement to persist backtests across restarts.
-_results: dict[str, BacktestResult] = {}
+# Bounded: every stored result carries its whole price series (~1 MB), and this dict used to grow with every run
+# until the process restarted. Excel/trades/equity endpoints only need the latest few.
+_MAX_STORED_RESULTS = keep(10, 3)
+_results: "OrderedDict[str, BacktestResult]" = OrderedDict()
 _results_lock = threading.Lock()
 
 
@@ -250,6 +255,8 @@ async def run_futures_backtest(
 
     with _results_lock:
         _results[result.backtest_id] = result
+        while len(_results) > _MAX_STORED_RESULTS:
+            _results.popitem(last=False)
     return result
 
 

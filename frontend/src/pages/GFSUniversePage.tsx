@@ -23,7 +23,7 @@ const TITLES: Record<GfsVariant, string> = { gfs: "GFS", advanced: "Advanced GFS
 const RULES: Record<GfsVariant, string> = {
   gfs: "monthly RSI above 60, weekly RSI above 60 and daily RSI between 38 and 45",
   advanced: "monthly RSI, weekly RSI and daily RSI all above 60",
-  gfs50: "monthly RSI above 60, weekly RSI above 60 and daily RSI above 50",
+  gfs50: "monthly RSI above 60, weekly RSI above 60 and daily RSI between 50 and 59",
 };
 
 /** Every A Group stock that satisfies the strategy's backtest setup on its latest

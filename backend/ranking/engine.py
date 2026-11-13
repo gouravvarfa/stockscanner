@@ -118,7 +118,7 @@ def _advanced_gfs_strength(signal: StrategySignal, cfg) -> StrengthBreakdown:
 
 def _gfs50_strength(signal: StrategySignal, cfg) -> StrengthBreakdown:
     components = {
-        "daily_above_min": _above_min_strength(signal.daily_rsi, cfg.daily_min),
+        "daily_band_centered": _band_centered_strength(signal.daily_rsi, cfg.daily_min, cfg.daily_max),
         "weekly_above_min": _above_min_strength(signal.weekly_rsi, cfg.weekly_min),
         "monthly_above_min": _above_min_strength(signal.monthly_rsi, cfg.monthly_min),
     }

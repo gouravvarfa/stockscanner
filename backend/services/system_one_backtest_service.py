@@ -17,6 +17,7 @@ import threading
 import uuid
 from collections import OrderedDict
 
+from backend.core.runtime import keep
 from backend.config.strategy_config import DEFAULT_SYSTEM_ONE_BACKTEST_CONFIG, SystemOneBacktestConfig
 from backend.providers.angelone_provider import AngelOneProvider
 from backend.services.top_bottom_backtest_service import (
@@ -46,7 +47,9 @@ _WARMUP_DAYS = {"1W": 400, "1D": 200}
 # weekend/holiday at the start of the range is not reported as missing data.
 _COVERAGE_SLACK = dt.timedelta(days=7)
 
-_MAX_STORED_RESULTS = 50
+# Each stored result carries its whole candle series (~1 MB). Only the latest few are needed (an Excel
+# download serves the result the UI just showed); on Render keep just 3.
+_MAX_STORED_RESULTS = keep(10, 3)
 
 PNL_NOTE = (
     "P&L is gross: before brokerage, taxes, slippage and other transaction costs. "
