@@ -374,11 +374,15 @@ def _ohlc_walk(seed):
     return pd.DataFrame({"open": o, "high": h, "low": l, "close": c, "volume": 1000.0}, index=idx)
 
 
-def test_engine_every_trade_enters_above_a_green_candle_of_a_setup_day():
+def test_engine_every_trade_enters_above_a_green_candle_after_the_signal():
+    from backend.strategies.gfs_backtest import _ok
+
     for seed in (3, 5, 11):
         df = _ohlc_walk(seed)
         result = run_gfs_backtest(df, CFG)
-        setup = gfs_setup_flags(df, CFG)[0]
+        _, _, wk, mo = gfs_setup_flags(df, CFG)
+        # weekly / monthly must hold; the daily RSI may already have left the support band by the green candle
+        setup = [_ok(m, lambda v: v > CFG.monthly_rsi_min) and _ok(w, lambda v: v > CFG.weekly_rsi_min) for w, m in zip(wk, mo)]
         o, h, l, c = (df[k].tolist() for k in ("open", "high", "low", "close"))
         for t in result.trades:
             e = df.index.get_loc(t.entry_date)

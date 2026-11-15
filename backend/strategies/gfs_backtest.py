@@ -129,18 +129,18 @@ def _reversal_breakout_entry(
     signal_idx: int, setup: list[bool], opens: list[float], highs: list[float], closes: list[float], dates: list,
     wait: int,
 ) -> "tuple[int | None, float | None, str, str]":
-    """(entry index, entry price, note, skip reason). Green trigger candle on a setup day (signal candle or one
+    """(entry index, entry price, note, skip reason). Green trigger candle (signal candle or one
     of the next `wait`), then the first later candle whose high goes above the trigger's high within `wait`."""
     n = len(closes)
     trigger = None
     for k in range(signal_idx, min(n, signal_idx + wait + 1)):
         if not setup[k]:
-            break  # the setup ended before any green candle came
+            break  # the weekly/monthly condition failed before any green candle came
         if closes[k] > opens[k]:
             trigger = k
             break
     if trigger is None:
-        return None, None, "", "No green (reversal) candle while the setup held."
+        return None, None, "", "No green (reversal) candle after the signal before the weekly/monthly RSI condition failed."
     level = highs[trigger]
     for k in range(trigger + 1, min(n, trigger + 1 + wait)):
         if highs[k] > level:
@@ -212,7 +212,11 @@ def run_gfs_backtest(
     closes = df["close"].astype(float).tolist()
     _, weekly_rsi, _ = _rsi_series(df, config)
     signals, rsi_values = _gfs_setup_signals(df, config)
-    setup_flags = gfs_setup_flags(df, config)[0]
+    _, _, weekly_rsi_s, monthly_rsi_s = gfs_setup_flags(df, config)
+    # The green candle may come after the daily RSI has already left the support band (the bounce itself pushes it
+    # up); only the weekly / monthly conditions must still hold while we wait for it.
+    setup_flags = [_ok(m, lambda v: v > config.monthly_rsi_min) and _ok(w, lambda v: v > config.weekly_rsi_min)
+                   for w, m in zip(weekly_rsi_s, monthly_rsi_s)]
     n = len(df)
     risk_per_trade = config.risk_per_trade
 
