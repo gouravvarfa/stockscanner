@@ -148,11 +148,14 @@ def test_no_breakeven_before_one_r():
 
 def test_stop_trails_to_the_oldest_low_while_lows_keep_rising():
     # Initial stop 90, R = 10 so breakeven (needs a close of 110) never fires.
-    lows = [95.0, 96.0, 97.0, 98.0, 99.0, 100.0, 97.5]
-    opens = [100.0, 100.0, 100.0, 100.0, 101.0, 102.0, 100.0]
-    closes = [100.0, 100.0, 100.0, 101.0, 102.0, 103.0, 99.0]
-    # After candle 5 the stop is the low of candle 3 (98); candle 6's low 97.5 touches it.
-    assert manage(opens, lows, closes, 2, 100.0, 90.0) == (6, 98.0, "STOP_HIT")
+    # 5-candle trail: while the last 5 candles each made a higher low, the stop goes to the oldest of them.
+    lows = [95.0, 96.0, 97.0, 98.0, 99.0, 100.0, 101.0, 96.5]
+    opens = [100.0, 100.0, 100.0, 100.0, 101.0, 102.0, 103.0, 100.0]
+    closes = [100.0, 100.0, 100.0, 101.0, 102.0, 103.0, 104.0, 99.0]
+    # After candle 6 the stop is the low of candle 2 (97); candle 7's low 96.5 touches it.
+    assert manage(opens, lows, closes, 2, 100.0, 90.0) == (7, 97.0, "STOP_HIT")
+    # only 3 rising lows no longer move the stop (it was a 3-candle trail before 2026-11-15)
+    assert manage([100.0] * 5, [95.0, 96.0, 97.0, 91.0, 90.5], [100.0] * 5, 1, 100.0, 90.0) == (None, None, "OPEN")
 
 
 def test_sideways_market_does_not_trail_the_stop():
@@ -399,3 +402,26 @@ def test_all_three_gfs_variants_use_the_reversal_breakout_entry():
     from backend.config.strategy_config import DEFAULT_ADVANCED_GFS_BACKTEST_CONFIG as A, DEFAULT_GFS50_BACKTEST_CONFIG as F
 
     assert CFG.reversal_breakout_entry and A.reversal_breakout_entry and F.reversal_breakout_entry
+
+
+def test_green_candle_far_above_the_support_does_not_trigger():
+    """DIVISLAB Mar 2020 (50 GFS): the only green candle had a daily RSI of 66, far above the 50-59 band."""
+    from backend.strategies.gfs_backtest import _reversal_breakout_entry
+
+    dates = list(pd.date_range("2020-02-28", periods=6, freq="B"))
+    opens = [2140.0, 2130.0, 2124.9, 2183.0, 2175.0, 2180.0]
+    highs = [2149.7, 2164.9, 2210.0, 2210.9, 2239.0, 2249.0]
+    closes = [2106.95, 2109.25, 2183.1, 2174.8, 2223.75, 2240.05]
+    rsi_d = [56.6, 56.9, 65.9, 64.3, 69.1, 70.5]
+    setup = [True] * 6
+    idx, price, _, reason = _reversal_breakout_entry(0, setup, opens, highs, closes, dates, 5, rsi_d, 59.0)
+    assert idx is None and "near the support" in reason
+    # without a limit (Advanced GFS) the same candle triggers: break of 2210.00 on the next candle
+    idx, price, _, _ = _reversal_breakout_entry(0, setup, opens, highs, closes, dates, 5, rsi_d, None)
+    assert idx == 3 and price == 2210.0
+
+
+def test_trigger_rsi_limits_per_variant():
+    from backend.config.strategy_config import DEFAULT_ADVANCED_GFS_BACKTEST_CONFIG as A, DEFAULT_GFS50_BACKTEST_CONFIG as F
+
+    assert CFG.trigger_rsi_max == 50.0 and F.trigger_rsi_max == 59.0 and A.trigger_rsi_max is None

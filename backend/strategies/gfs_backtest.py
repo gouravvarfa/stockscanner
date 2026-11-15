@@ -22,7 +22,7 @@ Rules:
                   included (signal skipped if the entry is not above it).
                2. Breakeven: once a candle CLOSES at least 1R above the entry
                   (R = entry - initial stop), the stop moves to the entry price.
-               3. Trailing: while the last 3 candles each made a higher low, the
+               3. Trailing: while the last 5 candles each made a higher low, the
                   stop moves up to the oldest of those 3 lows. In a sideways
                   market (lows flat or falling) the stop stays where it is.
              The stop that applies to a candle is the one known BEFORE it opens.
@@ -127,7 +127,7 @@ def _gfs_setup_signals(df: pd.DataFrame, config: GFSBacktestConfig) -> "tuple[li
 
 def _reversal_breakout_entry(
     signal_idx: int, setup: list[bool], opens: list[float], highs: list[float], closes: list[float], dates: list,
-    wait: int,
+    wait: int, daily_rsi: "list[float] | None" = None, rsi_max: float | None = None,
 ) -> "tuple[int | None, float | None, str, str]":
     """(entry index, entry price, note, skip reason). Green trigger candle (signal candle or one
     of the next `wait`), then the first later candle whose high goes above the trigger's high within `wait`."""
@@ -137,10 +137,12 @@ def _reversal_breakout_entry(
         if not setup[k]:
             break  # the weekly/monthly condition failed before any green candle came
         if closes[k] > opens[k]:
+            if rsi_max is not None and daily_rsi is not None and daily_rsi[k] == daily_rsi[k] and daily_rsi[k] > rsi_max:
+                continue  # a green candle that already bounced far above the support does not count
             trigger = k
             break
     if trigger is None:
-        return None, None, "", "No green (reversal) candle after the signal before the weekly/monthly RSI condition failed."
+        return None, None, "", "No green (reversal) candle near the support (daily RSI within the limit) after the signal."
     level = highs[trigger]
     for k in range(trigger + 1, min(n, trigger + 1 + wait)):
         if highs[k] > level:
@@ -242,6 +244,7 @@ def run_gfs_backtest(
         if config.reversal_breakout_entry:
             entry_idx, entry_price, trigger_note, reason = _reversal_breakout_entry(
                 i, setup_flags, opens, highs, closes, dates, config.trigger_wait_candles,
+                rsi_values, config.trigger_rsi_max,
             )
             if entry_idx is None:
                 result.skipped.append(SkippedSignal(dates[i], reason))

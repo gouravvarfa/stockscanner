@@ -120,13 +120,16 @@ class GFSBacktestConfig(SystemOneBacktestConfig):
     # Stop loss (see gfs_backtest.py): initial stop, breakeven, trailing, setup-break exit.
     initial_stop_candles: int = 5  # initial stop = lowest low of the last N candles, entry candle included
     breakeven_r: float = 1.0  # once a close is this many R above entry, the stop moves up to the entry price
-    trail_candles: int = 3  # trail only while the last N candles each made a higher low; stop -> oldest of them
+    trail_candles: int = 5  # (2026-11-15: was 3) trail only while the last N candles each made a higher low; stop -> oldest of them
     weekly_rsi_exit_below: float = 60.0  # exit at the close when the completed weekly RSI is below this
     # Entry (2026-11-13): instead of buying the next candle's close, wait for a GREEN reversal candle (close above
     # open, which includes every bullish key reversal) on a day the setup holds, then enter only when a later candle
     # trades ABOVE that green candle's high - filled at that high (or at the open if it gaps above it).
     reversal_breakout_entry: bool = True
     trigger_wait_candles: int = 5  # how long to wait for the green candle, and then for the break of its high
+    # (2026-11-15) The green candle must still be near the support: its daily RSI may not be above this. GFS 50
+    # (band 38-45 + a small bounce), 50 GFS 59 (inside its band); None = no limit (Advanced GFS).
+    trigger_rsi_max: float | None = 50.0
 
 
 DEFAULT_GFS_BACKTEST_CONFIG = GFSBacktestConfig()
@@ -140,6 +143,7 @@ class AdvancedGFSBacktestConfig(GFSBacktestConfig):
     daily_rsi_min: float = 60.0
     daily_rsi_max: float = 100.0
     daily_min_exclusive: bool = True  # "above 60" means strictly greater
+    trigger_rsi_max: float | None = None  # RSI is already above 60 here: no limit on the green candle
 
 
 DEFAULT_ADVANCED_GFS_BACKTEST_CONFIG = AdvancedGFSBacktestConfig()
@@ -153,6 +157,7 @@ class Gfs50BacktestConfig(GFSBacktestConfig):
     daily_rsi_min: float = 50.0
     daily_rsi_max: float = 59.0
     daily_min_exclusive: bool = False  # 50 and 59 themselves are inside the band
+    trigger_rsi_max: float | None = 59.0  # the green candle itself must still be inside the 50-59 band
 
 
 DEFAULT_GFS50_BACKTEST_CONFIG = Gfs50BacktestConfig()
