@@ -122,7 +122,7 @@ export function GFSBacktestPage({ variant = "gfs" }: { variant?: GfsVariant }) {
           </div>
           <h1>{title}</h1>
           <p className="page-subtitle">
-            Daily-chart backtest. A setup needs {setupRule}. The signal is the first day all three hold; enter at the next candle&apos;s close. The initial
+            Daily-chart backtest. A setup needs {setupRule}. The signal is the first day all three hold; then wait for a green (reversal) candle on a setup day and enter when price goes above that candle&apos;s high (at that high, or at the open on a gap up). The initial
             stop is the lowest low of the last 5 candles (entry candle included); a signal is skipped if the entry is not above it.
             Once a candle closes 1R above the entry (R = entry minus initial stop) the stop moves to the entry price. While the
             last 3 candles each make a higher low, the stop trails up to the oldest of those lows; in a sideways market it stays

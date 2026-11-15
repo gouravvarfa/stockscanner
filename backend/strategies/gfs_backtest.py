@@ -10,7 +10,12 @@ Rules:
   * Signal : the first candle where the setup holds after it did not hold on the
              previous candle (so a stock sitting in the zone gives one signal,
              not one per day).
-  * Entry  : the CLOSE of the candle after the signal.
+  * Entry  : (reversal_breakout_entry, the default) wait for a GREEN candle (close > open, which
+             includes every bullish key reversal) on a day the setup still holds - the signal candle
+             itself or one of the next `trigger_wait_candles`; then enter on the first later candle
+             whose HIGH goes above that green candle's high, filled at that high (or at the candle's
+             open if it opened above it), within `trigger_wait_candles`. Otherwise no trade.
+             With reversal_breakout_entry=False: the CLOSE of the candle after the signal.
   * Size   : quantity = floor(risk per trade / (entry - initial stop)).
   * Stop   : staged, and it only ever moves UP.
                1. Initial: the lowest low of the last 5 candles, entry candle
@@ -120,6 +125,34 @@ def _gfs_setup_signals(df: pd.DataFrame, config: GFSBacktestConfig) -> "tuple[li
     return flags, daily_rsi
 
 
+def _reversal_breakout_entry(
+    signal_idx: int, setup: list[bool], opens: list[float], highs: list[float], closes: list[float], dates: list,
+    wait: int,
+) -> "tuple[int | None, float | None, str, str]":
+    """(entry index, entry price, note, skip reason). Green trigger candle on a setup day (signal candle or one
+    of the next `wait`), then the first later candle whose high goes above the trigger's high within `wait`."""
+    n = len(closes)
+    trigger = None
+    for k in range(signal_idx, min(n, signal_idx + wait + 1)):
+        if not setup[k]:
+            break  # the setup ended before any green candle came
+        if closes[k] > opens[k]:
+            trigger = k
+            break
+    if trigger is None:
+        return None, None, "", "No green (reversal) candle while the setup held."
+    level = highs[trigger]
+    for k in range(trigger + 1, min(n, trigger + 1 + wait)):
+        if highs[k] > level:
+            price = opens[k] if opens[k] > level else level
+            note = f"Entry on the break of the green candle of {dates[trigger]:%d-%b-%Y} (high {level:.2f})" + (
+                ", gap open above it" if opens[k] > level else "") + "."
+            return k, price, note, ""
+    if trigger + 1 >= n:
+        return None, None, "", "Green reversal candle on the last candle: waiting for a break of its high."
+    return None, None, "", f"Price did not go above the green candle's high ({level:.2f}) within {wait} candles."
+
+
 def _initial_stop(lows: list[float], entry_idx: int, candles: int) -> float | None:
     first = entry_idx - (candles - 1)
     return min(lows[first : entry_idx + 1]) if first >= 0 else None
@@ -179,6 +212,7 @@ def run_gfs_backtest(
     closes = df["close"].astype(float).tolist()
     _, weekly_rsi, _ = _rsi_series(df, config)
     signals, rsi_values = _gfs_setup_signals(df, config)
+    setup_flags = gfs_setup_flags(df, config)[0]
     n = len(df)
     risk_per_trade = config.risk_per_trade
 
@@ -200,12 +234,21 @@ def run_gfs_backtest(
         if (from_date is not None and dates[i] < from_date) or not signals[i]:
             i += 1
             continue
-        entry_idx = i + 1
-        if entry_idx >= n:
-            result.skipped.append(SkippedSignal(dates[i], "No next candle yet to enter on (signal on the last candle)."))
-            break
-
-        entry_price = closes[entry_idx]
+        trigger_note = ""
+        if config.reversal_breakout_entry:
+            entry_idx, entry_price, trigger_note, reason = _reversal_breakout_entry(
+                i, setup_flags, opens, highs, closes, dates, config.trigger_wait_candles,
+            )
+            if entry_idx is None:
+                result.skipped.append(SkippedSignal(dates[i], reason))
+                i += 1
+                continue
+        else:
+            entry_idx = i + 1
+            if entry_idx >= n:
+                result.skipped.append(SkippedSignal(dates[i], "No next candle yet to enter on (signal on the last candle)."))
+                break
+            entry_price = closes[entry_idx]
         stop = _initial_stop(lows, entry_idx, config.initial_stop_candles)
         if stop is None or entry_price <= stop:
             result.skipped.append(SkippedSignal(
@@ -231,6 +274,7 @@ def run_gfs_backtest(
             entry_price=entry_price, stop_loss=stop, risk_per_share=risk_per_share,
             risk_per_trade=risk_per_trade, quantity=quantity, status="OPEN",
         )
+        trade.data_flag = trigger_note
         exit_idx, exit_price, reason = _manage_trade(
             opens, lows, closes, weekly_rsi, entry_idx, entry_price, stop, config
         )
@@ -238,11 +282,11 @@ def run_gfs_backtest(
             trade.status = "CLOSED"
             trade.exit_date, trade.exit_price, trade.exit_reason = dates[exit_idx], exit_price, reason
             trade.holding_periods = exit_idx - entry_idx
-            trade.data_flag = {
+            trade.data_flag = " ".join(x for x in (trigger_note, {
                 "STOP_HIT": "Low-vs-High order inside the candle is unknown; a touched stop is assumed hit",
                 "GAP_OPEN_BELOW_STOP": "Gap fill at the candle's open",
                 "WEEKLY_RSI_EXIT": "Closed at the candle's close because the completed weekly RSI fell below the minimum",
-            }[reason]
+            }[reason]) if x)
             trade.pnl_amount = (exit_price - entry_price) * quantity
             trade.pnl_pct = (exit_price - entry_price) / entry_price * 100.0
             trade.r_multiple = trade.pnl_amount / risk_per_trade

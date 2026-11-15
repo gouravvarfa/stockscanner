@@ -17,6 +17,7 @@ from backend.strategies.gfs_backtest import (
 )
 
 CFG = GFSBacktestConfig()
+LEGACY = GFSBacktestConfig(reversal_breakout_entry=False)  # the old "next candle close" entry
 
 
 def daily(closes: list[float]) -> pd.DataFrame:
@@ -83,9 +84,9 @@ def CFG_flags(df):
 
 def test_engine_enters_next_candle_close_with_the_5_candle_low_stop_and_sizes_by_it():
     df = daily(noisy_uptrend())
-    result = run_gfs_backtest(df, CFG)
+    result = run_gfs_backtest(df, LEGACY)
     assert result.trades
-    flags, _ = _gfs_setup_signals(df, CFG)
+    flags, _ = _gfs_setup_signals(df, LEGACY)
     signal_dates = {df.index[i] for i, f in enumerate(flags) if f}
     lows = df["low"].tolist()
     for t in result.trades:
@@ -99,7 +100,7 @@ def test_engine_enters_next_candle_close_with_the_5_candle_low_stop_and_sizes_by
 
 
 def test_one_trade_at_a_time_and_exit_reasons_are_known():
-    result = run_gfs_backtest(daily(noisy_uptrend()), CFG)
+    result = run_gfs_backtest(daily(noisy_uptrend()), LEGACY)
     closed = [t for t in result.trades if t.status == "CLOSED"]
     assert closed
     for t in closed:
@@ -111,7 +112,7 @@ def test_one_trade_at_a_time_and_exit_reasons_are_known():
 
 def test_signal_is_skipped_when_entry_is_not_above_the_stop():
     # A falling market that still fires the setup: the 5-candle low sits above the entry.
-    result = run_gfs_backtest(daily(uptrend_with_dips()), CFG)
+    result = run_gfs_backtest(daily(uptrend_with_dips()), LEGACY)
     assert all("not above the stop" in sk.reason for sk in result.skipped)
 
 
@@ -318,3 +319,79 @@ def test_gfs_and_advanced_gfs_bands_are_unchanged():
 
     assert (CFG.daily_rsi_min, CFG.daily_rsi_max) == (38.0, 45.0) or (CFG.daily_rsi_min, CFG.daily_rsi_max) == (38.0, 45)
     assert (ADV.daily_rsi_min, ADV.daily_rsi_max, ADV.daily_min_exclusive) == (60.0, 100.0, True)
+
+
+# ---- entry on a green (reversal) candle, then the break of its high ----------------------------
+
+from backend.strategies.gfs_backtest import _reversal_breakout_entry  # noqa: E402
+
+
+def _bars(rows):
+    """rows: (open, high, low, close)."""
+    o, h, l, c = (list(x) for x in zip(*rows))
+    dates = list(pd.bdate_range("2025-01-01", periods=len(rows)))
+    return o, h, c, dates
+
+
+def test_green_signal_candle_then_break_of_its_high_enters_at_that_high():
+    o, h, c, d = _bars([(100, 102, 98, 101), (101, 101.5, 99, 100), (100, 104, 99.5, 103)])  # 0 green, 2 breaks 102
+    idx, price, note, why = _reversal_breakout_entry(0, [True] * 3, o, h, c, d, 5)
+    assert idx == 2 and price == 102 and "green candle" in note and why == ""
+
+
+def test_gap_open_above_the_trigger_high_fills_at_the_open():
+    o, h, c, d = _bars([(100, 102, 98, 101), (105, 107, 104, 106)])
+    idx, price, note, _ = _reversal_breakout_entry(0, [True] * 2, o, h, c, d, 5)
+    assert idx == 1 and price == 105 and "gap open" in note
+
+
+def test_red_signal_candle_waits_for_a_later_green_candle_while_the_setup_holds():
+    o, h, c, d = _bars([(101, 102, 98, 99), (99, 100, 97, 99.5), (100, 101.2, 99, 101)])  # red, green(trigger), break 100
+    idx, price, _, _ = _reversal_breakout_entry(0, [True] * 3, o, h, c, d, 5)
+    assert idx == 2 and price == 100
+
+
+def test_no_trade_without_a_green_candle_or_after_the_setup_ends():
+    o, h, c, d = _bars([(101, 102, 98, 99), (100, 101, 97, 99.5), (101, 103, 99, 102)])  # red, red, green but setup over
+    idx, _, _, why = _reversal_breakout_entry(0, [True, True, False], o, h, c, d, 5)
+    assert idx is None and "No green" in why
+
+
+def test_no_trade_when_price_never_goes_above_the_green_candles_high_in_time():
+    rows = [(100, 102, 98, 101)] + [(100, 101.9, 99, 100.5)] * 6
+    o, h, c, d = _bars(rows)
+    idx, _, _, why = _reversal_breakout_entry(0, [True] * 7, o, h, c, d, 5)
+    assert idx is None and "did not go above" in why
+
+
+def _ohlc_walk(seed):
+    rng = np.random.default_rng(seed)
+    c = 100 * np.exp(np.cumsum(rng.normal(0.0012, 0.015, 1500)))
+    o = np.r_[c[0], c[:-1]] * (1 + rng.normal(0, 0.004, 1500))
+    h = np.maximum(o, c) * (1 + abs(rng.normal(0, 0.006, 1500)))
+    l = np.minimum(o, c) * (1 - abs(rng.normal(0, 0.006, 1500)))
+    idx = pd.bdate_range("2018-01-01", periods=1500)
+    return pd.DataFrame({"open": o, "high": h, "low": l, "close": c, "volume": 1000.0}, index=idx)
+
+
+def test_engine_every_trade_enters_above_a_green_candle_of_a_setup_day():
+    for seed in (3, 5, 11):
+        df = _ohlc_walk(seed)
+        result = run_gfs_backtest(df, CFG)
+        setup = gfs_setup_flags(df, CFG)[0]
+        o, h, l, c = (df[k].tolist() for k in ("open", "high", "low", "close"))
+        for t in result.trades:
+            e = df.index.get_loc(t.entry_date)
+            s = df.index.get_loc(t.signal_date)
+            greens = [k for k in range(s, e) if setup[k] and c[k] > o[k]]
+            assert greens, seed
+            trig = greens[0]
+            assert h[e] > h[trig] and t.entry_price == (o[e] if o[e] > h[trig] else h[trig])
+            assert t.stop_loss == min(l[e - 4 : e + 1]) < t.entry_price
+            assert "green candle" in t.data_flag
+
+
+def test_all_three_gfs_variants_use_the_reversal_breakout_entry():
+    from backend.config.strategy_config import DEFAULT_ADVANCED_GFS_BACKTEST_CONFIG as A, DEFAULT_GFS50_BACKTEST_CONFIG as F
+
+    assert CFG.reversal_breakout_entry and A.reversal_breakout_entry and F.reversal_breakout_entry

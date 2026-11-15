@@ -122,6 +122,11 @@ class GFSBacktestConfig(SystemOneBacktestConfig):
     breakeven_r: float = 1.0  # once a close is this many R above entry, the stop moves up to the entry price
     trail_candles: int = 3  # trail only while the last N candles each made a higher low; stop -> oldest of them
     weekly_rsi_exit_below: float = 60.0  # exit at the close when the completed weekly RSI is below this
+    # Entry (2026-11-13): instead of buying the next candle's close, wait for a GREEN reversal candle (close above
+    # open, which includes every bullish key reversal) on a day the setup holds, then enter only when a later candle
+    # trades ABOVE that green candle's high - filled at that high (or at the open if it gaps above it).
+    reversal_breakout_entry: bool = True
+    trigger_wait_candles: int = 5  # how long to wait for the green candle, and then for the break of its high
 
 
 DEFAULT_GFS_BACKTEST_CONFIG = GFSBacktestConfig()
