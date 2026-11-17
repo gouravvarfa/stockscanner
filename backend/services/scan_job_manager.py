@@ -262,7 +262,14 @@ class TooManyConcurrentScansError(RuntimeError):
 # by a single SHARED pool (see scan_service.py's _get_shared_fetch_semaphore
 # / _get_shared_cpu_pool) regardless of how many jobs are running, so this
 # cap exists only to bound that per-job memory, not to protect Angel One.
-MAX_CONCURRENT_JOBS_PER_SCAN_TYPE = 3
+MAX_CONCURRENT_JOBS_PER_SCAN_TYPE = keep(3, 1)
+
+# 2026-11-17, Render OOM during Cup Breakout: a full Cup scan takes ~4 hours on Render (10 years of daily
+# candles per stock in 5 rate-limited chunks, no disk cache there), so it overlapped other scans and the
+# instance went over 512 MB. On Render only ONE heavy scan (A Group or Cup Breakout) may run at a time,
+# from any device; locally there is no such limit (0 = unlimited).
+HEAVY_SCAN_TYPES = ("a_group", "cup_breakout")
+MAX_RUNNING_HEAVY_SCANS = keep(0, 1)
 
 # 2026-09-24, Render OOM: completed/failed/cancelled ScanJob objects were
 # never removed from the in-process registry below — their progress_log
@@ -327,6 +334,13 @@ class JobManager:
                 raise ScanAlreadyRunningError(
                     f"A {scan_type} scan is already running for this device (job {same_device.job_id}).",
                     job_id=same_device.job_id,
+                )
+        if MAX_RUNNING_HEAVY_SCANS and scan_type in HEAVY_SCAN_TYPES:
+            heavy = [j for j in self._jobs.values() if j.scan_type in HEAVY_SCAN_TYPES and j.status == "running"]
+            if len(heavy) >= MAX_RUNNING_HEAVY_SCANS:
+                raise TooManyConcurrentScansError(
+                    f"Another big scan ({heavy[0].scan_type}) is already running on the server. The server has "
+                    "only 512 MB, so one big scan runs at a time - please wait for it to finish."
                 )
         if len(running_same_type) >= MAX_CONCURRENT_JOBS_PER_SCAN_TYPE:
             raise TooManyConcurrentScansError(

@@ -53,7 +53,8 @@ def _limits_in_fresh_process(**env) -> dict:
         "import backend.services.gfs_backtest_service as g, backend.services.scan_job_manager as j,"
         "backend.services.system_one_backtest_service as s, backend.services.top_bottom_backtest_service as t;"
         "print(json.dumps(dict(so=s._MAX_STORED_RESULTS, tb=t._MAX_STORED_RESULTS, candles=g._CANDLE_CACHE_MAX,"
-        "jobs=j.MAX_COMPLETED_JOBS_RETAINED_PER_TYPE)))"
+        "jobs=j.MAX_COMPLETED_JOBS_RETAINED_PER_TYPE, per_type=j.MAX_CONCURRENT_JOBS_PER_SCAN_TYPE,"
+        "heavy=j.MAX_RUNNING_HEAVY_SCANS)))"
     )
     clean = {k: v for k, v in os.environ.items() if k not in ("RENDER", "STATELESS_SERVER")}
     out = subprocess.run([sys.executable, "-c", code], env={**clean, **env}, capture_output=True, text=True, check=True)
@@ -62,11 +63,11 @@ def _limits_in_fresh_process(**env) -> dict:
 
 def test_stateless_limits_on_every_server_side_store():
     render = _limits_in_fresh_process(RENDER="true")
-    assert render == {"so": 3, "tb": 3, "candles": 0, "jobs": 2}  # nothing is remembered on Render beyond the last few
+    assert render == {"so": 3, "tb": 3, "candles": 0, "jobs": 2, "per_type": 1, "heavy": 1}  # nothing is remembered on Render beyond the last few
     forced = _limits_in_fresh_process(STATELESS_SERVER="1")
     assert forced == render
     local = _limits_in_fresh_process()
-    assert local == {"so": 10, "tb": 10, "candles": 40, "jobs": 5}
+    assert local == {"so": 10, "tb": 10, "candles": 40, "jobs": 5, "per_type": 3, "heavy": 0}
 
 
 def test_system_one_store_is_bounded(monkeypatch):
@@ -161,3 +162,57 @@ def test_scan_progress_logs_process_memory(monkeypatch, caplog):
             job.record_progress(f"S{i}", True)
     lines = [r.getMessage() for r in caplog.records if "process memory" in r.getMessage()]
     assert lines and "100/100" in lines[-1] and "321 MB" in lines[-1]
+
+
+async def test_render_runs_only_one_big_scan_at_a_time(monkeypatch):
+    """2026-11-17: a ~4 hour Cup scan overlapped other scans on Render and went over 512 MB."""
+    import asyncio
+
+    from backend.services import scan_job_manager as sjm
+
+    monkeypatch.setattr(sjm, "MAX_RUNNING_HEAVY_SCANS", 1)
+    mgr = sjm.JobManager()
+    gate = asyncio.Event()
+
+    async def runner(job):
+        await gate.wait()
+        return {}
+
+    mgr.start_job("cup_breakout", runner, device_id="phone")
+    with pytest.raises(sjm.TooManyConcurrentScansError, match="one big scan runs at a time"):
+        mgr.start_job("a_group", runner, device_id="laptop")
+    mgr.start_job("expiry_level_1", runner, device_id="laptop")  # small scans are not blocked
+    gate.set()
+    await asyncio.sleep(0.05)
+    mgr.start_job("a_group", runner, device_id="laptop")  # the big one finished: the next may start
+    gate.set()
+    await asyncio.sleep(0.05)
+
+
+async def test_cup_result_is_not_kept_on_the_server_when_stateless(monkeypatch):
+    from backend.api import scan_jobs
+    from backend.services.cup_scan_service import CupScanOutcome
+    import datetime as dt
+
+    now = dt.datetime(2026, 11, 17)
+    outcome = CupScanOutcome(started_at=now, finished_at=now, execution_seconds=1.0, stocks_scanned=1,
+                             stocks_failed=0, failed_symbols=[], results=[{"symbol": "TCS"}])
+
+    async def fake_scan(*a, **k):
+        return outcome
+
+    calls = []
+    monkeypatch.setattr(scan_jobs, "run_cup_scan", fake_scan)
+    monkeypatch.setattr(scan_jobs, "get_angelone_provider", lambda: None)
+    monkeypatch.setattr(scan_jobs, "set_cached_result", lambda *a, **k: calls.append("set"))
+    monkeypatch.setattr(scan_jobs, "clear_cached_result", lambda *a, **k: calls.append("clear"))
+    job = type("J", (), {"record_progress": lambda *a: None, "record_result": lambda *a: None})()
+
+    monkeypatch.setattr(scan_jobs, "STATELESS_SERVER", True)
+    payload = await scan_jobs._run_cup_breakout_job(job)
+    assert payload["results"] == [{"symbol": "TCS"}] and calls == ["clear"]  # the device gets it; the server forgets
+
+    calls.clear()
+    monkeypatch.setattr(scan_jobs, "STATELESS_SERVER", False)
+    await scan_jobs._run_cup_breakout_job(job)
+    assert calls == ["set"]  # a local run keeps its 24h cache as before

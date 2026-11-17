@@ -49,6 +49,7 @@ from backend.services.expiry_level_5_scan_service import run_expiry_level_5_scan
 from backend.services.expiry_scan_service import run_expiry_level_1_scan
 from backend.services.provider_factory import get_angelone_provider, get_market_data_router
 from backend.services.excel_sync.scan_sync import start_scan_sync
+from backend.core.runtime import STATELESS_SERVER
 from backend.services.scan_job_manager import (
     ScanAlreadyRunningError,
     TooManyConcurrentScansError,
@@ -120,7 +121,12 @@ async def _run_cup_breakout_job(job: ScanJob) -> dict:
         "failed_symbols": outcome.failed_symbols,
         "results": outcome.results,
     }
-    set_cached_result("cup_breakout", payload)
+    if STATELESS_SERVER:
+        # Render keeps nothing (2026-11-17): the device saves this result in its own storage when the job
+        # completes; the server forgets the previous Cup result instead of holding a copy in memory and on disk.
+        clear_cached_result("cup_breakout")
+    else:
+        set_cached_result("cup_breakout", payload)
     return payload
 
 
