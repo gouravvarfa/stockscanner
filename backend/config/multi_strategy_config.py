@@ -84,7 +84,9 @@ class NRDConfig(BaseModel):
 
 
 class ValueBuyConfig(BaseModel):
-    monthly_rsi_support_min: float = 35.0
+    # 2026-11-17 (user): Value Buy takes support at a monthly RSI of 40 - the same 38-45 band the GFS daily
+    # support uses (was 35-45). The daily trigger is a key reversal only (trendline breakout no longer counts).
+    monthly_rsi_support_min: float = 38.0
     monthly_rsi_support_max: float = 45.0
     trendline_swing_lookback: int = 5
 

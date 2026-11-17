@@ -20,6 +20,19 @@ def _bseries(values, start="2024-01-01"):
     )
 
 
+def _with_key_reversal(df):
+    """Make the latest daily bar a bullish key reversal: a new low below the prior bar's low, then a green close
+    above the prior bar's close (since 2026-11-17 the only daily trigger for Value Buy)."""
+    df = df.copy()
+    prev = df.iloc[-2]
+    last = df.index[-1]
+    df.loc[last, "open"] = prev["close"] - 3
+    df.loc[last, "low"] = prev["low"] - 2
+    df.loc[last, "close"] = prev["close"] + 2
+    df.loc[last, "high"] = prev["close"] + 3
+    return df
+
+
 def _breakout_and_green_week_prices():
     peak1_up = [100 + 5 * i for i in range(1, 11)]
     peak1_down = [150 - 4 * i for i in range(1, 11)]
@@ -38,7 +51,7 @@ def _breakout_and_green_week_prices():
 
 
 def test_live_monthly_rsi_inside_support_zone_passes():
-    df = _bseries(_breakout_and_green_week_prices())
+    df = _with_key_reversal(_bseries(_breakout_and_green_week_prices()))
     signal = evaluate_value_buy(make_result(monthly_rsi=42.0), df, ValueBuyConfig())
     assert signal.conditions["monthly_rsi_in_support_zone"]
     assert signal.qualifies
@@ -54,7 +67,7 @@ def test_astec_like_live_monthly_rsi_45_9_passes():
 
 
 def test_live_monthly_rsi_38_within_zone_passes():
-    df = _bseries(_breakout_and_green_week_prices())
+    df = _with_key_reversal(_bseries(_breakout_and_green_week_prices()))
     signal = evaluate_value_buy(make_result(monthly_rsi=38.0), df, ValueBuyConfig())
     assert signal.conditions["monthly_rsi_in_support_zone"]
     assert signal.qualifies
@@ -113,7 +126,7 @@ def test_value_buy_rejects_without_key_reversal_or_breakout():
     result = make_result(monthly_rsi=40.0)
     signal = evaluate_value_buy(result, df, ValueBuyConfig())
     assert not signal.qualifies
-    assert not signal.conditions["key_reversal_or_trendline_breakout"]
+    assert not signal.conditions["daily_key_reversal"]
 
 
 def test_value_buy_rejects_when_latest_confirmed_week_is_red():
@@ -162,3 +175,19 @@ def test_aplapollo_style_scanner_uses_current_month_not_previous():
     assert result.monthly.rsi == pytest.approx(expected_live_rsi, abs=0.01)
     assert result.monthly.previous_rsi == pytest.approx(expected_confirmed_rsi, abs=0.01)
     assert result.monthly.rsi != pytest.approx(result.monthly.previous_rsi, abs=0.01)
+
+
+def test_trendline_breakout_alone_no_longer_triggers_value_buy():
+    """2026-11-17 (user): Value Buy = monthly RSI at the 40 support, weekly green, daily KEY REVERSAL only."""
+    df = _bseries(_breakout_and_green_week_prices())  # a trendline breakout, but no key reversal on the last bar
+    signal = evaluate_value_buy(make_result(monthly_rsi=42.0), df, ValueBuyConfig())
+    assert signal.extra["trendline_breakout_detected"]
+    assert not signal.conditions["daily_key_reversal"]
+    assert not signal.qualifies
+
+
+def test_monthly_support_is_the_40_band():
+    df = _with_key_reversal(_bseries(_breakout_and_green_week_prices()))
+    assert ValueBuyConfig().monthly_rsi_support_min == 38.0 and ValueBuyConfig().monthly_rsi_support_max == 45.0
+    assert not evaluate_value_buy(make_result(monthly_rsi=36.9), df, ValueBuyConfig()).qualifies  # SPANDANA 17 Nov 2026
+    assert evaluate_value_buy(make_result(monthly_rsi=40.0), df, ValueBuyConfig()).qualifies

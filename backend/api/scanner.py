@@ -13,7 +13,7 @@ _DESCRIPTIONS = {
     "50 GFS": "Daily RSI 50-59, Weekly RSI > 60, Monthly RSI > 60.",
     "PRD": "Positive Reversal: price higher low + RSI lower low at confirmed swing lows, gated by D/W/M RSI > 60. Latest only: confirmed within the last 3 daily / 2 weekly / 1 monthly candle.",
     "NRD": "Negative Reversal: price lower high + RSI higher high at confirmed swing highs, gated by D/W/M RSI < 45. Latest only: confirmed within the last 3 daily / 2 weekly / 1 monthly candle.",
-    "Value Buy": "Monthly RSI in the support zone, latest confirmed weekly candle green, plus a daily key reversal or trendline breakout.",
+    "Value Buy": "Monthly RSI at the 40 support (38-45), latest confirmed weekly candle green, plus a daily key reversal.",
 }
 
 

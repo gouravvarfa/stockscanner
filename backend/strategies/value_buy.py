@@ -30,18 +30,18 @@ def evaluate_value_buy(
     monthly_in_support = m is not None and config.monthly_rsi_support_min <= m <= config.monthly_rsi_support_max
 
     key_reversal = detect_key_reversal(daily_ohlcv)
+    # Still computed for the detail panel, but since 2026-11-17 only a daily KEY REVERSAL triggers Value Buy.
     trendline_breakout = detect_trendline_breakout(daily_ohlcv, config.trendline_swing_lookback)
-    daily_trigger = key_reversal.detected or trendline_breakout.detected
 
     conditions = {
         "monthly_rsi_in_support_zone": monthly_in_support,
         "latest_confirmed_weekly_candle_green": weekly_green,
-        "key_reversal_or_trendline_breakout": daily_trigger,
+        "daily_key_reversal": key_reversal.detected,
     }
     qualifies = all(conditions.values())
 
     if qualifies:
-        trigger_desc = "a key reversal" if key_reversal.detected else "a trendline breakout"
+        trigger_desc = "a key reversal"
         explanation = (
             f"Value Buy qualified: latest monthly RSI {m:.1f} is in the "
             f"{config.monthly_rsi_support_min}-{config.monthly_rsi_support_max} support zone, "
