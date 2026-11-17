@@ -1,38 +1,49 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { api, type AngelOneStatus } from "../services/api";
+import { ensureAngelOneConnected, getConnectionState, onConnectionChange } from "../services/angeloneAutoConnect";
 
 /**
  * Read-only status display for pages that NEED Angel One connected
- * (Expiry Level 1/5) but don't own the credential form themselves —
- * credentials are configured in exactly one place: Settings. This just
- * reports the shared connection's current state and points there.
+ * (Expiry Level 1/5) but don't own the credential form themselves -
+ * credentials are configured in exactly one place: Settings. This shows the
+ * app-wide connection (angeloneAutoConnect.ts), which wakes the server and
+ * reconnects with this device's saved credentials on its own.
  */
 export function AngelOneStatusBanner({ onConnectedChange }: { onConnectedChange?: (configured: boolean) => void }) {
-  const [status, setStatus] = useState<AngelOneStatus | null>(null);
+  const [conn, setConn] = useState(getConnectionState());
 
   useEffect(() => {
-    api
-      .getAngelOneStatus()
-      .then((s) => {
-        setStatus(s);
-        onConnectedChange?.(s.configured);
-      })
-      .catch(() => undefined);
+    const unsub = onConnectionChange((s) => {
+      setConn(s);
+      if (s.phase === "connected" || s.phase === "disconnected") onConnectedChange?.(s.phase === "connected");
+    });
+    void ensureAngelOneConnected().then((s) => onConnectedChange?.(s.phase === "connected"));
+    return unsub;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  if (status?.configured) {
+  if (conn.phase === "connected") {
     return (
       <div className="card angelone-status">
-        <span className="chip chip-pass">● {status.message}</span>
+        <span className="chip chip-pass">● {conn.message}</span>
+      </div>
+    );
+  }
+
+  if (conn.phase === "checking" || conn.phase === "waking" || conn.phase === "connecting") {
+    return (
+      <div className="card angelone-status">
+        <span className="chip">● {conn.message}</span>
       </div>
     );
   }
 
   return (
     <div className="card angelone-status">
-      <span className="chip chip-fail">● Angel One not connected</span>
+      <span className="chip chip-fail">● {conn.message}</span>
+      <button type="button" className="secondary-button" onClick={() => void ensureAngelOneConnected()}>
+        Retry
+      </button>
       <Link to="/settings" className="secondary-button">
         Configure in Settings
       </Link>

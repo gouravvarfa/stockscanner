@@ -1,6 +1,13 @@
 import { useEffect, useState } from "react";
 import { useScan } from "../context/ScanContext";
 import { BellIcon, ListIcon, MenuIcon, MoonIcon, SunIcon, UserIcon } from "./icons";
+import { ensureAngelOneConnected, getConnectionState, onConnectionChange } from "../services/angeloneAutoConnect";
+
+function useConnectionState() {
+  const [s, setS] = useState(getConnectionState());
+  useEffect(() => onConnectionChange(setS), []);
+  return s;
+}
 
 const IST_OFFSET_MINUTES = 5.5 * 60;
 
@@ -60,6 +67,9 @@ export function Header({
   }, []);
 
   const open = isMarketOpen(ist);
+  const conn = useConnectionState();
+  const connOk = conn.phase === "connected";
+  const connBusy = conn.phase === "checking" || conn.phase === "waking" || conn.phase === "connecting";
   const timeLabel = ist.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
 
   return (
@@ -78,6 +88,16 @@ export function Header({
         )}
       </div>
       <div className="header-right">
+        <button
+          type="button"
+          className="market-status"
+          onClick={() => void ensureAngelOneConnected()}
+          title={conn.message + (connOk ? "" : " - click to retry")}
+          style={{ cursor: "pointer", border: "none", background: "transparent", font: "inherit", color: "inherit" }}
+        >
+          <span className={connOk ? "dot" : "dot closed"} style={connOk ? undefined : { background: connBusy ? "#f59e0b" : "#ef4444" }} />
+          <span>{connOk ? "Connected" : connBusy ? (conn.phase === "waking" ? "Server waking…" : "Connecting…") : "Disconnected"}</span>
+        </button>
         <div className="market-status">
           <span className={open ? "dot" : "dot closed"} />
           <span>{open ? "Market Open" : "Market Closed"}</span>

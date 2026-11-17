@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Route, Routes } from "react-router-dom";
 import { ChartDrawer } from "./chart/ChartDrawer";
 import { useChart } from "./chart/ChartContext";
@@ -22,11 +22,15 @@ import { Settings } from "./pages/Settings";
 import { TradingViewSignals } from "./pages/TradingViewSignals";
 import { TopBottomBacktest } from "./pages/TopBottomBacktest";
 import { TopBottomErrorBoundary } from "./pages/topBottom/TopBottomErrorBoundary";
+import { startAutoConnect } from "./services/angeloneAutoConnect";
 
 export default function App() {
   const [logsOpen, setLogsOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const chart = useChart();
+
+  // Wake the backend and reconnect Angel One as soon as the app opens (see angeloneAutoConnect.ts).
+  useEffect(() => startAutoConnect(), []);
 
   return (
     <div className="app-shell">

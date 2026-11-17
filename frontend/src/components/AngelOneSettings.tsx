@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { api, type AngelOneStatus } from "../services/api";
 import { clearDeviceCredentials, loadDeviceCredentials, saveDeviceCredentials } from "../services/angeloneDeviceStore";
+import { ensureAngelOneConnected, onConnectionChange, publishStatus } from "../services/angeloneAutoConnect";
 
 /**
  * The ONE centralized place credentials are entered/updated/cleared.
@@ -29,38 +30,20 @@ export function AngelOneSettings() {
   const [message, setMessage] = useState<string | null>(null);
   const [messageKind, setMessageKind] = useState<"success" | "error" | null>(null);
   const [autoReconnecting, setAutoReconnecting] = useState(false);
-  const triedAutoReconnect = useRef(false);
-
-  function refreshStatus() {
-    return api.getAngelOneStatus().then(setStatus).catch(() => undefined);
-  }
 
   useEffect(() => {
-    refreshStatus().then(() => {
-      // Auto-reconnect once per page load: the backend forgot its
-      // credentials (e.g. a restart wiped its saved-credentials file) but
-      // this device remembers them — reconnect silently instead of making
-      // the user retype anything.
-      if (triedAutoReconnect.current) return;
-      triedAutoReconnect.current = true;
-      api.getAngelOneStatus().then(async (s) => {
-        if (s.configured) return;
-        const saved = loadDeviceCredentials();
-        if (!saved) return;
-        setAutoReconnecting(true);
-        try {
-          const reconnected = await api.connectAngelOne(saved);
-          setStatus(reconnected);
-          setMessage("Reconnected automatically using this device's saved credentials.");
-          setMessageKind("success");
-        } catch {
-          // Saved credentials no longer valid — leave it to the user to reconnect manually.
-        } finally {
-          setAutoReconnecting(false);
-        }
-      });
+    // The app-wide auto-connect (angeloneAutoConnect.ts) wakes the server and reconnects with this device's saved
+    // credentials; this page just follows it.
+    const unsub = onConnectionChange((s) => {
+      setAutoReconnecting(s.phase === "checking" || s.phase === "waking" || s.phase === "connecting");
+      if (s.status) setStatus(s.status);
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    void ensureAngelOneConnected().then((s) => {
+      if (s.status) setStatus(s.status);
+    });
+    return () => {
+      unsub();
+    };
   }, []);
 
   function resetForm() {
@@ -104,6 +87,7 @@ export function AngelOneSettings() {
       const creds = { api_key: apiKey, client_code: clientCode, pin, totp_secret: totpSecret };
       const s = await api.connectAngelOne(creds);
       setStatus(s);
+      publishStatus(s);
       if (rememberOnDevice) {
         saveDeviceCredentials(creds);
       } else {
@@ -125,6 +109,7 @@ export function AngelOneSettings() {
     const s = await api.disconnectAngelOne();
     clearDeviceCredentials();
     setStatus(s);
+    publishStatus(s);
     setEditing(false);
     resetForm();
   }
