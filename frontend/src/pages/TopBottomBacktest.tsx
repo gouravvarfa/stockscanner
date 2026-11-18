@@ -145,7 +145,7 @@ export function TopBottomBacktest() {
                 }}
               >
                 <option value="EQUITY">NSE Equity</option>
-                <option value="FUTURES">Futures (NFO + MCX Gold/Silver)</option>
+                <option value="FUTURES">Futures (NSE + SENSEX + MCX Gold/Silver)</option>
               </select>
             </label>
           </div>

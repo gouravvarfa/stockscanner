@@ -15,7 +15,7 @@ import httpx
 from backend.core.cache import cache
 
 SCRIP_MASTER_URL = "https://margincalculator.angelone.in/OpenAPI_File/files/OpenAPIScripMaster.json"
-CACHE_KEY = "angelone:scrip_master:v4"  # v4: adds MCX gold/silver futures for Top-Bottom Backtesting
+CACHE_KEY = "angelone:scrip_master:v5"  # v5: adds BSE SENSEX index futures (BFO) for Top-Bottom Backtesting
 CACHE_TTL_SECONDS = 24 * 3600
 
 # NSE: equities ("") + indices ("AMXIDX"). NFO: stock futures ("FUTSTK") and
@@ -23,6 +23,8 @@ CACHE_TTL_SECONDS = 24 * 3600
 # are deliberately excluded, this project never trades options.
 RELEVANT_NSE_TYPES = {"", "AMXIDX"}
 RELEVANT_NFO_TYPES = {"FUTSTK", "FUTIDX"}
+# BSE index futures (BFO segment, Top-Bottom only): just SENSEX. Every other BFO row is dropped.
+RELEVANT_BFO_INDEX_FUTURES = {"SENSEX"}
 
 # MCX commodity futures (Top-Bottom only): the gold and silver family. `FUTCOM` rows of every other commodity
 # are dropped so the cached master stays small. Value = rupees of profit/loss per 1.00 price point per lot,
@@ -53,10 +55,16 @@ class ScripMatch:
 _inflight: dict[int, "asyncio.Future[list[dict]]"] = {}
 
 
+def _is_bse_index_future(row: dict) -> bool:
+    return (row.get("exch_seg") == "BFO" and row.get("instrumenttype") == "FUTIDX"
+            and row.get("name") in RELEVANT_BFO_INDEX_FUTURES)
+
+
 def _is_relevant(row: dict) -> bool:
     return (
         (row.get("exch_seg") == "NSE" and row.get("instrumenttype") in RELEVANT_NSE_TYPES)
         or (row.get("exch_seg") == "NFO" and row.get("instrumenttype") in RELEVANT_NFO_TYPES)
+        or _is_bse_index_future(row)
         or (row.get("exch_seg") == "MCX" and row.get("instrumenttype") in RELEVANT_MCX_TYPES
             and row.get("name") in COMMODITY_POINT_VALUE)
     )
@@ -174,7 +182,7 @@ class FutureContract:
     underlying: str  # scrip master "name" — e.g. "RELIANCE", "NIFTY"
     trading_symbol: str  # e.g. "RELIANCE29SEP26FUT"
     token: str
-    exch_seg: str  # "NFO" (stock/index futures) or "MCX" (gold/silver futures)
+    exch_seg: str  # "NFO" (stock/index futures), "BFO" (SENSEX futures) or "MCX" (gold/silver futures)
     expiry: str  # ISO date "2026-09-29"
     is_index: bool  # True for FUTIDX (NIFTY/BANKNIFTY/...), False for FUTSTK
     lot_size: int  # real exchange lot size, straight from Angel One's own scrip master — never guessed
@@ -204,6 +212,7 @@ async def search_futures(query: str, limit: int = 25) -> list[FutureContract]:
         for row in rows
         if (
             (row.get("exch_seg") == "NFO" and row.get("instrumenttype") in RELEVANT_NFO_TYPES)
+            or _is_bse_index_future(row)
             or (row.get("exch_seg") == "MCX" and row.get("instrumenttype") in RELEVANT_MCX_TYPES
                 and row.get("name") in COMMODITY_POINT_VALUE)
         )

@@ -89,7 +89,7 @@ async def test_resolve_picks_the_nearest_expiry_or_the_exact_one(master):
         await futures_service.resolve_contract("GOLDM", "2027-02-05")  # later expiry: not offered (short history)
     with pytest.raises(futures_service.NotAFutureError):
         await futures_service.resolve_contract("GOLDM", "2030-01-01")
-    with pytest.raises(futures_service.NotAFutureError, match="NSE/MCX"):
+    with pytest.raises(futures_service.NotAFutureError, match="NSE/BSE/MCX"):
         await futures_service.resolve_contract("CRUDEOIL", None)
 
 
@@ -154,3 +154,33 @@ async def test_mcx_daily_bar_is_complete_only_after_the_late_evening_session():
     assert len(drop_incomplete_trailing_daily_bar(df, evening)) == 2  # NSE rule would call today's bar complete
     assert len(drop_incomplete_trailing_daily_bar(df, evening, dt.time(23, 55))) == 1  # MCX rule drops it
     assert len(drop_incomplete_trailing_daily_bar(df, dt.datetime(2026, 11, 7, 0, 10), dt.time(23, 55))) == 2
+
+
+def test_sensex_bse_index_futures_are_kept_and_other_bfo_rows_dropped():
+    from backend.providers import angelone_scrip_master as sm
+
+    sensex = {"exch_seg": "BFO", "instrumenttype": "FUTIDX", "name": "SENSEX", "symbol": "SENSEX26NOVFUT", "token": "1"}
+    bankex = {"exch_seg": "BFO", "instrumenttype": "FUTIDX", "name": "BANKEX", "symbol": "BANKEX26NOVFUT", "token": "2"}
+    bse_stock = {"exch_seg": "BFO", "instrumenttype": "FUTSTK", "name": "TCS", "symbol": "TCS26NOVFUT", "token": "3"}
+    assert sm._is_relevant(sensex) and not sm._is_relevant(bankex) and not sm._is_relevant(bse_stock)
+
+
+async def test_search_finds_sensex_and_understands_midcap(monkeypatch):
+    from backend.providers import angelone_scrip_master as sm
+    from backend.services import futures_instrument_service as fs
+
+    rows = [
+        {"exch_seg": "BFO", "instrumenttype": "FUTIDX", "name": "SENSEX", "symbol": "SENSEX26NOVFUT", "token": "1",
+         "expiry": "26NOV2026", "lotsize": "20"},
+        {"exch_seg": "NFO", "instrumenttype": "FUTIDX", "name": "MIDCPNIFTY", "symbol": "MIDCPNIFTY23NOV26FUT", "token": "2",
+         "expiry": "23NOV2026", "lotsize": "120"},
+    ]
+
+    async def fake_master():
+        return rows
+
+    monkeypatch.setattr(sm, "_fetch_scrip_master", fake_master)
+    sensex = await fs.search_futures("sensex")
+    assert [(c.underlying, c.exch_seg, c.is_index, c.lot_size) for c in sensex] == [("SENSEX", "BFO", True, 20)]
+    for typed in ("MIDCAP", "midcap", "MIDCA", "MIDC"):
+        assert [c.underlying for c in await fs.search_futures(typed)] == ["MIDCPNIFTY"], typed

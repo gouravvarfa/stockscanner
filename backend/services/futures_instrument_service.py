@@ -76,8 +76,18 @@ def _is_allowed(contract: FutureContract) -> bool:
     return contract.commodity or contract.is_index or contract.underlying.upper() in ALLOWED_FNO_STOCK_UNDERLYINGS
 
 
+# What people type for an index -> the exchange's own name (the master search is a prefix match on that name).
+SEARCH_ALIASES = {"MIDCAP": "MIDCPNIFTY", "MIDCAPNIFTY": "MIDCPNIFTY", "NIFTYMIDCAP": "MIDCPNIFTY",
+                  "FINNIFTY": "FINNIFTY", "NIFTYFIN": "FINNIFTY", "BSE": "SENSEX"}
+
+
 async def search_futures(query: str, limit: int = 25) -> list[FutureContract]:
     """Every live futures contract (all expiries) whose underlying matches `query`."""
+    key = query.strip().upper().replace(" ", "")
+    if key in SEARCH_ALIASES:
+        query = SEARCH_ALIASES[key]
+    elif len(key) >= 4:  # a partly typed alias ("MIDCA") that is not already a prefix of a real name
+        query = next((v for k, v in SEARCH_ALIASES.items() if k.startswith(key) and not v.startswith(key)), query)
     raw = await scrip_master.search_futures(query, limit=limit * 3)
     return _nearest_commodity_only([c for c in raw if _is_allowed(c)])[:limit]
 
@@ -107,7 +117,7 @@ async def resolve_contract(underlying: str, expiry: str | None) -> FutureContrac
     contracts = await list_contracts(underlying)
     if not contracts:
         raise NotAFutureError(
-            f"'{underlying}' has no live NSE/MCX futures contract. "
+            f"'{underlying}' has no live NSE/BSE/MCX futures contract. "
             "Top-Bottom strategy is available only for Futures."
         )
     if expiry is None:
