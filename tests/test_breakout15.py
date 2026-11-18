@@ -437,13 +437,22 @@ def test_export_xlsx_matches_the_users_manual_sheet_layout():
               "rows": [r.as_dict() for r in rows]}
     ws = openpyxl.load_workbook(io.BytesIO(build_xlsx(result))).active
     assert ws.title == "Sheet1" and ws["A1"].value == "NIFTY 50"
-    assert [c.value for c in ws[3]] == ["DATE", "TIME", "CALL/PUT", "15 minute candel", "15 minute candel points", "PROFIT", "LOSS", "PERCENTAGE", "POINTS", "RISK:REWARD"]
-    r4, r5, r6 = ([c.value for c in ws[i]] for i in (4, 5, 6))
+    assert [c.value for c in ws[3]][:10] == ["DATE", "TIME", "CALL/PUT", "15 minute candel", "15 minute candel points", "PROFIT", "LOSS", "PERCENTAGE", "POINTS", "RISK:REWARD"]
+    r4, r5, r6 = ([c.value for c in ws[i]][:10] for i in (4, 5, 6))
     assert r4[0].date() == D and r4[1] == dt.time(10, 0) and r4[2] == "CALL" and round(r4[3], 4) == 0.2 and r4[4] == 20
     assert r4[5] == "PROFIT" and r4[6] is None and round(r4[7], 6) == round(10 / 110, 6) and r4[8] == 10 and r4[9] == "1:0.50"
     assert r5[2] == "CALL" and r5[5] is None and r5[6] == "LOSS" and round(r5[7], 6) == round(20 / 110, 6) and r5[8] == 20 and r5[9] == "1:-1.00"
     assert r6[1] is None and r6[2] == "NO ENTRY" and r6[4] == 20 and r6[5:] == [None, None, None, None, None]
-    assert ws["D4"].number_format == "0.00%" and ws["A4"].number_format == "d-mmm-yy" and ws.max_row == 6
+    assert ws["D4"].number_format == "0.00%" and ws["A4"].number_format == "d-mmm-yy"
+    assert ws["K3"].value is None and ws["L3"].value == "SUMMARY"  # one empty column, then the side summary
+    side = {ws.cell(i, 12).value: ws.cell(i, 13).value for i in range(4, ws.max_row + 1) if ws.cell(i, 12).value}
+    assert side["Total Trades"] == 2 and side["CALL Trades"] == 2 and side["PUT Trades"] == 0
+    assert side["Winning Trades"] == 1 and side["Losing Trades"] == 1 and side["No Entry Days"] == 1
+    assert side["Win Rate %"] == 50 and side["Net P&L (Points)"] == -10 and side["Lot Size"] == 65  # NIFTY fallback
+    assert side["Net P&L (Rs.)"] == -650 and side["Profit Factor"] == 0.5 and side["Max Drawdown (Points)"] == 20
+    ws2 = openpyxl.load_workbook(io.BytesIO(build_xlsx(result, lot_size=75))).active
+    side2 = {ws2.cell(i, 12).value: ws2.cell(i, 13).value for i in range(4, ws2.max_row + 1) if ws2.cell(i, 12).value}
+    assert side2["Lot Size"] == 75 and side2["Net P&L (Rs.)"] == -750 and side2["Max Drawdown (Rs.)"] == 1500
 
 
 # ---- API request validation + 5-minute chunks ----

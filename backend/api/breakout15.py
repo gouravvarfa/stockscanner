@@ -220,8 +220,16 @@ async def export_result(symbol: str) -> Response:
         raise HTTPException(404, "no result yet; run the backtest first")
     res = _results[symbol]
     name = f"breakout15_{symbol}_{res['from']}_{res['to']}_{res.get('bar_minutes', 15)}m.xlsx"
+    lot_size = None
+    try:  # the nearest index future's lot size for the rupee figures; the export falls back to a fixed table
+        from backend.services import futures_instrument_service
+
+        contract = await futures_instrument_service.nearest_contract(symbol)
+        lot_size = contract.lot_size if contract else None
+    except Exception:  # noqa: BLE001 - never fail an export over the lot size
+        lot_size = None
     return Response(
-        build_xlsx(res),
+        build_xlsx(res, lot_size),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{name}"', "Cache-Control": "no-store"},
     )

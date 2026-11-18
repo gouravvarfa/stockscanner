@@ -3,6 +3,10 @@ title row, then DATE | TIME | CALL/PUT | N minute candel | N minute candel point
 TIME is the entry time; candle columns describe the first candle; PERCENTAGE and POINTS describe the trade.
 
 PERCENTAGE and POINTS follow the user's sheet: sizes without a sign; the PROFIT/LOSS columns carry the sign.
+
+Beside the table (one empty column gap, like the Top-Bottom export) is a summary: trades, CALL/PUT, wins/losses,
+win rate, net points, lot size, net P&L in rupees, profit factor and max drawdown. Rupees = index points x the
+CURRENT lot size of the index future (lot sizes changed over the years, so older trades are an approximation).
 """
 from __future__ import annotations
 
@@ -10,9 +14,12 @@ import datetime as dt
 import io
 
 from openpyxl import Workbook
-from openpyxl.styles import Alignment, Border, Font, Side
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 
 TITLES = {"NIFTY": "NIFTY 50", "BANKNIFTY": "BANK NIFTY"}
+# Fallback when the live scrip master is not reachable (NSE lot sizes, Nov 2026).
+DEFAULT_LOT_SIZE = {"NIFTY": 65, "BANKNIFTY": 30}
+LABEL_FILL = PatternFill("solid", fgColor="F2F2F2")
 WIDTHS = (12, 8, 11, 18, 24, 10, 10, 13, 10, 14)
 
 
@@ -54,7 +61,45 @@ def _row(r: dict) -> list:
     ]
 
 
-def build_xlsx(result: dict) -> bytes:
+def summary_rows(result: dict, lot_size: int | None) -> list[tuple[str, object]]:
+    """The side summary. Only trades with a P&L count (no-entry / incomplete days are listed separately)."""
+    rows = result["rows"]
+    traded = [r for r in rows if r.get("pnl_points") is not None]
+    pts = [r["pnl_points"] for r in traded]
+    wins = [p for p in pts if p > 0]
+    losses = [p for p in pts if p < 0]
+    lot = lot_size or DEFAULT_LOT_SIZE.get(result["symbol"])
+    equity = peak = max_dd = 0.0
+    for p in pts:
+        equity += p
+        peak = max(peak, equity)
+        max_dd = max(max_dd, peak - equity)
+    gross_win, gross_loss = sum(wins), -sum(losses)
+    rupees = (lambda x: round(x * lot, 2)) if lot else (lambda x: None)
+    return [
+        ("Total Trades", len(traded)),
+        ("CALL Trades", sum(r.get("side") == "CALL" for r in traded)),
+        ("PUT Trades", sum(r.get("side") == "PUT" for r in traded)),
+        ("Winning Trades", len(wins)),
+        ("Losing Trades", len(losses)),
+        ("No Entry Days", sum(r.get("exit_reason") == "NO_ENTRY" for r in rows)),
+        ("Win Rate %", round(100 * len(wins) / len(traded), 2) if traded else None),
+        ("Net P&L (Points)", round(sum(pts), 2)),
+        ("Lot Size", lot),
+        ("Net P&L (Rs.)", rupees(sum(pts))),
+        ("Gross Profit (Rs.)", rupees(gross_win)),
+        ("Gross Loss (Rs.)", rupees(-gross_loss)),
+        ("Profit Factor", round(gross_win / gross_loss, 2) if gross_loss else None),
+        ("Average Win (Points)", round(gross_win / len(wins), 2) if wins else None),
+        ("Average Loss (Points)", round(-gross_loss / len(losses), 2) if losses else None),
+        ("Best Trade (Points)", round(max(pts), 2) if pts else None),
+        ("Worst Trade (Points)", round(min(pts), 2) if pts else None),
+        ("Max Drawdown (Points)", round(max_dd, 2)),
+        ("Max Drawdown (Rs.)", rupees(max_dd)),
+    ]
+
+
+def build_xlsx(result: dict, lot_size: int | None = None) -> bytes:
     wb = Workbook()
     ws = wb.active
     ws.title = "Sheet1"
@@ -83,6 +128,19 @@ def build_xlsx(result: dict) -> bytes:
             c.border = BOX
     for letter, width in zip("ABCDEFGHIJ", WIDTHS):
         ws.column_dimensions[letter].width = width
+    # Summary beside the table: column K left empty as a gap, labels in L, values in M.
+    ws["L3"] = "SUMMARY"
+    ws["L3"].font = Font(bold=True)
+    for i, (label, value) in enumerate(summary_rows(result, lot_size), start=4):
+        lc, vc = ws.cell(i, 12, label), ws.cell(i, 13, value)
+        lc.font = Font(bold=True)
+        lc.fill = LABEL_FILL
+        lc.border = vc.border = BOX
+        if isinstance(value, float):
+            vc.number_format = "#,##0.00"
+    ws.column_dimensions["K"].width = 3
+    ws.column_dimensions["L"].width = 24
+    ws.column_dimensions["M"].width = 14
     buf = io.BytesIO()
     wb.save(buf)
     return buf.getvalue()
