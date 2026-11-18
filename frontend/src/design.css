@@ -869,3 +869,53 @@ html, body, .app-sidebar, .app-header, .card, .strategy-card, .history-scan-card
 .tb-search-icon { top: 35px; display: flex; color: var(--text-muted); }
 .state-block .state-icon { display: flex; justify-content: center; color: var(--text-muted); opacity: 0.8; }
 .history-delete-button { display: inline-flex; align-items: center; justify-content: center; }
+
+/* ==========================================================================
+   Background (2026-11-18, user: "a light grey gradient fade, simple, not too much, a little animation")
+   One soft grey wash on a fixed layer that drifts very slowly (transform only, so scrolling stays smooth).
+   ========================================================================== */
+:root {
+  --bg-wash:
+    radial-gradient(48% 44% at 10% 6%, rgba(148, 163, 184, 0.26), transparent 72%),
+    radial-gradient(44% 40% at 90% 94%, rgba(148, 163, 184, 0.22), transparent 72%),
+    radial-gradient(34% 30% at 72% 20%, rgba(186, 198, 214, 0.28), transparent 70%);
+}
+:root[data-theme="dark"] {
+  --bg-wash:
+    radial-gradient(42% 38% at 12% 8%, rgba(148, 163, 184, 0.09), transparent 72%),
+    radial-gradient(38% 34% at 88% 92%, rgba(148, 163, 184, 0.08), transparent 72%),
+    radial-gradient(30% 28% at 70% 22%, rgba(148, 163, 184, 0.04), transparent 70%);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg-wash:
+      radial-gradient(42% 38% at 12% 8%, rgba(148, 163, 184, 0.09), transparent 72%),
+      radial-gradient(38% 34% at 88% 92%, rgba(148, 163, 184, 0.08), transparent 72%),
+      radial-gradient(30% 28% at 70% 22%, rgba(148, 163, 184, 0.04), transparent 70%);
+  }
+}
+html::before {
+  display: block;
+  content: "";
+  position: fixed;
+  inset: -12%;
+  width: auto;
+  height: auto;
+  border-radius: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: var(--bg-wash);
+  animation: bgDrift 40s ease-in-out infinite alternate;
+  will-change: transform;
+  backface-visibility: hidden;
+  contain: strict;
+}
+html::after { display: none; }
+@keyframes bgDrift {
+  0% { transform: translate3d(-2.5%, -1.5%, 0) scale(1); }
+  50% { transform: translate3d(2%, 2.5%, 0) scale(1.04); }
+  100% { transform: translate3d(3%, -1%, 0) scale(1.02); }
+}
+/* the page colour sits on <html>; <body> stays transparent so the wash shows through between the cards */
+body { background: transparent; }
+@media (prefers-reduced-motion: reduce) { html::before { animation: none; } }
