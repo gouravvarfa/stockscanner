@@ -13,7 +13,9 @@ function fmtMoney(v: number | null | undefined): string {
     : v.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 function fmtRupees(v: number | null | undefined): string {
-  return v === null || v === undefined || Number.isNaN(v) ? "—" : `₹${fmtMoney(v)}`;
+  // "-₹9,965.50", not "₹-9,965.50"
+  if (v === null || v === undefined || Number.isNaN(v)) return "—";
+  return `${v < 0 ? "-" : ""}₹${fmtMoney(Math.abs(v))}`;
 }
 function fmtDate(iso: string | null): string {
   if (!iso) return "—";
@@ -122,14 +124,33 @@ export function GFSBacktestPage({ variant = "gfs" }: { variant?: GfsVariant }) {
           </div>
           <h1>{title}</h1>
           <p className="page-subtitle">
-            Daily-chart backtest. A setup needs {setupRule}. The signal is the first day all three hold; then wait up to 5 candles for a green (reversal) candle that is still near the support (daily RSI at most 50 for GFS, 59 for 50 GFS; no limit for Advanced GFS) and enter when price goes above that candle&apos;s high (at that high, or at the open on a gap up). The initial
-            stop is the lowest low of the last 5 candles (entry candle included); a signal is skipped if the entry is not above it.
-            Once a candle closes 1R above the entry (R = entry minus initial stop) the stop moves to the entry price. While the
-            last 5 candles each make a higher low, the stop trails up to the oldest of those lows; in a sideways market it stays
-            put, and it never moves down. The trade exits when a candle opens below the stop (at the open), when its low touches
-            the stop (at the stop), or at the close when the completed weekly RSI is below 60. There is no profit target. One
-            trade at a time. Risk is 1% of ₹10,00,000 (₹10,000) per trade. All P&amp;L is gross. One trade at a time. Risk is 1% of ₹10,00,000 (₹10,000) per trade. All P&amp;L is gross.
+            Daily-chart backtest. The setup needs {setupRule}. One trade at a time, 1% risk of ₹10,00,000 (₹10,000) per
+            trade, gross P&amp;L.
           </p>
+          <details className="rules-details">
+            <summary>How this backtest works</summary>
+            <ul>
+              <li><b>Signal</b> - the first day all three RSI conditions hold.</li>
+              <li>
+                <b>Entry</b> - wait up to 5 candles for a green (reversal) candle that is still near the support (daily RSI
+                at most 50 for GFS, 59 for 50 GFS; no limit for Advanced GFS), then enter when price goes above that
+                candle&apos;s high: at that high, or at the open on a gap up.
+              </li>
+              <li>
+                <b>Initial stop</b> - the lowest low of the last 5 candles (entry candle included); a signal is skipped if
+                the entry is not above it.
+              </li>
+              <li><b>Breakeven</b> - once a candle closes 1R above the entry (R = entry minus initial stop), the stop moves to the entry price.</li>
+              <li>
+                <b>Trailing</b> - while the last 5 candles each make a higher low, the stop trails up to the oldest of those
+                lows; it stays put in a sideways market and never moves down.
+              </li>
+              <li>
+                <b>Exit</b> - at the open when a candle opens below the stop, at the stop when the low touches it, or at the
+                close when the completed weekly RSI is below 60. There is no profit target.
+              </li>
+            </ul>
+          </details>
         </div>
       </div>
 

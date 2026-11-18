@@ -221,10 +221,10 @@ export function SystemOneChart({ result, focusedTradeNumber, gfsSetup = false, s
       <p className="so-chart-legend">
         {gfsSetup ? (
           <>
-            <span style={{ color: "#7c3aed", fontWeight: 600 }}>Purple</span> = daily RSI(14). Entry is the next candle&apos;s
-            close after the signal. The stop starts at the lowest low of the last 5 candles, moves to the entry after a
-            close 1R above it, then trails up while the last 3 candles make higher lows. Exit at the open on a gap below
-            the stop, at the stop when the low touches it, or at the close when the weekly RSI is below 60.
+            <span style={{ color: "#7c3aed", fontWeight: 600 }}>Purple</span> = daily RSI(14). Entry on the break of a
+            green candle near the support after the signal. The stop starts at the lowest low of the last 5 candles, moves
+            to the entry after a close 1R above it, then trails up while the last 5 candles make higher lows. Exit at the
+            open on a gap below the stop, at the stop when the low touches it, or at the close when the weekly RSI is below 60.
           </>
         ) : (
           <>

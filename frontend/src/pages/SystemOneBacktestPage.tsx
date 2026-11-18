@@ -16,7 +16,9 @@ function fmtMoney(v: number | null | undefined): string {
     : v.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 function fmtRupees(v: number | null | undefined): string {
-  return v === null || v === undefined || Number.isNaN(v) ? "—" : `₹${fmtMoney(v)}`;
+  // "-₹9,965.50", not "₹-9,965.50"
+  if (v === null || v === undefined || Number.isNaN(v)) return "—";
+  return `${v < 0 ? "-" : ""}₹${fmtMoney(Math.abs(v))}`;
 }
 function fmtDate(iso: string | null): string {
   if (!iso) return "—";

@@ -706,3 +706,88 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="
 @media (max-width: 560px) {
   div.market-status { display: none; }
 }
+
+/* ==========================================================================
+   Navigation structure (2026-11-18): grouped sidebar, top-bar breadcrumb
+   ========================================================================== */
+:root { --sidebar-width: 244px; }
+@media (min-width: 861px) and (max-width: 1180px) { :root { --sidebar-width: 220px; } }
+
+.sidebar-nav { display: block; flex: 1; padding: 2px 0 8px; }
+.nav-section { display: grid; gap: 2px; }
+.nav-section + .nav-section { margin-top: 14px; }
+.nav-section-title {
+  padding: 0 10px 6px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--text-muted) 85%, transparent);
+}
+.sidebar-link { min-height: 38px; font-size: 13.25px; }
+.sidebar-link .nav-tile { width: 30px; height: 30px; border-radius: 8px; }
+.sidebar-link .nav-tile svg { width: 16px; height: 16px; }
+.nav-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+
+.sidebar-foot {
+  margin-top: 12px;
+  padding: 12px 10px 2px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--text-muted);
+  letter-spacing: 0.01em;
+}
+.sidebar-foot-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--success); box-shadow: 0 0 0 3px var(--success-soft); }
+
+/* Top bar: breadcrumb on the left (desktop); the mobile brand takes its place on small screens. */
+.header-left { flex-direction: row; align-items: center; gap: 14px; }
+.header-crumbs { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 13px; font-weight: 500; color: var(--text-muted); white-space: nowrap; }
+.header-crumbs .crumb + .crumb::before { content: "/"; margin-right: 8px; color: var(--border-strong); font-weight: 400; }
+.header-crumbs .crumb.current { color: var(--text-primary); font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 960px) { .header-crumbs { display: none; } }
+
+/* Strategy rules: a short summary line, the full rules in a calm expandable panel. */
+.rules-details {
+  margin: 10px 0 2px;
+  max-width: 980px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--bg-surface) 70%, transparent);
+  box-shadow: var(--hairline-hi);
+}
+.rules-details summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent-soft-text);
+  user-select: none;
+}
+.rules-details summary::-webkit-details-marker { display: none; }
+.rules-details summary::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 0.2s var(--ease);
+  margin-right: 2px;
+}
+.rules-details[open] summary::before { transform: rotate(45deg); }
+.rules-details summary:hover { color: var(--accent); }
+.rules-details ul { margin: 0; padding: 2px 18px 14px 34px; display: grid; gap: 6px; color: var(--text-secondary); font-size: 13px; line-height: 1.55; }
+.rules-details li::marker { color: var(--border-strong); }
+.rules-details b { color: var(--text-primary); font-weight: 600; }
+
+/* KPI numbers never break across lines ("-" on one line, the amount on the next). */
+.tb-summary-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+.tb-summary-value { white-space: nowrap; font-size: 19px; }

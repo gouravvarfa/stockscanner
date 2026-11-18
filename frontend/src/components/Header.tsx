@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { useScan } from "../context/ScanContext";
 import { BellIcon, ListIcon, MenuIcon, MoonIcon, SunIcon, UserIcon } from "./icons";
 import { ensureAngelOneConnected, getConnectionState, onConnectionChange } from "../services/angeloneAutoConnect";
+import { navTrail } from "./Sidebar";
 
 function useConnectionState() {
   const [s, setS] = useState(getConnectionState());
@@ -67,6 +69,7 @@ export function Header({
   }, []);
 
   const open = isMarketOpen(ist);
+  const trail = navTrail(useLocation().pathname);
   const conn = useConnectionState();
   const connOk = conn.phase === "connected";
   const connBusy = conn.phase === "checking" || conn.phase === "waking" || conn.phase === "connecting";
@@ -80,6 +83,15 @@ export function Header({
         </button>
         <img src="/logo-mark.png" alt="" className="header-brand-logo" width={24} height={24} />
         <span className="header-brand-mobile">A Group Scanner</span>
+        {trail.length > 0 && (
+          <nav className="header-crumbs" aria-label="Breadcrumb">
+            {trail.map((t, i) => (
+              <span key={t} className={i === trail.length - 1 ? "crumb current" : "crumb"} aria-current={i === trail.length - 1 ? "page" : undefined}>
+                {t}
+              </span>
+            ))}
+          </nav>
+        )}
         {scanning && (
           <span className="scanning-indicator">
             <span className="spinner" />

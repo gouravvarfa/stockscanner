@@ -337,7 +337,7 @@ export function TopBottomBacktest() {
                       <td>{t.exit_reason ?? "—"}</td>
                       <td className="num-cell">{fmtPct(t.pnl_pct)}</td>
                       <td className="num-cell">{fmtNum(t.pnl_points)}</td>
-                      <td className="num-cell">{t.pnl_amount === null ? "—" : `₹${fmtNum(t.pnl_amount, 0)}`}</td>
+                      <td className="num-cell">{t.pnl_amount === null ? "—" : `${t.pnl_amount < 0 ? "-" : ""}₹${fmtNum(Math.abs(t.pnl_amount), 0)}`}</td>
                       <td className="num-cell">{t.holding_days ?? "—"}</td>
                       <td>{t.status}</td>
                     </tr>
