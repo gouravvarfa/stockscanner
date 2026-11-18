@@ -78,7 +78,7 @@ export function Header({
         <button className="icon-button hamburger-button" onClick={onToggleSidebar} title="Menu" aria-label="Open menu">
           <MenuIcon width={18} height={18} />
         </button>
-        <img src="/apple-touch-icon.png" alt="" className="header-brand-logo" width={24} height={24} />
+        <img src="/logo-mark.png" alt="" className="header-brand-logo" width={24} height={24} />
         <span className="header-brand-mobile">A Group Scanner</span>
         {scanning && (
           <span className="scanning-indicator">

@@ -27,24 +27,6 @@ const NAV_ITEMS = [
   { to: "/settings", label: "Settings", icon: SettingsIcon, tone: "#475b8a" },
 ];
 
-/** The brand mark: a rounded tile with three rising bars (a scanner of rising stocks). Colours follow the theme. */
-function BrandMark() {
-  return (
-    <svg className="brand-mark" viewBox="0 0 40 40" aria-hidden="true">
-      <defs>
-        <linearGradient id="bmGrad" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" className="bm-g1" />
-          <stop offset="1" className="bm-g2" />
-        </linearGradient>
-      </defs>
-      <rect className="bm-bg" x=".75" y=".75" width="38.5" height="38.5" rx="11" />
-      <path className="bm-sym" d="M12.8 17v15M20 12v16M27.2 7.5v15.5" strokeWidth="1.6" strokeLinecap="round" />
-      <rect className="bm-bar" x="10.5" y="20" width="4.6" height="9" rx="1.3" />
-      <rect className="bm-bar" x="17.7" y="15" width="4.6" height="10" rx="1.3" />
-      <rect className="bm-bar" x="24.9" y="10" width="4.6" height="10" rx="1.3" />
-    </svg>
-  );
-}
 
 /**
  * On desktop this is the always-visible left rail (unchanged). On mobile
@@ -58,7 +40,7 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
       {open && <div className="sidebar-backdrop" onClick={onClose} aria-hidden="true" />}
       <aside className={open ? "app-sidebar open" : "app-sidebar"}>
         <div className="sidebar-brand">
-          <BrandMark />
+          <img src="/logo-mark.png" alt="" className="brand-mark" width={36} height={36} />
           <span className="brand-name">A Group Scanner</span>
           <span className="brand-tag">NSE strategy scanner</span>
         </div>
