@@ -9,6 +9,7 @@ import {
   type HistoryResultRow,
   type HistorySnapshotMeta,
 } from "../services/localHistoryDb";
+import { TrashIcon } from "../components/icons";
 
 /**
  * Permanent, device-local Scan History. Reads ONLY the browser's own
@@ -298,7 +299,7 @@ export function ScanHistoryPage() {
                   aria-label="Delete this entire scan"
                   onClick={(e) => handleDelete(s, e)}
                 >
-                  🗑
+                  <TrashIcon width={15} height={15} />
                 </button>
               </div>
 

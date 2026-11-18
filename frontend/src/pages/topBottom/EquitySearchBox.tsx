@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { searchEquities } from "../../services/topBottomApi";
+import { SearchIcon } from "../../components/icons";
 
 interface Props {
   selected: string;
@@ -57,7 +58,7 @@ export function EquitySearchBox({ selected, onSelect }: Props) {
           placeholder="e.g. ADANIGREEN"
         />
       </label>
-      <span className="tb-search-icon" aria-hidden="true">🔍</span>
+      <span className="tb-search-icon" aria-hidden="true"><SearchIcon width={15} height={15} /></span>
       {open && (loading || query.trim().length > 0) && (
         <div className="tb-search-dropdown">
           {loading && <div className="tb-search-empty">Searching…</div>}

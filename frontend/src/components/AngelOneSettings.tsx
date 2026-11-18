@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api, type AngelOneStatus } from "../services/api";
 import { clearDeviceCredentials, loadDeviceCredentials, saveDeviceCredentials } from "../services/angeloneDeviceStore";
 import { ensureAngelOneConnected, onConnectionChange, publishStatus } from "../services/angeloneAutoConnect";
+import { LockIcon } from "./icons";
 
 /**
  * The ONE centralized place credentials are entered/updated/cleared.
@@ -135,7 +136,8 @@ export function AngelOneSettings() {
         )}
         {remembersOnThisDevice && (
           <span className="muted small" title="This browser will auto-reconnect if the server forgets its credentials">
-            🔒 Remembered on this device
+            <LockIcon width={13} height={13} style={{ verticalAlign: "-2px", marginRight: 4 }} />
+            Remembered on this device
           </span>
         )}
       </div>

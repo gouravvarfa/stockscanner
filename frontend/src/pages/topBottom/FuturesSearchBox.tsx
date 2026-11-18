@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { searchFutures, type FutureContract } from "../../services/topBottomApi";
+import { SearchIcon } from "../../components/icons";
 
 interface Props {
   onSelect: (contract: FutureContract) => void;
@@ -54,7 +55,7 @@ export function FuturesSearchBox({ onSelect, selected }: Props) {
           placeholder="e.g. RELIANCE, NIFTY, BANKNIFTY"
         />
       </label>
-      <span className="tb-search-icon" aria-hidden="true">🔍</span>
+      <span className="tb-search-icon" aria-hidden="true"><SearchIcon width={15} height={15} /></span>
       {open && (loading || results.length > 0) && (
         <div className="tb-search-dropdown">
           {loading && <div className="tb-search-empty">Searching…</div>}

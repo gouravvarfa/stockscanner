@@ -708,22 +708,12 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="
 }
 
 /* ==========================================================================
-   Navigation structure (2026-11-18): grouped sidebar, top-bar breadcrumb
+   Navigation (2026-11-18): flat sidebar list, top-bar breadcrumb
    ========================================================================== */
 :root { --sidebar-width: 244px; }
 @media (min-width: 861px) and (max-width: 1180px) { :root { --sidebar-width: 220px; } }
 
-.sidebar-nav { display: block; flex: 1; padding: 2px 0 8px; }
-.nav-section { display: grid; gap: 2px; }
-.nav-section + .nav-section { margin-top: 14px; }
-.nav-section-title {
-  padding: 0 10px 6px;
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-  color: color-mix(in srgb, var(--text-muted) 85%, transparent);
-}
+.sidebar-nav { display: grid; align-content: start; gap: 3px; flex: 1; padding: 2px 0 8px; }
 .sidebar-link { min-height: 38px; font-size: 13.25px; }
 .sidebar-link .nav-tile { width: 30px; height: 30px; border-radius: 8px; }
 .sidebar-link .nav-tile svg { width: 16px; height: 16px; }
@@ -743,7 +733,7 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="
 }
 .sidebar-foot-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--success); box-shadow: 0 0 0 3px var(--success-soft); }
 
-/* Top bar: breadcrumb on the left (desktop); the mobile brand takes its place on small screens. */
+/* Top bar: breadcrumb (the current page) on the left on desktop; the mobile brand takes its place on small screens. */
 .header-left { flex-direction: row; align-items: center; gap: 14px; }
 .header-crumbs { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 13px; font-weight: 500; color: var(--text-muted); white-space: nowrap; }
 .header-crumbs .crumb + .crumb::before { content: "/"; margin-right: 8px; color: var(--border-strong); font-weight: 400; }
@@ -791,3 +781,122 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="
 /* KPI numbers never break across lines ("-" on one line, the amount on the next). */
 .tb-summary-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
 .tb-summary-value { white-space: nowrap; font-size: 19px; }
+
+/* ==========================================================================
+   Simple & premium (2026-11-18, user: "professional, simple, premium")
+   A clean static canvas, monochrome navigation with one accent, flat solid controls.
+   ========================================================================== */
+:root {
+  --bg-page: #f6f7f9;
+  --card-bg: var(--bg-surface);
+  --sidebar-bg: var(--bg-surface);
+  --card-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.06);
+  --elev-1: 0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.06);
+  --elev-2: 0 4px 10px -2px rgba(16, 24, 40, 0.08), 0 2px 4px -2px rgba(16, 24, 40, 0.05);
+  --hairline-hi: 0 0 0 0 transparent;
+}
+:root[data-theme="dark"] {
+  --bg-page: #0b0f17;
+  --bg-surface: #111723;
+  --card-bg: var(--bg-surface);
+  --sidebar-bg: #0e131d;
+  --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --elev-1: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --elev-2: 0 6px 16px -6px rgba(0, 0, 0, 0.6);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg-page: #0b0f17;
+    --bg-surface: #111723;
+    --card-bg: var(--bg-surface);
+    --sidebar-bg: #0e131d;
+    --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --elev-1: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --elev-2: 0 6px 16px -6px rgba(0, 0, 0, 0.6);
+  }
+}
+
+/* A calm, static background: no moving ribbons, no fog. */
+html::before, html::after { display: none; animation: none; }
+body::before { background-image: none; }
+html, body { background: var(--bg-page); }
+
+/* Navigation: grey icons, the accent only on the current page. */
+.sidebar-link { --tone: var(--accent) !important; color: var(--text-secondary); }
+.sidebar-link .nav-tile,
+:root[data-theme="dark"] .sidebar-link .nav-tile {
+  width: 22px;
+  height: 22px;
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-muted);
+  box-shadow: none;
+}
+.sidebar-link:hover .nav-tile, :root[data-theme="dark"] .sidebar-link:hover .nav-tile { background: transparent; color: var(--text-primary); }
+.sidebar-link.active, :root[data-theme="dark"] .sidebar-link.active { color: var(--accent-soft-text); font-weight: 600; }
+.sidebar-link.active::after, :root[data-theme="dark"] .sidebar-link.active::after {
+  background: var(--accent-soft);
+  border-color: transparent;
+}
+.sidebar-link.active .nav-tile, :root[data-theme="dark"] .sidebar-link.active .nav-tile {
+  background: transparent;
+  border-color: transparent;
+  color: var(--accent);
+  box-shadow: none;
+}
+.sidebar-link.active::before, :root[data-theme="dark"] .sidebar-link.active::before { background: var(--accent); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .sidebar-link .nav-tile { background: transparent; border-color: transparent; color: var(--text-muted); }
+  :root:not([data-theme="light"]) .sidebar-link.active { color: var(--accent-soft-text); }
+  :root:not([data-theme="light"]) .sidebar-link.active::after { background: var(--accent-soft); border-color: transparent; }
+  :root:not([data-theme="light"]) .sidebar-link.active .nav-tile { background: transparent; border-color: transparent; color: var(--accent); }
+  :root:not([data-theme="light"]) .sidebar-link.active::before { background: var(--accent); }
+}
+
+/* Top bar: solid surface, ghost icon buttons. */
+.app-header { background: var(--bg-surface); -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none; }
+.icon-button { border-color: transparent; background: transparent; color: var(--text-muted); }
+.icon-button:hover, .icon-button.active { background: var(--bg-hover); color: var(--text-primary); }
+
+/* Surfaces: solid white cards, a hairline and one soft shadow; no lifting on hover. */
+.card, .strategy-card, .history-scan-card, .summary-card { background: var(--card-bg); box-shadow: var(--card-shadow); }
+.strategy-card:hover, .history-scan-card:hover, a.card:hover { transform: none; box-shadow: var(--elev-2); border-color: var(--border-strong); }
+.tb-summary-tile { background: var(--bg-surface); box-shadow: none; }
+.rules-details { background: var(--bg-surface); box-shadow: none; }
+.table-wrap { background: var(--bg-surface); }
+
+/* Buttons: flat and solid. */
+.primary-button, .tb-btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08);
+}
+.primary-button:hover:not(:disabled), .tb-btn-primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 88%, black);
+  filter: none;
+  transform: none;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08);
+}
+.secondary-button, .tb-btn-secondary { box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05); }
+.secondary-button:hover:not(:disabled), .tb-btn-secondary:hover:not(:disabled) { transform: none; background: var(--bg-hover); }
+.sidebar-brand .brand-mark { box-shadow: none; border-color: var(--border); }
+
+/* Smooth: theme switches fade (surfaces only, so nothing else slows down); press feedback on buttons. */
+html, body, .app-sidebar, .app-header, .card, .strategy-card, .history-scan-card, .tb-summary-tile, .rules-details,
+.table-wrap, .market-status, input, select, textarea {
+  transition-property: background-color, border-color, color, box-shadow;
+  transition-duration: 0.25s;
+  transition-timing-function: var(--ease);
+}
+.primary-button:active:not(:disabled), .secondary-button:active:not(:disabled),
+.tb-btn-primary:active:not(:disabled), .tb-btn-secondary:active:not(:disabled) { transform: scale(0.98); }
+.sidebar-link { transition: background-color 0.18s var(--ease), color 0.18s var(--ease); }
+.sidebar-link::after { transition: opacity 0.22s var(--ease), background-color 0.22s var(--ease); }
+@media (prefers-reduced-motion: reduce) {
+  html, body, .app-sidebar, .app-header, .card { transition: none; }
+}
+
+/* Line icons instead of emoji: the search glyph sits centred in the 38px field. */
+.tb-search-icon { top: 35px; display: flex; color: var(--text-muted); }
+.state-block .state-icon { display: flex; justify-content: center; color: var(--text-muted); opacity: 0.8; }
+.history-delete-button { display: inline-flex; align-items: center; justify-content: center; }

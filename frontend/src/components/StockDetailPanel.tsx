@@ -50,7 +50,7 @@ function renderDivergenceExtra(extra: Record<string, unknown>) {
                 <td>
                   {barsAgo !== undefined ? (
                     <span className={fresh ? "chip chip-pass" : "muted small"}>
-                      {fresh ? "🔥 " : ""}{barsAgo} bar{barsAgo === 1 ? "" : "s"} ago
+                      {fresh ? "Fresh · " : ""}{barsAgo} bar{barsAgo === 1 ? "" : "s"} ago
                     </span>
                   ) : (
                     "—"

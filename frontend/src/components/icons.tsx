@@ -54,3 +54,16 @@ export const MoonIcon = (p: SVGProps<SVGSVGElement>) => (
 export const FilterIcon = (p: SVGProps<SVGSVGElement>) => (
   <Base {...p}><path d="M4 5h16M7 12h10M10 19h4" /></Base>
 );
+
+export const SearchIcon = (p: SVGProps<SVGSVGElement>) => (
+  <Base {...p}><circle cx="11" cy="11" r="6.5" /><path d="M20 20l-4.2-4.2" /></Base>
+);
+export const ChartBarIcon = (p: SVGProps<SVGSVGElement>) => (
+  <Base {...p}><path d="M4 20h16" /><rect x="6" y="11" width="3" height="6" rx="0.8" /><rect x="11" y="7" width="3" height="10" rx="0.8" /><rect x="16" y="4" width="3" height="13" rx="0.8" /></Base>
+);
+export const TrashIcon = (p: SVGProps<SVGSVGElement>) => (
+  <Base {...p}><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" /></Base>
+);
+export const LockIcon = (p: SVGProps<SVGSVGElement>) => (
+  <Base {...p}><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></Base>
+);

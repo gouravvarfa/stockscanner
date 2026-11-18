@@ -9,6 +9,7 @@ import { ConditionChip } from "../components/ConditionChip";
 import { SourceBadge } from "../components/SourceBadge";
 import { InstrumentBadge } from "../components/InstrumentBadge";
 import { FilterIcon } from "../components/icons";
+import { ChartBarIcon } from "../components/icons";
 
 // PRD Forming / NRD Forming are their own tabs (placed right after PRD / NRD)
 // but are deliberately NOT among the six strategies in STRATEGY_NAMES, so
@@ -133,7 +134,7 @@ function FreshnessBadge({ leg }: { leg: DivergenceLeg | null }) {
   if (!leg || leg.bars_ago === null) return <span className="muted small">—</span>;
   return (
     <span className={leg.fresh ? "chip chip-pass" : "muted small"}>
-      {leg.fresh ? "🔥 Fresh" : ""} — {leg.bars_ago} bar{leg.bars_ago === 1 ? "" : "s"} ago
+      {leg.fresh ? "Fresh" : ""} — {leg.bars_ago} bar{leg.bars_ago === 1 ? "" : "s"} ago
     </span>
   );
 }
@@ -405,7 +406,7 @@ export function Dashboard() {
 
       {!latest && !scanning && !scanError && (
         <div className="card state-block">
-          <div className="state-icon">📊</div>
+          <div className="state-icon"><ChartBarIcon width={28} height={28} /></div>
           <div className="state-title">No signals found</div>
           <div className="state-subtitle">Run a scan to populate the dashboard with live A Group signals.</div>
         </div>
