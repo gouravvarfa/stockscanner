@@ -39,9 +39,9 @@
   --card-bg: linear-gradient(145deg, rgba(255, 255, 255, 0.84), rgba(255, 255, 255, 0.68));
   --card-shadow: 0 1px 2px rgba(14, 26, 44, 0.04), 0 4px 14px -8px rgba(14, 26, 44, 0.1);
   --sidebar-bg: linear-gradient(180deg, rgba(247, 249, 252, 0.94), rgba(240, 243, 248, 0.9));
-  --au-1: rgba(120, 150, 175, 0.55);
-  --au-3: rgba(255, 255, 255, 0.7);
-  --au-4: rgba(114, 122, 154, 0.32);
+  --au-1: rgba(120, 150, 175, 0.34);
+  --au-3: rgba(255, 255, 255, 0.6);
+  --au-4: rgba(114, 122, 154, 0.2);
   --fog: radial-gradient(60vmax 40vmax at 85% 10%, rgba(255, 255, 255, 0.95), transparent 70%),
     radial-gradient(50vmax 36vmax at 10% 90%, rgba(131, 153, 162, 0.32), transparent 70%),
     radial-gradient(40vmax 30vmax at 60% 60%, rgba(238, 242, 243, 0.9), transparent 70%);
@@ -49,8 +49,11 @@
   --brand-g2: #dce7ff;
   --brand-stroke: #c5d6fb;
   --brand-sym: #1d5bf0;
-  --font-sans: "IBM Plex Sans", "Inter", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
+  /* Inter: the clean, neutral face used by most top-tier SaaS / fintech products. Numbers use its tabular
+     figures (not a monospace font), so tables stay aligned without looking like code. */
+  --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", "Cascadia Mono", Consolas, monospace;
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
   --page-vignette: none;
 }
 
@@ -142,21 +145,30 @@
 /* ---------- Typography ---------- */
 body {
   font-family: var(--font-sans);
-  font-size: 13.5px;
+  font-size: 14px;
   line-height: 1.55;
-  letter-spacing: 0.005em;
-  font-feature-settings: "kern", "liga", "tnum";
+  letter-spacing: -0.006em;
+  font-feature-settings: "cv11", "ss01", "ss03", "kern";
+  font-optical-sizing: auto;
+  color: var(--text-primary);
   background: var(--bg-page);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
-h1 { font-size: 22px; font-weight: 600; letter-spacing: -0.02em; text-wrap: balance; }
-h2 { font-size: 14.5px; font-weight: 600; text-wrap: balance; }
-h3 { font-size: 13px; font-weight: 600; text-wrap: balance; }
+h1 { font-size: 24px; font-weight: 650; letter-spacing: -0.028em; line-height: 1.2; text-wrap: balance; }
+h2 { font-size: 15px; font-weight: 600; letter-spacing: -0.014em; text-wrap: balance; }
+h3 { font-size: 13.5px; font-weight: 600; letter-spacing: -0.01em; text-wrap: balance; }
+p, li { text-wrap: pretty; }
+.muted, .small { letter-spacing: -0.002em; }
+/* Numbers line up (tabular figures) but stay in the same typeface as the text. */
 table, .num-cell, .ohlc-readout, .scan-meta, .active-scan-meta, .strategy-signal-count, .tb-summary-value,
-.usage-stat, code, kbd {
-  font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums slashed-zero;
+.usage-stat, .market-status .time {
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "cv11", "ss01", "tnum";
 }
-table th { font-family: var(--font-sans); }
+code, kbd, pre { font-family: var(--font-mono); }
 
 /* ---------- Ambient background: two slow aurora ribbons + a static fog ---------- */
 html { background: var(--bg-page); }
@@ -480,4 +492,93 @@ tbody tr:hover td { background: var(--bg-hover); }
 @media (max-width: 560px) {
   .market-status { height: 28px; font-size: 11px; padding: 0 9px; gap: 5px; }
   .market-status .time { display: none; }
+}
+
+/* ==========================================================================
+   Polish (2026-11-18): smoother, calmer, "enterprise product" finish
+   ========================================================================== */
+
+/* One easing and speed for every colour / border / shadow change, so the whole UI moves the same way. */
+a, button, .card, .chip, .tab, .sidebar-link, .icon-button, .market-status, input, select, textarea, tr, td {
+  transition-timing-function: var(--ease);
+}
+
+/* Pages arrive with a short, soft fade-up instead of popping in. */
+@keyframes pageIn {
+  from { opacity: 0; transform: translate3d(0, 6px, 0); }
+  to { opacity: 1; transform: none; }
+}
+.app-content > * { animation: pageIn 0.32s var(--ease) both; }
+.app-content > *:nth-child(2) { animation-delay: 0.03s; }
+.app-content > *:nth-child(3) { animation-delay: 0.06s; }
+.app-content > *:nth-child(n + 4) { animation-delay: 0.09s; }
+
+/* Page title block: a clear, quiet hierarchy. */
+.app-content h1 + p, .app-content h1 + .muted, .page-subtitle { color: var(--text-muted); font-size: 13.5px; margin-top: 2px; }
+
+/* Clickable cards lift a little on hover; plain content cards stay still (no jumping tables). */
+.strategy-card, .history-scan-card, a.card {
+  transition: transform 0.22s var(--ease), box-shadow 0.22s var(--ease), border-color 0.22s var(--ease);
+}
+.strategy-card:hover, .history-scan-card:hover, a.card:hover {
+  transform: translateY(-2px);
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-hover);
+}
+
+/* Buttons: a soft, even weight; primary gets a hairline inner highlight like a native control. */
+.primary-button, .tb-btn-primary {
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 1px 2px rgba(20, 86, 240, 0.25);
+}
+.secondary-button, .tb-btn-secondary { font-weight: 500; }
+
+/* Tables: quieter header, softer separators, smooth row hover. */
+thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: color-mix(in srgb, var(--bg-surface) 92%, transparent);
+  font-weight: 600;
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+td { color: var(--text-primary); border-bottom-color: color-mix(in srgb, var(--border) 70%, transparent); }
+tbody tr { transition: background-color 0.15s var(--ease); }
+tbody tr:last-child td { border-bottom: 0; }
+
+/* Sidebar: calmer brand block and a touch more breathing room. */
+.sidebar-brand .brand-name { font-weight: 650; letter-spacing: -0.02em; }
+.sidebar-link { letter-spacing: -0.008em; }
+
+/* Header: crisp hairline and a faint shadow so content slides under it cleanly. */
+.app-header { box-shadow: 0 1px 0 rgba(14, 26, 44, 0.02), 0 6px 16px -14px rgba(14, 26, 44, 0.25); }
+
+/* Error / notice banners: quiet tints instead of loud blocks. */
+.error-banner, .warning-block, .notice-banner {
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--danger) 22%, var(--border));
+  background: color-mix(in srgb, var(--danger-soft) 60%, var(--bg-surface));
+  color: color-mix(in srgb, var(--danger) 85%, var(--text-primary));
+  box-shadow: none;
+}
+.notice-banner, .warning-block {
+  border-color: color-mix(in srgb, var(--warning) 25%, var(--border));
+  background: color-mix(in srgb, var(--warning-soft) 60%, var(--bg-surface));
+  color: color-mix(in srgb, var(--warning) 70%, var(--text-primary));
+}
+
+/* Text selection and scrollbars in the brand colour, subtly. */
+::selection { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+@media (pointer: fine) {
+  *::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--text-muted) 35%, transparent); border: 3px solid transparent; background-clip: padding-box; border-radius: 8px; }
+  *::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--text-muted) 60%, transparent); background-clip: padding-box; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-content > * { animation: none; }
+  .strategy-card:hover, .history-scan-card:hover, a.card:hover { transform: none; }
 }
