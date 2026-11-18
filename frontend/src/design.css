@@ -821,38 +821,7 @@ html::before, html::after { display: none; animation: none; }
 body::before { background-image: none; }
 html, body { background: var(--bg-page); }
 
-/* Navigation: grey icons, the accent only on the current page. */
-.sidebar-link { --tone: var(--accent) !important; color: var(--text-secondary); }
-.sidebar-link .nav-tile,
-:root[data-theme="dark"] .sidebar-link .nav-tile {
-  width: 22px;
-  height: 22px;
-  background: transparent;
-  border-color: transparent;
-  color: var(--text-muted);
-  box-shadow: none;
-}
-.sidebar-link:hover .nav-tile, :root[data-theme="dark"] .sidebar-link:hover .nav-tile { background: transparent; color: var(--text-primary); }
-.sidebar-link.active, :root[data-theme="dark"] .sidebar-link.active { color: var(--accent-soft-text); font-weight: 600; }
-.sidebar-link.active::after, :root[data-theme="dark"] .sidebar-link.active::after {
-  background: var(--accent-soft);
-  border-color: transparent;
-}
-.sidebar-link.active .nav-tile, :root[data-theme="dark"] .sidebar-link.active .nav-tile {
-  background: transparent;
-  border-color: transparent;
-  color: var(--accent);
-  box-shadow: none;
-}
-.sidebar-link.active::before, :root[data-theme="dark"] .sidebar-link.active::before { background: var(--accent); }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .sidebar-link .nav-tile { background: transparent; border-color: transparent; color: var(--text-muted); }
-  :root:not([data-theme="light"]) .sidebar-link.active { color: var(--accent-soft-text); }
-  :root:not([data-theme="light"]) .sidebar-link.active::after { background: var(--accent-soft); border-color: transparent; }
-  :root:not([data-theme="light"]) .sidebar-link.active .nav-tile { background: transparent; border-color: transparent; color: var(--accent); }
-  :root:not([data-theme="light"]) .sidebar-link.active::before { background: var(--accent); }
-}
-
+/* Navigation keeps its colour-coded icon tiles (each item's own tone; see the sidebar rules above). */
 /* Top bar: solid surface, ghost icon buttons. */
 .app-header { background: var(--bg-surface); -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none; }
 .icon-button { border-color: transparent; background: transparent; color: var(--text-muted); }
