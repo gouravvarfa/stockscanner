@@ -72,14 +72,17 @@ async def test_commodities_offer_only_the_nearest_expiry_because_later_ones_lack
         ("SILVER", "2026-12-04"), ("SILVERM", "2027-02-26"), ("SILVERMIC", "2027-02-26")]
 
 
-async def test_stock_futures_keep_every_expiry(monkeypatch):
-    rows = [_row("RELIANCE", "29DEC2026", "20", 500, seg="NFO", typ="FUTSTK"), _row("RELIANCE", "28JAN2027", "21", 500, seg="NFO", typ="FUTSTK")]
+async def test_every_future_offers_only_the_nearest_expiry(monkeypatch):
+    rows = [_row("RELIANCE", "29DEC2026", "20", 500, seg="NFO", typ="FUTSTK"), _row("RELIANCE", "28JAN2027", "21", 500, seg="NFO", typ="FUTSTK"),
+            _row("SENSEX", "26NOV2026", "30", 20, seg="BFO", typ="FUTIDX"), _row("SENSEX", "31DEC2026", "31", 20, seg="BFO", typ="FUTIDX")]
 
     async def fake():
         return rows
 
     monkeypatch.setattr(scrip_master, "_fetch_scrip_master", fake)
-    assert [c.expiry for c in await futures_service.list_contracts("RELIANCE")] == ["2026-12-29", "2027-01-28"]
+    # a later expiry has data only since it was listed (SENSEX26DECFUT from 2026-09-25): not offered
+    assert [c.expiry for c in await futures_service.list_contracts("RELIANCE")] == ["2026-12-29"]
+    assert [c.expiry for c in await futures_service.list_contracts("SENSEX")] == ["2026-11-26"]
 
 
 async def test_resolve_picks_the_nearest_expiry_or_the_exact_one(master):

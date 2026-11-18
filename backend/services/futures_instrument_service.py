@@ -61,15 +61,15 @@ class NotAFutureError(ValueError):
     into one."""
 
 
-def _nearest_commodity_only(contracts: list[FutureContract]) -> list[FutureContract]:
-    """MCX gold/silver: only the nearest expiry of each underlying is offered. Angel One returns the full history
-    (back to 2019) only for that contract; later expiries have data only since they were listed, so a backtest on
-    them is incomplete. Stock and index futures are left exactly as they were."""
+def _nearest_only(contracts: list[FutureContract]) -> list[FutureContract]:
+    """Only the nearest expiry of each underlying is offered - for every future (stock, index, SENSEX, MCX).
+    Angel One returns the full history only for the nearest contract; a later expiry has data only since it was
+    listed (e.g. SENSEX26DECFUT from 2026-09-25), so a backtest on it fails or is incomplete (2026-11-18)."""
     nearest: dict[str, str] = {}
     for c in contracts:
-        if c.commodity and (c.underlying not in nearest or c.expiry < nearest[c.underlying]):
+        if c.underlying not in nearest or c.expiry < nearest[c.underlying]:
             nearest[c.underlying] = c.expiry
-    return [c for c in contracts if not c.commodity or c.expiry == nearest[c.underlying]]
+    return [c for c in contracts if c.expiry == nearest[c.underlying]]
 
 
 def _is_allowed(contract: FutureContract) -> bool:
@@ -89,14 +89,14 @@ async def search_futures(query: str, limit: int = 25) -> list[FutureContract]:
     elif len(key) >= 4:  # a partly typed alias ("MIDCA") that is not already a prefix of a real name
         query = next((v for k, v in SEARCH_ALIASES.items() if k.startswith(key) and not v.startswith(key)), query)
     raw = await scrip_master.search_futures(query, limit=limit * 3)
-    return _nearest_commodity_only([c for c in raw if _is_allowed(c)])[:limit]
+    return _nearest_only([c for c in raw if _is_allowed(c)])[:limit]
 
 
 async def list_contracts(underlying: str) -> list[FutureContract]:
     """All live expiries for one underlying, nearest expiry first."""
     raw = await scrip_master.get_future_contracts(underlying)
     # The master search is a prefix match (GOLD also returns GOLDM, SILVER also SILVERM): keep exactly this underlying.
-    return _nearest_commodity_only(
+    return _nearest_only(
         [c for c in raw if _is_allowed(c) and c.underlying.upper() == underlying.strip().upper()])
 
 
