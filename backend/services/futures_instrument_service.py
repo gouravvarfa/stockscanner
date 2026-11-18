@@ -86,8 +86,8 @@ async def search_futures(query: str, limit: int = 25) -> list[FutureContract]:
     key = query.strip().upper().replace(" ", "")
     if key in SEARCH_ALIASES:
         query = SEARCH_ALIASES[key]
-    elif len(key) >= 4:  # a partly typed alias ("MIDCA") that is not already a prefix of a real name
-        query = next((v for k, v in SEARCH_ALIASES.items() if k.startswith(key) and not v.startswith(key)), query)
+    elif len(key) >= 4 and key.startswith("MIDCA"):  # a partly typed "MIDCAP" (MIDC already prefixes MIDCPNIFTY)
+        query = "MIDCPNIFTY"
     raw = await scrip_master.search_futures(query, limit=limit * 3)
     return _nearest_only([c for c in raw if _is_allowed(c)])[:limit]
 

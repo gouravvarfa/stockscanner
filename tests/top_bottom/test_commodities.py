@@ -185,5 +185,10 @@ async def test_search_finds_sensex_and_understands_midcap(monkeypatch):
     monkeypatch.setattr(sm, "_fetch_scrip_master", fake_master)
     sensex = await fs.search_futures("sensex")
     assert [(c.underlying, c.exch_seg, c.is_index, c.lot_size) for c in sensex] == [("SENSEX", "BFO", True, 20)]
-    for typed in ("MIDCAP", "midcap", "MIDCA", "MIDC"):
+    for typed in ("MIDCAP", "midcap", "MIDCA", "MIDC", "NIFTY MIDCAP"):
         assert [c.underlying for c in await fs.search_futures(typed)] == ["MIDCPNIFTY"], typed
+    # regression: "NIFTY" must never be turned into MIDCPNIFTY by the aliases
+    rows.append({"exch_seg": "NFO", "instrumenttype": "FUTIDX", "name": "NIFTY", "symbol": "NIFTY23NOV26FUT", "token": "4",
+                 "expiry": "23NOV2026", "lotsize": "65"})
+    for typed in ("NIFTY", "nif", "N"):
+        assert "NIFTY" in [c.underlying for c in await fs.search_futures(typed)], typed
