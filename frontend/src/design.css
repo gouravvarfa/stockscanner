@@ -582,3 +582,118 @@ tbody tr:last-child td { border-bottom: 0; }
   .app-content > * { animation: none; }
   .strategy-card:hover, .history-scan-card:hover, a.card:hover { transform: none; }
 }
+
+/* ==========================================================================
+   Premium finish (2026-11-18): depth, glass header, refined controls
+   ========================================================================== */
+:root {
+  --elev-1: 0 1px 1px rgba(14, 26, 44, 0.03), 0 2px 6px -2px rgba(14, 26, 44, 0.06), 0 12px 28px -18px rgba(14, 26, 44, 0.18);
+  --elev-2: 0 2px 4px rgba(14, 26, 44, 0.04), 0 10px 24px -10px rgba(14, 26, 44, 0.16), 0 24px 48px -28px rgba(14, 26, 44, 0.22);
+  --hairline-hi: inset 0 1px 0 rgba(255, 255, 255, 0.75);
+}
+:root[data-theme="dark"] {
+  --elev-1: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 10px 26px -16px rgba(0, 0, 0, 0.75);
+  --elev-2: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 18px 40px -20px rgba(0, 0, 0, 0.85);
+  --hairline-hi: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --elev-1: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 10px 26px -16px rgba(0, 0, 0, 0.75);
+    --elev-2: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 18px 40px -20px rgba(0, 0, 0, 0.85);
+    --hairline-hi: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  }
+}
+
+html { scroll-padding-top: 64px; }
+
+/* Glass header: content slides under a frosted, slightly translucent bar. */
+.app-header {
+  background: color-mix(in srgb, var(--bg-surface) 72%, transparent);
+  -webkit-backdrop-filter: saturate(1.6) blur(14px);
+  backdrop-filter: saturate(1.6) blur(14px);
+}
+
+/* Cards: layered soft depth + a top hairline highlight, like premium hardware UI. */
+.card, .strategy-card, .history-scan-card, .summary-card {
+  border-radius: 14px;
+  box-shadow: var(--hairline-hi), var(--elev-1);
+}
+.strategy-card:hover, .history-scan-card:hover, a.card:hover { box-shadow: var(--hairline-hi), var(--elev-2); }
+
+/* Page header: a confident title and a calm subtitle with room to breathe. */
+.page-header { margin-bottom: 18px; }
+.page-header h1, .app-content > h1, .app-content > div > h1:first-child { font-size: 26px; font-weight: 650; letter-spacing: -0.03em; }
+
+/* KPI / summary tiles: big, crisp numbers on quiet tiles. */
+.tb-summary-tile, .summary-card, .usage-stat {
+  border-radius: 12px;
+}
+.tb-summary-tile {
+  background: color-mix(in srgb, var(--bg-surface) 88%, transparent);
+  border: 1px solid var(--border);
+  box-shadow: var(--hairline-hi);
+  padding: 12px 14px;
+  transition: border-color 0.2s var(--ease), transform 0.2s var(--ease);
+}
+.tb-summary-tile:hover { border-color: var(--border-strong); }
+.tb-summary-label { font-size: 11px; font-weight: 600; letter-spacing: 0.05em; color: var(--text-muted); }
+.tb-summary-value { font-size: 20px; font-weight: 650; letter-spacing: -0.02em; margin-top: 4px; }
+.usage-stat .usage-value { font-weight: 650; letter-spacing: -0.02em; }
+
+/* Primary button: a gentle vertical sheen and a soft lift on hover. */
+.primary-button, .tb-btn-primary {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 88%, white) 0%, var(--accent) 100%);
+  border-color: color-mix(in srgb, var(--accent) 80%, black);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 1px 2px rgba(20, 86, 240, 0.28), 0 6px 14px -8px rgba(20, 86, 240, 0.55);
+  transition: transform 0.18s var(--ease), box-shadow 0.18s var(--ease), filter 0.18s var(--ease);
+}
+.primary-button:hover:not(:disabled), .tb-btn-primary:hover:not(:disabled) {
+  filter: brightness(1.05);
+  transform: translateY(-1px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.24), 0 2px 4px rgba(20, 86, 240, 0.28), 0 10px 20px -10px rgba(20, 86, 240, 0.6);
+}
+.secondary-button, .tb-btn-secondary {
+  background: var(--bg-surface);
+  box-shadow: var(--hairline-hi), 0 1px 2px rgba(14, 26, 44, 0.05);
+  transition: transform 0.18s var(--ease), border-color 0.18s var(--ease), background-color 0.18s var(--ease);
+}
+.secondary-button:hover:not(:disabled), .tb-btn-secondary:hover:not(:disabled) { border-color: var(--border-strong); transform: translateY(-1px); }
+
+/* Inputs: a hover state and a soft inner shade. */
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]), select {
+  box-shadow: inset 0 1px 2px rgba(14, 26, 44, 0.04);
+}
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):hover, select:hover { border-color: var(--border-strong); }
+
+/* Tables inside cards: rounded frame, zebra-free, crisp header. */
+.table-wrap { border-radius: 12px; border: 1px solid var(--border); background: color-mix(in srgb, var(--bg-surface) 94%, transparent); }
+.card .table-wrap { border-color: color-mix(in srgb, var(--border) 80%, transparent); }
+
+/* Chips and status dots: refined, tinted, never loud. */
+.chip { box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 14%, transparent); }
+
+/* Empty / loading states: centred, airy. */
+.state-block { padding: 36px 20px; }
+.state-block .state-title { font-size: 15px; font-weight: 600; letter-spacing: -0.012em; }
+
+/* Sidebar: soft depth on the active tile and a separator-free, airy list. */
+.sidebar-link.active .nav-tile { box-shadow: 0 4px 10px -6px color-mix(in srgb, var(--tone) 60%, transparent); }
+.sidebar-nav { gap: 4px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .primary-button:hover:not(:disabled), .secondary-button:hover:not(:disabled), .tb-btn-primary:hover:not(:disabled), .tb-btn-secondary:hover:not(:disabled) { transform: none; }
+}
+
+/* One field size everywhere (Top-Bottom's own form used 40px grey selects next to 34px white inputs). */
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]), select { height: 38px; }
+.tb-config-grid input:not([type="checkbox"]):not([type="radio"]), .tb-config-grid select, .tb-field input:not([type="checkbox"]) {
+  height: 38px;
+  border-radius: 9px;
+  border: 1px solid var(--border);
+  background: var(--bg-surface);
+  font-size: 13.5px;
+  font-weight: 500;
+  box-shadow: inset 0 1px 2px rgba(14, 26, 44, 0.04);
+}
+.tb-field, .tb-config-grid label { font-size: 12px; font-weight: 600; color: var(--text-secondary); letter-spacing: -0.005em; }
+.tb-config-grid { align-items: end; }
