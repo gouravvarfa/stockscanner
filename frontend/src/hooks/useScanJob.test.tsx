@@ -60,6 +60,7 @@ async function flush() {
 
 beforeEach(() => {
   vi.useFakeTimers();
+  localStorage.clear(); // the automatic-restart cap is remembered in localStorage
   api.listJobs.mockResolvedValue([]);
   api.getCache.mockRejectedValue(new ScanApiError("no cache", 404));
   // Realistic default: echoes back a "still running" job for whatever id
@@ -124,14 +125,48 @@ describe("useScanJob — restart/outage handling", () => {
     expect(view.result.current.error).toBeNull();
   }, 15000);
 
-  it("detects a job that disappeared after a restart and stops immediately (no infinite retry)", async () => {
+  it("starts the scan again automatically when a restart wiped the running job (2026-11-20)", async () => {
     const view = await startScan();
+    api.fresh.mockResolvedValueOnce({ status: "started", job: job({ job_id: "scan_restarted", processed: 0 }) });
 
     api.getJob.mockRejectedValueOnce(new ScanApiError("No such job 'scan_test1'.", 404));
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1500);
     });
+    await flush();
 
+    expect(api.fresh).toHaveBeenCalledTimes(1);
+    expect(view.result.current.running).toBe(true);
+    expect(view.result.current.job?.job_id).toBe("scan_restarted");
+    expect(view.result.current.issueKind).toBeNull();
+    expect(view.result.current.error).toBe("The server restarted, so this scan was started again automatically.");
+
+    // the new job is polled like any other, and the note stays while it runs
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1500);
+    });
+    expect(api.getJob).toHaveBeenLastCalledWith("scan_restarted");
+    expect(view.result.current.error).toBe("The server restarted, so this scan was started again automatically.");
+  });
+
+  it("restarts at most twice per hour, then stops with the interrupted notice (no endless crash loop)", async () => {
+    const view = await startScan();
+    for (const id of ["scan_r1", "scan_r2"]) {
+      api.fresh.mockResolvedValueOnce({ status: "started", job: job({ job_id: id }) });
+      api.getJob.mockRejectedValueOnce(new ScanApiError("gone", 404));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1500);
+      });
+      await flush();
+      expect(view.result.current.job?.job_id).toBe(id);
+    }
+    api.getJob.mockRejectedValueOnce(new ScanApiError("gone", 404));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1500);
+    });
+    await flush();
+
+    expect(api.fresh).toHaveBeenCalledTimes(2);
     expect(view.result.current.running).toBe(false);
     expect(view.result.current.job).toBeNull();
     expect(view.result.current.issueKind).toBe("interrupted");
@@ -145,15 +180,19 @@ describe("useScanJob — restart/outage handling", () => {
     expect(api.getJob.mock.calls.length).toBe(callsAfterInterrupt);
   });
 
-  it("Run Scan is available again right after an interrupted job is detected, with no duplicate auto-start", async () => {
+  it("Run Scan is available again when the automatic restart could not start a scan", async () => {
     const view = await startScan();
+    // e.g. another device's big scan already runs on the server (one at a time on Render)
+    api.fresh.mockRejectedValueOnce(new ScanApiError("Another big scan is already running", 429));
     api.getJob.mockRejectedValueOnce(new ScanApiError("No such job 'scan_test1'.", 404));
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1500);
     });
+    await flush();
 
     expect(view.result.current.running).toBe(false); // Dashboard's Run Scan button is disabled only while `scanning` (=running)
-    expect(api.start).toHaveBeenCalledTimes(1); // interruption itself never auto-starts a new scan
+    expect(view.result.current.issueKind).toBe("interrupted");
+    expect(api.start).toHaveBeenCalledTimes(1);
 
     api.start.mockResolvedValueOnce({ status: "started", job: job({ job_id: "scan_new" }) });
     await act(async () => {
@@ -165,12 +204,29 @@ describe("useScanJob — restart/outage handling", () => {
     expect(api.start).toHaveBeenCalledTimes(2); // the original + this explicit, user-triggered one only
   });
 
+  it("keeps trying through a long restart (a minute is not enough on Render) and still recovers", async () => {
+    const view = await startScan();
+    api.getJob.mockRejectedValue(new TypeError("Failed to fetch"));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(90_000); // longer than the old 60 s window
+    });
+    expect(view.result.current.running).toBe(true);
+    expect(view.result.current.issueKind).toBe("unavailable");
+
+    api.getJob.mockImplementation((jobId: string) => Promise.resolve(job({ job_id: jobId, processed: 120 })));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(7000);
+    });
+    expect(view.result.current.issueKind).toBeNull();
+    expect(view.result.current.job?.processed).toBe(120);
+  }, 15000);
+
   it("gives up after the recovery window is exhausted — no infinite retry", async () => {
     const view = await startScan();
     api.getJob.mockRejectedValue(new TypeError("Failed to fetch"));
 
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(65_000);
+      await vi.advanceTimersByTimeAsync(5 * 60_000 + 10_000);
     });
 
     expect(view.result.current.running).toBe(false);

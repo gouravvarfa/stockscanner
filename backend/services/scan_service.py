@@ -23,6 +23,7 @@ from backend.strategies.prd import evaluate_prd
 from backend.strategies.strategy_one import evaluate_strategy_one
 from backend.strategies.types import StrategySignal
 from backend.strategies.value_buy import evaluate_value_buy
+from backend.core.runtime import memory_guard
 
 logger = logging.getLogger("scanner.scan_service")
 
@@ -257,6 +258,7 @@ async def run_full_scan(
     async def process_nifty200(symbol: str) -> None:
         entry = universe_by_symbol[symbol]
         async with semaphore:  # limits only the Angel One fetch, not the CPU work
+            await memory_guard(f"A Group scan before {symbol}")
             result, ohlcv, error_reason = await _fetch_and_analyze_unlimited(symbol)
         if result is not None and ohlcv is not None:
             all_results.append(result)

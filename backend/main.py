@@ -1,6 +1,10 @@
 from __future__ import annotations
 
 import logging
+
+from backend.core.runtime import rss_mb, tune_malloc
+
+tune_malloc()  # before any worker thread exists (see backend/core/runtime.py)
 from contextlib import asynccontextmanager
 
 # Verify TLS against the operating system's trust store instead of certifi's
@@ -99,6 +103,14 @@ app.include_router(breakout15_api.router)
 @app.get("/api/health")
 def health() -> dict:
     return {"status": "ok"}
+
+
+@app.get("/api/memory")
+def memory() -> dict:
+    """Resident memory of the server process (Render has 512 MB); None where /proc is not available."""
+    from backend.services.scan_job_manager import job_manager
+    running = [j.scan_type for j in job_manager._jobs.values() if j.status == "running"]
+    return {"memory_mb": rss_mb(), "limit_mb": 512, "running_scans": running}
 
 
 

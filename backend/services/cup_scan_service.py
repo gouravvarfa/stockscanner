@@ -20,6 +20,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable
 
 from backend.config.cup_config import CupConfig, DEFAULT_CUP_CONFIG
+from backend.core.runtime import memory_guard
 from backend.providers.angelone_provider import AngelOneProvider
 from backend.providers.cup_history import CupDataUnavailableError, fetch_cup_history
 from backend.services import universe_loader
@@ -93,6 +94,7 @@ async def run_cup_scan(
         instrument_type = get_instrument_type(symbol)
         try:
             async with semaphore:
+                await memory_guard(f"Cup scan before {symbol}")
                 daily_ohlcv = await fetch_cup_history(angelone_provider, symbol, config)
             # CPU-bound detection kept off the semaphore (no network here) —
             # cheap enough (~120 monthly bars) not to need its own thread pool.

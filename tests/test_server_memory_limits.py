@@ -216,3 +216,73 @@ async def test_cup_result_is_not_kept_on_the_server_when_stateless(monkeypatch):
     monkeypatch.setattr(scan_jobs, "STATELESS_SERVER", False)
     await scan_jobs._run_cup_breakout_job(job)
     assert calls == ["set"]  # a local run keeps its 24h cache as before
+
+
+# ---- 2026-11-20: glibc tuning, trimming and the memory guard (Render OOM during an A Group scan) ----
+
+def test_malloc_helpers_never_raise_off_linux():
+    assert runtime.tune_malloc() in (True, False)
+    value = runtime.trim_memory()
+    assert value is None or value > 0
+
+
+async def test_memory_guard_does_nothing_on_a_local_run(monkeypatch):
+    monkeypatch.setattr(runtime, "STATELESS_SERVER", False)
+    monkeypatch.setattr(runtime, "rss_mb", lambda: 999)
+    calls = []
+    monkeypatch.setattr(runtime, "trim_memory", lambda: calls.append(1) or 999)
+    await runtime.memory_guard("test")
+    assert calls == []
+
+
+async def test_memory_guard_trims_and_waits_until_memory_comes_down(monkeypatch):
+    monkeypatch.setattr(runtime, "STATELESS_SERVER", True)
+    monkeypatch.setattr(runtime, "rss_mb", lambda: 470)
+    readings = iter([465, 455, 430])  # trim after trim, memory falls below the 440 MB hard limit
+    trims = []
+    monkeypatch.setattr(runtime, "trim_memory", lambda: trims.append(1) or next(readings))
+    slept = []
+
+    async def fake_sleep(s):
+        slept.append(s)
+
+    monkeypatch.setattr(runtime.asyncio, "sleep", fake_sleep)
+    await runtime.memory_guard("test")
+    assert len(trims) == 3 and slept == [2, 2]
+
+
+async def test_memory_guard_only_trims_between_the_soft_and_hard_limit(monkeypatch):
+    monkeypatch.setattr(runtime, "STATELESS_SERVER", True)
+    monkeypatch.setattr(runtime, "rss_mb", lambda: 400)
+    trims = []
+    monkeypatch.setattr(runtime, "trim_memory", lambda: trims.append(1) or 390)
+
+    async def no_sleep(s):
+        raise AssertionError("must not wait below the hard limit")
+
+    monkeypatch.setattr(runtime.asyncio, "sleep", no_sleep)
+    await runtime.memory_guard("test")
+    assert trims == [1]
+
+
+async def test_memory_guard_gives_up_waiting_after_about_90_seconds(monkeypatch):
+    monkeypatch.setattr(runtime, "STATELESS_SERVER", True)
+    monkeypatch.setattr(runtime, "rss_mb", lambda: 480)
+    monkeypatch.setattr(runtime, "trim_memory", lambda: 480)
+    slept = []
+
+    async def fake_sleep(s):
+        slept.append(s)
+
+    monkeypatch.setattr(runtime.asyncio, "sleep", fake_sleep)
+    await runtime.memory_guard("test")
+    assert sum(slept) == 90  # never blocks a scan forever
+
+
+def test_memory_endpoint_reports_the_limit():
+    from fastapi.testclient import TestClient
+
+    from backend.main import app
+
+    body = TestClient(app).get("/api/memory").json()
+    assert body["limit_mb"] == 512 and "memory_mb" in body and isinstance(body["running_scans"], list)

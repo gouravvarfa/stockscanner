@@ -23,7 +23,9 @@ function saveLocal<T>(scanType: ScanType, result: T, completedAt: string | null 
 // failed poll must not permanently stop polling a job that is actually
 // still running server-side — keep retrying, with backoff so a restarting
 // instance isn't hammered, for up to this long before giving up.
-const RECOVERY_WINDOW_MS = 60_000;
+// 2026-11-20: was 60 s. An out-of-memory restart on Render (the instance hangs, is killed, restarts and cold
+// starts) took longer than that, so polling gave up just before the server came back and the scan looked stuck.
+const RECOVERY_WINDOW_MS = 5 * 60_000;
 const POLL_BACKOFF_START_MS = 1500;
 const POLL_BACKOFF_MAX_MS = 6000;
 const POLL_BACKOFF_FACTOR = 1.6;
@@ -62,6 +64,31 @@ async function withColdStartRetry<T>(fn: () => Promise<T>): Promise<T> {
  *   - "error": a real scan/job failure reported by the backend.
  */
 export type ScanIssueKind = "unavailable" | "interrupted" | "error" | null;
+
+// When a restart wiped a running scan, it is started again automatically - at most AUTO_RESTART_MAX times per
+// AUTO_RESTART_WINDOW_MS per scan type, so a scan that keeps crashing the server cannot loop forever.
+export const AUTO_RESTART_MAX = 2;
+const AUTO_RESTART_WINDOW_MS = 60 * 60_000;
+
+export function takeAutoRestartSlot(scanType: string, now: number = Date.now()): boolean {
+  const key = `scan-auto-restarts:${scanType}`;
+  let stamps: number[] = [];
+  try {
+    const raw = JSON.parse(localStorage.getItem(key) ?? "[]");
+    if (Array.isArray(raw)) stamps = raw.filter((t): t is number => typeof t === "number");
+  } catch {
+    stamps = [];
+  }
+  stamps = stamps.filter((t) => now - t < AUTO_RESTART_WINDOW_MS);
+  if (stamps.length >= AUTO_RESTART_MAX) return false;
+  stamps.push(now);
+  try {
+    localStorage.setItem(key, JSON.stringify(stamps));
+  } catch {
+    // storage blocked: the restart still happens, the cap just is not remembered across reloads
+  }
+  return true;
+}
 
 interface UseScanJobResult<T> {
   result: T | null;
@@ -102,6 +129,7 @@ export function useScanJob<T = unknown>(scanType: ScanType): UseScanJobResult<T>
   const pollGeneration = useRef(0); // bumped every pollJob() call, even for the same job id — see pollJob below
   const consecutiveFailures = useRef(0);
   const firstFailureAt = useRef<number | null>(null);
+  const restartNote = useRef<string | null>(null); // shown while an automatically restarted scan runs
 
   const stopPolling = useCallback(() => {
     if (pollTimer.current) {
@@ -135,9 +163,10 @@ export function useScanJob<T = unknown>(scanType: ScanType): UseScanJobResult<T>
           // Recovered from any prior outage — clear it and keep going normally.
           consecutiveFailures.current = 0;
           firstFailureAt.current = null;
-          setError(null);
+          setError(latest.status === "running" ? restartNote.current : null);
           setIssueKind(null);
           setJob(latest);
+          if (latest.status !== "running") restartNote.current = null;
           // Incremental results: only what is newer than the cursor is fetched/appended.
           if (latest.signals_found > 0 || partialCursor.current > 0) {
             try {
@@ -196,8 +225,25 @@ export function useScanJob<T = unknown>(scanType: ScanType): UseScanJobResult<T>
           if (e instanceof ScanApiError && e.status === 404) {
             activeJobId.current = null;
             stopPolling();
-            setRunning(false);
             setJob(null);
+            // Start it again automatically (2026-11-20) instead of leaving the scan stuck.
+            if (takeAutoRestartSlot(scanType)) {
+              try {
+                const res = await withColdStartRetry(() => scanJobsApi.fresh<T>(scanType));
+                if (res.status === "started") {
+                  restartNote.current = "The server restarted, so this scan was started again automatically.";
+                  setIssueKind(null);
+                  setError(restartNote.current);
+                  setJob(res.job);
+                  setRunning(true);
+                  pollJob(res.job.job_id);
+                  return;
+                }
+              } catch {
+                // e.g. another device's big scan is running (one at a time on Render): show the notice below
+              }
+            }
+            setRunning(false);
             setIssueKind("interrupted");
             setError("Backend restarted — previous scan was interrupted.");
             return;
