@@ -1,4 +1,5 @@
-import { NavLink } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
+import { navigateSmoothly } from "../services/pageTransition";
 import { DashboardIcon, HistoryIcon, SettingsIcon, TargetIcon } from "./icons";
 
 // Exactly the 4 primary destinations, per the mobile design spec — every
@@ -14,6 +15,7 @@ const BOTTOM_NAV_ITEMS = [
 
 /** Mobile-only fixed bottom navigation (hidden on desktop via CSS). */
 export function BottomNav() {
+  const navigate = useNavigate();
   return (
     <nav className="bottom-nav" aria-label="Primary">
       {BOTTOM_NAV_ITEMS.map((item) => {
@@ -24,6 +26,7 @@ export function BottomNav() {
             to={item.to}
             end={item.end}
             className={({ isActive }) => (isActive ? "bottom-nav-link active" : "bottom-nav-link")}
+            onClick={(e) => navigateSmoothly(e, navigate, item.to)}
           >
             <Icon width={20} height={20} />
             <span>{item.label}</span>

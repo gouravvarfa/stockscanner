@@ -1,5 +1,6 @@
 import type React from "react";
-import { NavLink } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
+import { navigateSmoothly } from "../services/pageTransition";
 import {
   BellIcon,
   CalendarIcon,
@@ -58,6 +59,7 @@ export function navTrail(pathname: string): string[] {
  * meaningful there; desktop ignores them.
  */
 export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => void }) {
+  const navigate = useNavigate();
   return (
     <>
       {open && <div className="sidebar-backdrop" onClick={onClose} aria-hidden="true" />}
@@ -77,7 +79,10 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
                 end={item.end}
                 className={({ isActive }) => (isActive ? "sidebar-link active" : "sidebar-link")}
                 style={{ "--tone": item.tone } as React.CSSProperties}
-                onClick={onClose}
+                onClick={(e) => {
+                  onClose?.();
+                  navigateSmoothly(e, navigate, item.to);
+                }}
               >
                 <span className="nav-tile">
                   <Icon />

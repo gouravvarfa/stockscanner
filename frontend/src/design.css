@@ -919,3 +919,48 @@ html::after { display: none; }
 /* the page colour sits on <html>; <body> stays transparent so the wash shows through between the cards */
 body { background: transparent; }
 @media (prefers-reduced-motion: reduce) { html::before { animation: none; } }
+
+/* ==========================================================================
+   Smoothness pack (2026-11-20)
+   ========================================================================== */
+/* No sideways jump when a page grows long enough to need a scrollbar. */
+html { scrollbar-gutter: stable; }
+
+/* Page changes from the menu: only the content area cross-fades (sidebar and top bar stay still). */
+.app-content { view-transition-name: page; }
+::view-transition-old(root), ::view-transition-new(root) { animation: none; }
+::view-transition-old(page) { animation: vtOut 0.14s var(--ease) both; }
+::view-transition-new(page) { animation: vtIn 0.26s var(--ease) both; }
+@keyframes vtOut { to { opacity: 0; } }
+@keyframes vtIn { from { opacity: 0; transform: translate3d(0, 6px, 0); } to { opacity: 1; transform: none; } }
+.vt-nav .app-content > * { animation: none; }
+
+/* Things that appear later (results, banners, dropdowns, the scans panel) ease in instead of popping. */
+@keyframes softIn { from { opacity: 0; transform: translate3d(0, 4px, 0); } to { opacity: 1; transform: none; } }
+@keyframes popIn { from { opacity: 0; transform: translate3d(0, -4px, 0) scale(0.99); } to { opacity: 1; transform: none; } }
+.card, .notice-banner, .error-banner, .warning-block { animation: softIn 0.3s var(--ease) both; }
+.tb-summary-tile { animation: softIn 0.32s var(--ease) both; }
+.tb-summary-tile:nth-child(2) { animation-delay: 0.02s; }
+.tb-summary-tile:nth-child(3) { animation-delay: 0.04s; }
+.tb-summary-tile:nth-child(4) { animation-delay: 0.06s; }
+.tb-summary-tile:nth-child(n + 5) { animation-delay: 0.08s; }
+.tb-search-dropdown { animation: popIn 0.14s var(--ease) both; transform-origin: top center; }
+.active-scans-panel { animation: popIn 0.2s var(--ease) both; }
+
+/* "How this backtest works" opens and closes smoothly (Chrome; other browsers simply open it). */
+.rules-details { interpolate-size: allow-keywords; }
+.rules-details::details-content {
+  block-size: 0;
+  overflow: hidden;
+  transition: block-size 0.28s var(--ease), content-visibility 0.28s allow-discrete;
+}
+.rules-details[open]::details-content { block-size: auto; }
+
+/* Progress fills glide to their new value. */
+.usage-bar-fill { transition: width 0.45s var(--ease); }
+
+@media (prefers-reduced-motion: reduce) {
+  .card, .notice-banner, .error-banner, .warning-block, .tb-summary-tile, .tb-search-dropdown, .active-scans-panel { animation: none; }
+  .rules-details::details-content { transition: none; }
+  ::view-transition-old(page), ::view-transition-new(page) { animation: none; }
+}
