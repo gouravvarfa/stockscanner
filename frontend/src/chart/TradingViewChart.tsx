@@ -131,6 +131,13 @@ export function TradingViewChart({ symbol, signalContext, isMaximized, onToggleM
   const { liveCandles, status: liveStatus } = useLiveChart(symbol, true);
   const contextItems = signalContextItems(signalContext);
 
+  // A page can ask for indicators when it opens the chart (Weekly Sectors turns on RSI, volume and Bollinger
+  // Bands); they can still be switched off from the Indicators menu.
+  useEffect(() => {
+    const wanted = signalContext?.indicators;
+    if (wanted) setIndicators((current) => ({ ...current, ...wanted }));
+  }, [symbol, signalContext]);
+
   useEffect(() => {
     try {
       localStorage.setItem(INDICATOR_PREFS_STORAGE_KEY, JSON.stringify(indicators));

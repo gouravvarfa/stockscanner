@@ -68,6 +68,8 @@ export interface ChartSignalContext {
   divergence_timeframe?: string | null;
   explanation?: string;
   cupStructure?: CupStructure | null;
+  /** Indicators the opening page wants switched on (e.g. Weekly Sectors: RSI, volume and Bollinger Bands). */
+  indicators?: Partial<IndicatorSettings>;
 }
 
 export interface ChartState {

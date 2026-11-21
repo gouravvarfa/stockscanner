@@ -31,9 +31,14 @@ class FakeAngelOneProvider:
         self.requested_intervals: list[str] = []
 
     async def resolve_equity(self, symbol: str):
-        if self.no_match:
+        if self.no_match or symbol.startswith("NIFTY "):
             return None
         return FakeScripMatch(token="TOK-1", trading_symbol=symbol)
+
+    async def resolve_index(self, name: str):
+        if self.no_match:
+            return None
+        return FakeScripMatch(token="IDX-1", trading_symbol=name) if name.startswith("NIFTY ") else None
 
     async def get_intraday_ohlc(self, exch_seg, symbol_token, interval, days_back, include_partial=False):
         self.requested_intervals.append(interval)
@@ -198,3 +203,10 @@ async def test_1d_chart_includes_todays_still_forming_candle():
     assert provider.requested_intervals == ["ONE_DAY"]
 
 
+
+
+async def test_a_sector_index_name_charts_the_index():
+    # Weekly Sectors opens sector index charts by Angel One's index name.
+    provider = FakeAngelOneProvider({"ONE_DAY": _bars(30, "D")})
+    df = await chart_service.get_candles(provider, "NIFTY PSU BANK", "1D")
+    assert len(df) == 30 and provider.requested_intervals == ["ONE_DAY"]

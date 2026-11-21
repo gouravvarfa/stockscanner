@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import { useChart } from "../chart/ChartContext";
+import { TrendIcon } from "../components/icons";
 import {
   downloadWeeklyPdf,
   downloadWeeklyXlsx,
@@ -25,6 +27,28 @@ function niceDate(iso: string | null | undefined): string {
   if (!iso) return "—";
   return new Date(iso).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 }
+// Charts opened from this page show every study: RSI, volume and Bollinger Bands (Daily / Weekly / Monthly are the
+// chart's own timeframe buttons).
+const ALL_INDICATORS = { rsi: true, volume: true, bollinger: true } as const;
+
+function ChartButton({ label, onOpen }: { label: string; onOpen: () => void }) {
+  return (
+    <button
+      type="button"
+      className="wk-chart-btn"
+      onClick={(e) => {
+        e.stopPropagation(); // the scorecard row itself selects the sector
+        onOpen();
+      }}
+      title={`Open the ${label} chart`}
+      aria-label={`Open the ${label} chart`}
+    >
+      <TrendIcon width={13} height={13} aria-hidden="true" />
+      Chart
+    </button>
+  );
+}
+
 const signalClass = (s: string) => `wk-chip wk-sig-${s.replace(/\s+/g, "-").replace("/", "").toLowerCase()}`;
 const verdictClass = (v: string) => `wk-chip wk-ver-${v.replace("/", "").toLowerCase()}`;
 const BUCKETS: [keyof WeeklyReport["buckets"], string, string, string][] = [
@@ -81,7 +105,26 @@ function RankPanel({ title, sectors, field }: { title: string; sectors: SectorRo
   );
 }
 
-function StockTable({ rows, withSector }: { rows: SectorStock[]; withSector?: boolean }) {
+function StockTable({ rows, withSector, sectorLabel, endDate }: {
+  rows: SectorStock[];
+  withSector?: boolean;
+  sectorLabel?: string;
+  endDate?: string | null;
+}) {
+  const { openChart } = useChart();
+  // The same chart drawer every scanner page uses; the header shows how the stock did against its sector.
+  const showChart = (s: SectorStock) =>
+    openChart(s.symbol, {
+      strategy: "Weekly Sectors",
+      daily_rsi: null,
+      weekly_rsi: null,
+      monthly_rsi: null,
+      signal_date: endDate ?? null,
+      explanation:
+        `${s.symbol}: ${pct(s.r1w)} on the week, ${pct(s.r1m)} on the month; ` +
+        `${pp(s.vs1w)}pp (1W) and ${pp(s.vs1m)}pp (1M) vs ${s.sector ?? sectorLabel ?? "its sector"} - ${s.signal}.`,
+      indicators: ALL_INDICATORS,
+    });
   return (
     <div className="table-wrap">
       <table className="wk-table">
@@ -100,8 +143,13 @@ function StockTable({ rows, withSector }: { rows: SectorStock[]; withSector?: bo
           {rows.map((s) => (
             <tr key={`${s.symbol}-${s.sector ?? ""}`}>
               <td className="wk-sym" title={s.name ?? undefined}>
-                {s.symbol}
-                {s.name && <span className="wk-name">{s.name}</span>}
+                <div className="wk-sym-cell">
+                  <div className="wk-sym-text">
+                    {s.symbol}
+                    {s.name && <span className="wk-name">{s.name}</span>}
+                  </div>
+                  <ChartButton label={s.symbol} onOpen={() => showChart(s)} />
+                </div>
               </td>
               {withSector && <td className="muted">{s.sector}</td>}
               <td className={tone(s.r1w)}>{pct(s.r1w)}</td>
@@ -129,6 +177,20 @@ export function WeeklySectorsPage() {
   const [selected, setSelected] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const detailRef = useRef<HTMLDivElement>(null);
+  const { openChart } = useChart();
+  // A sector's own index chart, with its RSI levels in the chart header.
+  const openSectorChart = (s: SectorRow) => {
+    if (!s.index_label) return;
+    openChart(s.index_label, {
+      strategy: "Weekly Sectors",
+      daily_rsi: s.rsi.d,
+      weekly_rsi: s.rsi.w,
+      monthly_rsi: s.rsi.m,
+      signal_date: report?.end_date ?? null,
+      explanation: `${s.label} (${s.index_label}): ${pct(s.r1w)} on the week (#${s.rank_1w}), ${pct(s.r1m)} on the month (#${s.rank_1m}) - ${s.verdict}.`,
+      indicators: ALL_INDICATORS,
+    });
+  };
 
   useEffect(() => () => {
     if (timer.current) clearTimeout(timer.current);
@@ -309,8 +371,13 @@ export function WeeklySectorsPage() {
                       }}
                     >
                       <td className="wk-sym">
-                        {s.label}
-                        <span className="wk-name">{s.equal_weight ? "equal-weight of its stocks" : s.index_label}</span>
+                        <div className="wk-sym-cell">
+                          <div className="wk-sym-text">
+                            {s.label}
+                            <span className="wk-name">{s.equal_weight ? "equal-weight of its stocks" : s.index_label}</span>
+                          </div>
+                          {!s.equal_weight && s.index_label && <ChartButton label={s.index_label} onOpen={() => openSectorChart(s)} />}
+                        </div>
                       </td>
                       <td className={tone(s.r1w)}>{pct(s.r1w)}</td>
                       <td>#{s.rank_1w}</td>
@@ -351,16 +418,21 @@ export function WeeklySectorsPage() {
             </div>
             {sector && (
               <>
-                <h2 style={{ margin: "12px 0 4px" }}>
-                  {sector.label} <span className={verdictClass(sector.verdict)}>{sector.verdict}</span>
-                </h2>
+                <div className="wk-sector-head">
+                  <h2 style={{ margin: 0 }}>
+                    {sector.label} <span className={verdictClass(sector.verdict)}>{sector.verdict}</span>
+                  </h2>
+                  {!sector.equal_weight && sector.index_label && (
+                    <ChartButton label={sector.index_label} onOpen={() => openSectorChart(sector)} />
+                  )}
+                </div>
                 <p className="muted small" style={{ marginTop: 0 }}>
                   Sector {pct(sector.r1w)} 1W (#{sector.rank_1w}) · {pct(sector.r1m)} 1M (#{sector.rank_1m}) · RSI D/W/M{" "}
                   {sector.rsi.d === null ? "n/a" : `${sector.rsi.d.toFixed(0)} / ${sector.rsi.w?.toFixed(0)} / ${sector.rsi.m?.toFixed(0)}`} ·
                   Leader {sector.counts["Leader"] ?? 0} · Turning up {sector.counts["Turning up"] ?? 0} · Fading {sector.counts["Fading"] ?? 0} ·
                   Laggard {sector.counts["Laggard"] ?? 0}
                 </p>
-                <StockTable rows={sector.stocks} />
+                <StockTable rows={sector.stocks} sectorLabel={sector.label} endDate={report.end_date} />
               </>
             )}
           </div>
@@ -369,12 +441,12 @@ export function WeeklySectorsPage() {
             <div className="card">
               <h2 style={{ marginTop: 0 }}>Top movers</h2>
               <p className="muted small" style={{ marginTop: 0 }}>Beat their sector on 1W and 1M, by combined outperformance.</p>
-              <StockTable rows={report.top_movers} withSector />
+              <StockTable rows={report.top_movers} withSector endDate={report.end_date} />
             </div>
             <div className="card">
               <h2 style={{ marginTop: 0 }}>Laggards</h2>
               <p className="muted small" style={{ marginTop: 0 }}>Trail their sector on 1W and 1M, deepest gaps first.</p>
-              <StockTable rows={report.laggards} withSector />
+              <StockTable rows={report.laggards} withSector endDate={report.end_date} />
             </div>
           </div>
 

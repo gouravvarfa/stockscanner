@@ -93,7 +93,11 @@ async def get_candles(angelone: AngelOneProvider, symbol: str, timeframe: str, l
 
     match = await angelone.resolve_equity(symbol)
     if match is None:
-        raise DataUnavailableError(f"Angel One has no equity listing for '{symbol}'.")
+        # Not a stock: a sector index chart (Weekly Sectors opens e.g. "NIFTY PSU BANK"), by Angel One's exact
+        # index name. Index candles have no volume.
+        match = await angelone.resolve_index(symbol)
+    if match is None:
+        raise DataUnavailableError(f"Angel One has no equity or index listing for '{symbol}'.")
 
     days = _LOOKBACK_DAYS[timeframe]
 
