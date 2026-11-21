@@ -42,6 +42,11 @@ def resample_ohlcv(df: pd.DataFrame, rule: str, include_partial: bool = False) -
         .agg({c: OHLCV_AGG[c] for c in cols})
         .dropna(how="all")
     )
+    # A period with no daily bars at all (a gap in the data, e.g. RECLTD has none for 3 weeks of Jan 2023) still
+    # gets a row, because its volume sums to 0. Its NaN close then turned every later RSI value into NaN (RECLTD's
+    # weekly RSI was None, so RECLTD silently dropped out of every strategy that needs it). Drop such periods.
+    if "close" in resampled.columns:
+        resampled = resampled[resampled["close"].notna()]
     if not include_partial and len(resampled) and len(df) and resampled.index[-1] > df.index.max():
         resampled = resampled.iloc[:-1]
     return resampled

@@ -90,3 +90,21 @@ def test_include_partial_default_is_false_existing_callers_unaffected():
     df = _daily_df("2024-01-29", 5)
     assert to_monthly(df).index[-1] == to_monthly(df, include_partial=False).index[-1]
     assert to_monthly(df).index[-1] < pd.Timestamp("2024-02-29")
+
+
+def test_weeks_without_any_daily_bar_are_dropped_so_rsi_stays_defined():
+    # RECLTD on Angel One has no daily bars for 3 weeks of Jan 2023: those weeks must not become NaN rows
+    # (their NaN close made every later weekly RSI NaN).
+    import numpy as np
+
+    from backend.indicators.rsi import rsi
+
+    idx = pd.bdate_range("2022-01-03", "2024-06-28")
+    idx = idx[(idx < "2023-01-09") | (idx > "2023-01-27")]
+    v = 100 + np.sin(np.arange(len(idx)) / 9) * 10
+    df = pd.DataFrame({"open": v, "high": v + 1, "low": v - 1, "close": v, "volume": 1000.0}, index=idx)
+    weekly = to_weekly(df)
+    assert weekly["close"].notna().all()
+    assert pd.Timestamp("2023-01-13") not in weekly.index and pd.Timestamp("2023-01-06") in weekly.index
+    assert not np.isnan(rsi(weekly["close"], 14).iloc[-1])
+    assert to_monthly(df)["close"].notna().all()
