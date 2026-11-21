@@ -11,7 +11,11 @@ implementation.
 from __future__ import annotations
 
 import asyncio
+import http.cookiejar
 import logging
+import ssl
+import time
+import weakref
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable, Literal, TypeVar
 
@@ -76,6 +80,73 @@ def _base_headers(api_key: str) -> dict[str, str]:
     }
 
 
+# ---- One HTTPS client for every call (2026-11-21) ---------------------------------------------------------------
+# Every request used to open its own httpx.AsyncClient, i.e. a new TLS context that loads the whole CA bundle
+# (OpenSSL 3) plus a fresh TLS handshake. On Render (Linux) that memory was never handed back: RSS climbed ~1.5 MB
+# per instrument (167 -> 527 MB over a 200-stock Weekly Sectors run) until the 512 MB limit killed the instance -
+# the same climb as the A Group scan's OOMs. Now one TLS context is built once, and each event loop keeps one
+# client whose keep-alive connections are reused. Cookies are never stored, so nothing from one request (or one
+# Angel One account) rides along on the next - exactly like the old one-client-per-request behaviour.
+_ssl_context: ssl.SSLContext | None = None
+_clients: "weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, httpx.AsyncClient]" = weakref.WeakKeyDictionary()
+_LIMITS = httpx.Limits(max_connections=20, max_keepalive_connections=8, keepalive_expiry=20.0)
+
+
+def _tls() -> ssl.SSLContext:
+    global _ssl_context
+    if _ssl_context is None:  # built on first use, after main.py's truststore.inject_into_ssl()
+        _ssl_context = httpx.create_ssl_context()
+    return _ssl_context
+
+
+def _no_cookies() -> http.cookiejar.CookieJar:
+    # A bare CookieJar (httpx keeps it as is; an httpx.Cookies would be copied into a default jar, losing the policy).
+    return http.cookiejar.CookieJar(policy=http.cookiejar.DefaultCookiePolicy(allowed_domains=[]))
+
+
+def _http() -> httpx.AsyncClient:
+    """The shared client of the running event loop (a client's connections belong to one loop)."""
+    loop = asyncio.get_running_loop()
+    client = _clients.get(loop)
+    if client is None or client.is_closed:
+        client = httpx.AsyncClient(verify=_tls(), timeout=20.0, limits=_LIMITS, cookies=_no_cookies())
+        _clients[loop] = client
+    return client
+
+
+# Candle requests are paced process-wide. A new client per request used to slow every call down by a full TLS
+# handshake (~1.5 requests/s in total at the scans' concurrency of 2), which happened to keep them under Angel One's
+# candle rate limit. With reused connections the same concurrency fires much faster and draws HTTP 403s (a live
+# Weekly Sectors run: 291 retries, 5 stocks lost; a probe at ~2.5/s: 19 of 30 refused, and a refused burst keeps
+# being refused for a while). Measured after a 60 s rest: ~1.5/s gets no 403s. So requests start at least
+# CANDLE_GAP_S apart (~1.7 per second in total, whatever runs at the same time - the old speed), and a 403 pushes
+# every caller back a little so the burst can clear.
+CANDLE_GAP_S = 0.6
+RATE_LIMIT_BACKOFF_S = 1.0
+_next_slot = 0.0
+
+
+async def _pace() -> None:
+    global _next_slot
+    now = time.monotonic()
+    slot = max(now, _next_slot)
+    _next_slot = slot + CANDLE_GAP_S  # reserved before awaiting, so concurrent callers queue up behind it
+    if slot > now:
+        await asyncio.sleep(slot - now)
+
+
+def _back_off() -> None:
+    global _next_slot
+    _next_slot = max(_next_slot, time.monotonic() + RATE_LIMIT_BACKOFF_S)
+
+
+async def aclose_http() -> None:
+    """Close the running loop's shared client (app shutdown)."""
+    client = _clients.pop(asyncio.get_running_loop(), None)
+    if client is not None:
+        await client.aclose()
+
+
 def generate_totp(base32_secret: str) -> str:
     return pyotp.TOTP(base32_secret).now()
 
@@ -107,15 +178,15 @@ async def _retry_async(
 async def login(api_key: str, client_code: str, pin: str, totp_secret: str) -> AngelOneSession:
     async def _attempt() -> AngelOneSession:
         totp = generate_totp(totp_secret)  # regenerated each attempt: a stale 30s-window code would just fail again
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            try:
-                response = await client.post(
-                    BASE_URL + ROUTES["login"],
-                    headers=_base_headers(api_key),
-                    json={"clientcode": client_code, "password": pin, "totp": totp},
-                )
-            except httpx.HTTPError as exc:
-                raise AngelOneApiError(f"Could not reach Angel One: {exc}", "network", retryable=True) from exc
+        try:
+            response = await _http().post(
+                BASE_URL + ROUTES["login"],
+                headers=_base_headers(api_key),
+                json={"clientcode": client_code, "password": pin, "totp": totp},
+                timeout=15.0,
+            )
+        except httpx.HTTPError as exc:
+            raise AngelOneApiError(f"Could not reach Angel One: {exc}", "network", retryable=True) from exc
 
         body = _parse_json_or_raise(response, "auth")
         if response.status_code != 200 or body.get("status") is not True or not body.get("data", {}).get("jwtToken"):
@@ -136,12 +207,12 @@ async def login(api_key: str, client_code: str, pin: str, totp_secret: str) -> A
 
 async def logout(session: AngelOneSession) -> None:
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            await client.post(
-                BASE_URL + ROUTES["logout"],
-                headers={**_base_headers(session.api_key), "Authorization": f"Bearer {session.jwt_token}"},
-                json={"clientcode": session.client_code},
-            )
+        await _http().post(
+            BASE_URL + ROUTES["logout"],
+            headers={**_base_headers(session.api_key), "Authorization": f"Bearer {session.jwt_token}"},
+            json={"clientcode": session.client_code},
+            timeout=10.0,
+        )
     except httpx.HTTPError:
         pass  # best-effort — a failed logout shouldn't block anything
 
@@ -170,23 +241,26 @@ async def get_candle_data(
     (network errors, non-JSON responses) are retried automatically."""
 
     async def _attempt() -> list[list[Any]]:
+        await _pace()
         call_metrics.record_angelone_call()
-        async with httpx.AsyncClient(timeout=20.0) as client:
-            try:
-                response = await client.post(
-                    BASE_URL + ROUTES["candle_data"],
-                    headers={**_base_headers(session.api_key), "Authorization": f"Bearer {session.jwt_token}"},
-                    json={
-                        "exchange": exchange,
-                        "symboltoken": symbol_token,
-                        "interval": interval,
-                        "fromdate": from_date,
-                        "todate": to_date,
-                    },
-                )
-            except httpx.HTTPError as exc:
-                raise AngelOneApiError(f"Could not reach Angel One: {exc}", "network", retryable=True) from exc
+        try:
+            response = await _http().post(
+                BASE_URL + ROUTES["candle_data"],
+                headers={**_base_headers(session.api_key), "Authorization": f"Bearer {session.jwt_token}"},
+                json={
+                    "exchange": exchange,
+                    "symboltoken": symbol_token,
+                    "interval": interval,
+                    "fromdate": from_date,
+                    "todate": to_date,
+                },
+                timeout=20.0,
+            )
+        except httpx.HTTPError as exc:
+            raise AngelOneApiError(f"Could not reach Angel One: {exc}", "network", retryable=True) from exc
 
+        if response.status_code == 403:
+            _back_off()
         body = _parse_json_or_raise(response, "data")
         if response.status_code != 200 or body.get("status") is not True:
             # A real JSON error body — Angel One deliberately rejected the

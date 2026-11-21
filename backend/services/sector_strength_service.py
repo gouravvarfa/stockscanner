@@ -27,6 +27,7 @@ from zoneinfo import ZoneInfo
 import httpx
 import pandas as pd
 
+from backend.core.runtime import memory_guard, trim_now_and_then
 from backend.providers import angelone_scrip_master as scrip_master
 from backend.providers.angelone_provider import AngelOneProvider
 from backend.strategies.sector_strength import build_report
@@ -160,6 +161,7 @@ async def _run(job: SectorJob, provider: AngelOneProvider, as_of: dt.date) -> No
 
     async def fetch_index(key: str, name: str) -> None:
         async with sem:
+            await memory_guard("weekly sectors")
             job.current = name
             try:
                 m = await scrip_master.resolve_index(name)
@@ -171,6 +173,7 @@ async def _run(job: SectorJob, provider: AngelOneProvider, as_of: dt.date) -> No
 
     async def fetch_stock(sym: str) -> None:
         async with sem:
+            await memory_guard("weekly sectors")
             job.current = sym
             try:
                 m = await scrip_master.resolve_equity(sym)
@@ -179,6 +182,7 @@ async def _run(job: SectorJob, provider: AngelOneProvider, as_of: dt.date) -> No
             except Exception as exc:  # noqa: BLE001
                 logger.warning("sector stock %s failed: %s", sym, exc)
             job.done += 1
+            trim_now_and_then()
 
     await asyncio.gather(*(fetch_index(k, n) for k, n in indices))
     await asyncio.gather(*(fetch_stock(s) for s in symbols))

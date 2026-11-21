@@ -22,6 +22,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.api import angelone as angelone_api
+from backend.providers import angelone_client
 from backend.api import breakout15 as breakout15_api
 from backend.api import chart as chart_api
 from backend.api import config as config_api
@@ -59,6 +60,7 @@ async def lifespan(app: FastAPI):
         yield
     finally:
         await provider_factory.shutdown()
+        await angelone_client.aclose_http()
 
 
 app = FastAPI(title="NIFTY 200 Scanner", lifespan=lifespan)
