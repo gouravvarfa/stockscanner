@@ -30,6 +30,7 @@ export const NAV_ITEMS: NavItem[] = [
   { to: "/history", label: "Scan History", icon: HistoryIcon, tone: "#059669" },
   { to: "/breakout-15", label: "15-Min Breakout", icon: TrendIcon, tone: "#0284c7" },
   { to: "/range-analysis", label: "Range Analysis", icon: ChartBarIcon, tone: "#0891b2" },
+  { to: "/weekly-sectors", label: "Weekly Sectors", icon: TrendIcon, tone: "#16a34a" },
   { to: "/settings", label: "Settings", icon: SettingsIcon, tone: "#475b8a" },
 ];
 

@@ -16,3 +16,4 @@ openpyxl
 pytest
 pytest-asyncio
 truststore
+reportlab>=4.2
