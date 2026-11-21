@@ -4,6 +4,7 @@ import { navigateSmoothly } from "../services/pageTransition";
 import {
   BellIcon,
   CalendarIcon,
+  ChartBarIcon,
   DashboardIcon,
   HistoryIcon,
   ListIcon,
@@ -28,6 +29,7 @@ export const NAV_ITEMS: NavItem[] = [
   { to: "/cup-breakout", label: "Cup Breakout", icon: SectorIcon, tone: "#7c3aed" },
   { to: "/history", label: "Scan History", icon: HistoryIcon, tone: "#059669" },
   { to: "/breakout-15", label: "15-Min Breakout", icon: TrendIcon, tone: "#0284c7" },
+  { to: "/range-analysis", label: "Range Analysis", icon: ChartBarIcon, tone: "#0891b2" },
   { to: "/settings", label: "Settings", icon: SettingsIcon, tone: "#475b8a" },
 ];
 

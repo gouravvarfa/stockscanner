@@ -31,6 +31,7 @@ from backend.api import history as history_api
 from backend.api import live as live_api
 from backend.api import logs as logs_api
 from backend.api import ranking as ranking_api
+from backend.api import range_analysis as range_analysis_api
 from backend.api import scan as scan_api
 from backend.api import scan_jobs as scan_jobs_api
 from backend.api import scanner as scanner_api
@@ -99,6 +100,7 @@ app.include_router(gfs50_backtest_api.router)
 app.include_router(live_api.router)
 
 app.include_router(breakout15_api.router)
+app.include_router(range_analysis_api.router)
 
 @app.get("/api/health")
 def health() -> dict:

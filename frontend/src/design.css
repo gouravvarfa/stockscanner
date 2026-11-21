@@ -964,3 +964,44 @@ html { scrollbar-gutter: stable; }
   .rules-details::details-content { transition: none; }
   ::view-transition-old(page), ::view-transition-new(page) { animation: none; }
 }
+
+/* ==========================================================================
+   Range Analysis sheet (2026-11-21): the user's "% RANGE MOVE" workbook layout
+   ========================================================================== */
+.rm-wrap { border-radius: 12px; }
+.range-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; white-space: nowrap; }
+.range-table th {
+  background: #1f3a73;
+  color: #fff;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-align: center;
+  padding: 9px 8px;
+  text-transform: uppercase;
+  position: sticky;
+  top: 0;
+}
+.range-table th.rm-best { background: #c9ebcb; color: #0b7a36; }
+.range-table td { text-align: center; padding: 7px 8px; border-bottom: 1px solid var(--border); font-variant-numeric: tabular-nums; }
+.range-table td.rm-year, .range-table th.rm-year { text-align: center; font-weight: 700; min-width: 92px; }
+.range-table td.rm-year { color: var(--text-primary); background: var(--bg-soft); }
+.range-table td.rm-avg, .range-table th.rm-avg { font-weight: 700; min-width: 110px; }
+.range-table td.rm-avg { background: var(--bg-soft); }
+.range-table .rm-plain { color: var(--text-secondary); }
+.range-table .rm-orange { background: #fbe7c6; color: #a15c00; font-weight: 700; }
+.range-table .rm-green { background: #d8f0da; color: #0b7a36; font-weight: 700; }
+.range-table .rm-progress { color: var(--text-muted); font-style: italic; }
+.range-table .rm-boxed { box-shadow: inset 0 0 0 2px #1f3a73; }
+.range-table tbody tr:hover td { filter: brightness(0.97); }
+.range-table tfoot td { background: var(--bg-soft); font-weight: 600; color: var(--text-primary); border-bottom: 1px solid var(--border); }
+.range-table tfoot tr:first-child td { border-top: 2px solid var(--border-strong); }
+.range-table tfoot td.rm-top { color: #0b7a36; font-weight: 800; }
+:root[data-theme="dark"] .range-table .rm-orange { background: rgba(230, 160, 60, 0.18); color: #f2b65a; }
+:root[data-theme="dark"] .range-table .rm-green { background: rgba(47, 209, 147, 0.16); color: #4fe0a6; }
+:root[data-theme="dark"] .range-table th.rm-best { background: rgba(47, 209, 147, 0.25); color: #4fe0a6; }
+:root[data-theme="dark"] .range-table .rm-boxed { box-shadow: inset 0 0 0 2px #6d99ff; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .range-table .rm-orange { background: rgba(230, 160, 60, 0.18); color: #f2b65a; }
+  :root:not([data-theme="light"]) .range-table .rm-green { background: rgba(47, 209, 147, 0.16); color: #4fe0a6; }
+}

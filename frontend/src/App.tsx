@@ -17,6 +17,7 @@ import { ExpiryLevel1 } from "./pages/ExpiryLevel1";
 import { ExpiryLevel5 } from "./pages/ExpiryLevel5";
 import { CupBreakoutPage } from "./pages/CupBreakoutPage";
 import { Breakout15Page } from "./pages/Breakout15Page";
+import { RangeAnalysisPage } from "./pages/RangeAnalysisPage";
 import { ScanHistoryPage } from "./pages/ScanHistoryPage";
 import { Settings } from "./pages/Settings";
 import { TradingViewSignals } from "./pages/TradingViewSignals";
@@ -57,6 +58,7 @@ export default function App() {
             <Route path="/cup-breakout" element={<CupBreakoutPage />} />
             <Route path="/stocks" element={<StockScanner />} />
             <Route path="/breakout-15" element={<Breakout15Page />} />
+            <Route path="/range-analysis" element={<RangeAnalysisPage />} />
             <Route path="/history" element={<ScanHistoryPage />} />
             <Route path="/tradingview" element={<TradingViewSignals />} />
             <Route
