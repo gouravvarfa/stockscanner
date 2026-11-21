@@ -90,6 +90,10 @@ def test_export_matches_the_sheet_layout():
     assert ws.cell(4, 3).fill.fgColor.rgb.endswith("FBE7C6")  # February 20% -> orange
     assert ws["B2"].fill.fgColor.rgb.endswith("C9EBCB")  # JAN is the Jan-Mar best month
     assert any(str(ws.cell(r, 16).value).startswith("JAN-MAR BEST: JAN") for r in range(1, 12))
+    legend_row = next(r for r in range(1, 40) if ws.cell(r, 16).value == "COLOUR LEGEND")
+    assert ws.cell(legend_row + 1, 16).fill.fgColor.rgb.endswith("D8F0DA")  # green sample cell
+    assert ws.cell(legend_row + 2, 16).fill.fgColor.rgb.endswith("FBE7C6")  # orange sample cell
+    assert ws.cell(legend_row + 4, 16).border.left.style == "medium"  # boxed sample
     md = wb["MONTHLY DATA"]
     assert md["A2"].value == "DEC 2024" and md["I3"].value == "(H-L)/L"
 

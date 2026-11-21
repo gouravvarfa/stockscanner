@@ -1005,3 +1005,57 @@ html { scrollbar-gutter: stable; }
   :root:not([data-theme="light"]) .range-table .rm-orange { background: rgba(230, 160, 60, 0.18); color: #f2b65a; }
   :root:not([data-theme="light"]) .range-table .rm-green { background: rgba(47, 209, 147, 0.16); color: #4fe0a6; }
 }
+
+/* Range Analysis period switch: "Since inception" / "Year to year" */
+.rm-field-label { font-size: 12px; font-weight: 600; color: var(--text-secondary); }
+.tb-field:has(> .rm-field-label) { display: flex; flex-direction: column; gap: 6px; }
+.rm-seg {
+  display: flex;
+  height: 38px;
+  padding: 3px;
+  gap: 3px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--bg-surface);
+  box-shadow: inset 0 1px 2px rgba(14, 26, 44, 0.04);
+}
+.rm-seg button {
+  flex: 1;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-secondary);
+  font: 600 13px var(--font-sans);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.18s var(--ease), color 0.18s var(--ease);
+}
+.rm-seg button:hover { background: var(--bg-hover); color: var(--text-primary); }
+.rm-seg button.active { background: var(--accent); color: #fff; }
+
+/* Range Analysis colour legend */
+.rm-legend { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 0 0 12px; font-size: 12.5px; color: var(--text-secondary); }
+.rm-legend-item { display: inline-flex; align-items: center; gap: 7px; }
+.rm-legend-item strong { color: var(--text-primary); font-weight: 600; }
+.rm-sw { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 16px; border-radius: 4px; border: 1px solid var(--border); font-size: 9px; }
+.rm-sw-green { background: #d8f0da; border-color: #a8dcae; }
+.rm-sw-orange { background: #fbe7c6; border-color: #f0cf95; }
+.rm-sw-plain { background: var(--bg-surface); }
+.rm-sw-box { background: var(--bg-surface); box-shadow: inset 0 0 0 2px #1f3a73; border-color: transparent; }
+.rm-sw-best { background: #c9ebcb; border-color: #a8dcae; }
+.rm-sw-progress { background: var(--bg-surface); color: var(--text-muted); font-style: italic; }
+:root[data-theme="dark"] .rm-sw-green { background: rgba(47, 209, 147, 0.16); border-color: rgba(47, 209, 147, 0.35); }
+:root[data-theme="dark"] .rm-sw-orange { background: rgba(230, 160, 60, 0.18); border-color: rgba(230, 160, 60, 0.4); }
+:root[data-theme="dark"] .rm-sw-box { box-shadow: inset 0 0 0 2px #6d99ff; }
+
+/* Range Analysis: legend text flows as one line of text; the year column stays visible while the sheet scrolls sideways */
+.rm-legend-item { align-items: flex-start; }
+.rm-legend-item .rm-sw { flex: none; margin-top: 1px; }
+.rm-legend-text { min-width: 0; line-height: 1.45; }
+.range-table td.rm-year, .range-table th.rm-year { position: sticky; left: 0; z-index: 1; }
+.range-table th.rm-year { z-index: 2; }
+.range-table td.rm-year { box-shadow: 1px 0 0 var(--border); }
+@media (max-width: 860px) {
+  .rm-legend { flex-direction: column; gap: 6px; }
+  .range-table td.rm-year, .range-table th.rm-year { min-width: 74px; }
+}

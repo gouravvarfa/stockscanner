@@ -123,12 +123,32 @@ def build_xlsx(table: dict) -> bytes:
         c = ws.cell(i, 16, text)
         c.font = Font(bold=bold, color=NAVY if bold else "4A566B")
 
+    # colour legend: a sample cell in column P and what it means in column Q
+    lr = len(notes) + 3
+    ws.cell(lr, 16, "COLOUR LEGEND").font = Font(bold=True, color=NAVY)
+    legend = [
+        ("green", False, False, 0.35, "Green - the month moved 30% or more"),
+        ("orange", False, False, 0.25, "Orange - the month moved 20% to 30%"),
+        ("plain", False, False, 0.12, "No colour - below 20%"),
+        ("green", True, False, 0.35, "Boxed - a 30%+ month in January-March"),
+        ("plain", False, True, 0.12, "Grey italic - month in progress, not averaged"),
+    ]
+    for k, (lvl, boxed, progress, sample, text) in enumerate(legend, start=lr + 1):
+        _cell_style(ws.cell(k, 16, sample), lvl, boxed, progress)
+        ws.cell(k, 17, text).font = Font(color="4A566B")
+    best = ws.cell(lr + len(legend) + 1, 16, "FEB")
+    best.fill = PatternFill("solid", fgColor=BEST_FILL)
+    best.font = Font(bold=True, color=GREEN_FONT)
+    best.alignment = CENTER
+    ws.cell(lr + len(legend) + 1, 17, "Green month header - the best January-March month").font = Font(color="4A566B")
+
     ws.column_dimensions["A"].width = 14
     for col in range(2, 14):
         ws.column_dimensions[get_column_letter(col)].width = 10
     ws.column_dimensions["N"].width = 16
     ws.column_dimensions["O"].width = 3
     ws.column_dimensions["P"].width = 46
+    ws.column_dimensions["Q"].width = 50
     ws.freeze_panes = "B3"
 
     # every month, for checking

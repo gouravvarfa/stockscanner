@@ -189,6 +189,32 @@ function RangeSheet({ table }: { table: RangeTable }) {
   );
 }
 
+/** What every colour in the sheet means (user request, 2026-11-21). */
+function RangeLegend() {
+  const items: [string, string, string][] = [
+    ["rm-sw rm-sw-green", "Green", "the month moved 30% or more"],
+    ["rm-sw rm-sw-orange", "Orange", "the month moved 20% to 30%"],
+    ["rm-sw rm-sw-plain", "No colour", "below 20%"],
+    ["rm-sw rm-sw-box", "Boxed", "a 30%+ month in January–March"],
+    ["rm-sw rm-sw-best", "Green month header", "the best January–March month (most 30%+ years)"],
+    ["rm-sw rm-sw-progress", "Grey italic", "month still in progress, not in any average"],
+  ];
+  return (
+    <div className="rm-legend" aria-label="Colour legend">
+      {items.map(([cls, name, text]) => (
+        <span key={name} className="rm-legend-item">
+          <span className={cls} aria-hidden="true">
+            {cls.includes("progress") ? "12%" : ""}
+          </span>
+          <span className="rm-legend-text">
+            <strong>{name}</strong> — {text}
+          </span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
 function Tile({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
     <div className="tb-summary-tile">
@@ -199,12 +225,17 @@ function Tile({ label, value, sub }: { label: string; value: string; sub?: strin
   );
 }
 
+const THIS_YEAR = new Date().getFullYear();
+const YEARS = Array.from({ length: THIS_YEAR - 1990 + 1 }, (_, i) => String(THIS_YEAR - i)); // newest first
+
 export function RangeAnalysisPage() {
-  // The stock and dates live in the URL, so a refresh or a shared link shows the same sheet.
+  // The stock and period live in the URL, so a refresh or a shared link keeps them. Nothing runs on its own:
+  // the sheet is built only when "Run Backtest" is pressed (2026-11-21, user request).
   const [params, setParams] = useSearchParams();
   const symbol = (params.get("symbol") ?? "").toUpperCase();
-  const from = params.get("from") ?? "";
-  const to = params.get("to") ?? "";
+  const mode: "inception" | "years" = params.get("range") === "years" ? "years" : "inception";
+  const fromYear = params.get("fy") ?? String(THIS_YEAR - 10);
+  const toYear = params.get("ty") ?? String(THIS_YEAR);
   const [table, setTable] = useState<RangeTable | null>(null);
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -224,12 +255,14 @@ export function RangeAnalysisPage() {
     );
   }
 
-  async function run(sym = symbol, f = from, t = to) {
-    if (!sym) return;
+  const invalidRange = mode === "years" && Number(fromYear) > Number(toYear);
+
+  async function run() {
+    if (!symbol || invalidRange) return;
     setError(null);
     setLoading(true);
     try {
-      setTable(await fetchRangeTable(sym, f, t));
+      setTable(await fetchRangeTable(symbol, mode === "years" ? `${fromYear}-01` : "", mode === "years" ? `${toYear}-12` : ""));
     } catch (e) {
       setTable(null);
       setError(e instanceof Error ? e.message : String(e));
@@ -238,13 +271,6 @@ export function RangeAnalysisPage() {
     }
   }
 
-  // A link or refresh with a stock already chosen shows its sheet straight away.
-  useEffect(() => {
-    if (symbol) void run();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const invalidRange = Boolean(from && to && from > to);
   const ov = table?.overall;
 
   return (
@@ -262,36 +288,59 @@ export function RangeAnalysisPage() {
           <InstrumentSearch
             value={symbol}
             onPick={(s) => {
+              // choosing a stock only fills it in; the data is fetched when "Run Backtest" is pressed
               setParam({ symbol: s });
-              void run(s, from, to);
+              setTable(null);
+              setError(null);
             }}
           />
           <div className="tb-field">
-            <label>
-              From (month)
-              <input type="month" value={from} max={to || undefined} onChange={(e) => setParam({ from: e.target.value })} />
-            </label>
+            <span className="rm-field-label">Period</span>
+            <div className="rm-seg" role="group" aria-label="Period">
+              <button type="button" className={mode === "inception" ? "active" : ""} onClick={() => setParam({ range: "" })}>
+                Since inception
+              </button>
+              <button
+                type="button"
+                className={mode === "years" ? "active" : ""}
+                onClick={() => setParam({ range: "years", fy: fromYear, ty: toYear })}
+              >
+                Year to year
+              </button>
+            </div>
           </div>
-          <div className="tb-field">
-            <label>
-              To (month)
-              <input type="month" value={to} min={from || undefined} onChange={(e) => setParam({ to: e.target.value })} />
-            </label>
-          </div>
+          {mode === "years" && (
+            <>
+              <div className="tb-field">
+                <label>
+                  From year
+                  <select value={fromYear} onChange={(e) => setParam({ fy: e.target.value })}>
+                    {YEARS.map((y) => (
+                      <option key={y} value={y}>
+                        {y}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <div className="tb-field">
+                <label>
+                  To year
+                  <select value={toYear} onChange={(e) => setParam({ ty: e.target.value })}>
+                    {YEARS.map((y) => (
+                      <option key={y} value={y}>
+                        {y}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            </>
+          )}
         </div>
         <div className="tb-actions" style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 12 }}>
           <button className="primary-button" onClick={() => void run()} disabled={!symbol || loading || invalidRange}>
-            {loading ? "Building the sheet…" : "Analyse"}
-          </button>
-          <button
-            className="secondary-button"
-            onClick={() => {
-              setParam({ from: "", to: "" });
-              void run(symbol, "", "");
-            }}
-            disabled={!symbol || loading || (!from && !to)}
-          >
-            All data
+            {loading ? "Running…" : "Run Backtest"}
           </button>
           <button
             className="secondary-button"
@@ -306,8 +355,13 @@ export function RangeAnalysisPage() {
           >
             {exporting ? "Preparing…" : "Download Excel"}
           </button>
-          {invalidRange && <span className="tb-config-hint">"From" is after "To".</span>}
-          {!symbol && <span className="tb-config-hint">Search a stock or index to start.</span>}
+          {invalidRange && <span className="tb-config-hint">"From year" is after "To year".</span>}
+          {!symbol && <span className="tb-config-hint">Search a stock or index, then press Run Backtest.</span>}
+          {symbol && !table && !loading && !invalidRange && (
+            <span className="tb-config-hint">
+              {symbol} · {mode === "years" ? `${fromYear} to ${toYear}` : "since inception"} — press Run Backtest to build the sheet.
+            </span>
+          )}
         </div>
       </div>
 
@@ -355,6 +409,7 @@ export function RangeAnalysisPage() {
           </div>
 
           <div className="card">
+            <RangeLegend />
             <RangeSheet table={table} />
             <p className="muted small" style={{ marginTop: 10, marginBottom: 0 }}>
               Up month (closed at or above the previous month&apos;s close): (High − Low) / Low. Down month: (High − Low) /
