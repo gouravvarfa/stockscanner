@@ -1,140 +1,566 @@
 """
-PDF of the Weekly Sectors report, laid out like the weekly market-education report the user shares: a navy cover,
-"this week at a glance" with automatically written insights, sector rankings with bars, a scorecard with the
-daily / weekly / monthly RSI verdict, one page per sector with colour-coded signals, top movers, laggards, the four
-study buckets and the method + disclaimer. Built with reportlab from the report the page already shows.
+PDF of the Weekly Sectors report (2026-11-21, premium + interactive redesign).
+
+Look: a quiet, editorial layout - white pages, one navy ink with a thin gold accent, hairline rules instead of filled
+boxes, colour only on the numbers that carry meaning (gains, losses, verdicts).
+
+Smart parts (all real PDF links, they work in any PDF viewer):
+- a Contents page of buttons (every section, and every sector with its verdict and 1W return),
+- a CONTENTS button at the top of every page, and a bookmarks sidebar,
+- sector names everywhere (rankings, scorecard, momentum map, leaders, buckets) jump to that sector,
+- every stock symbol opens its chart on TradingView; a Chart button beside each sector opens its index,
+- a momentum map (each sector's 1W and 1M return against the Nifty 50, in four quadrants) and
+  breadth bars (how many stocks in each sector lead, turn up, fade or lag).
+
+Pages: cover, contents, at a glance, rankings + breadth, scorecard + momentum map, every sector flowing one after the
+other, leaders, laggards, study buckets, method + disclaimer. Built with reportlab from the report the page shows.
 """
 from __future__ import annotations
 
 import datetime as dt
 import io
 from xml.sax.saxutils import escape as esc
+from xml.sax.saxutils import quoteattr
 
 from reportlab.lib import colors
-from reportlab.lib.enums import TA_LEFT
+from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import mm
-from reportlab.platypus import (BaseDocTemplate, Flowable, Frame, KeepTogether, PageBreak, PageTemplate, Paragraph,
-                                Spacer, Table, TableStyle)
+from reportlab.pdfbase.pdfmetrics import stringWidth
+from reportlab.platypus import (BaseDocTemplate, CondPageBreak, Flowable, Frame, KeepTogether, NextPageTemplate,
+                                PageBreak, PageTemplate, Paragraph, Spacer, Table, TableStyle)
 
 W, H = A4
-M = 16 * mm
+M = 18 * mm
 CONTENT_W = W - 2 * M
+TOP = 24 * mm      # room for the running header
+BOTTOM = 20 * mm   # room for the footer
 
-NAVY = colors.HexColor("#15315A")
-NAVY_SUB = colors.HexColor("#9DB1D1")
-INK = colors.HexColor("#1B2638")
-MUTED = colors.HexColor("#5B677D")
-LINE = colors.HexColor("#D9DFE8")
-SOFT = colors.HexColor("#EEF1F6")
-GREEN, GREEN_BG, GREEN_INK = colors.HexColor("#1E9E5A"), colors.HexColor("#E3F3E6"), colors.HexColor("#17703A")
-RED, RED_BG, RED_INK = colors.HexColor("#D2453D"), colors.HexColor("#FBE3E1"), colors.HexColor("#A42A22")
-AMBER, AMBER_BG, AMBER_INK = colors.HexColor("#E0A12B"), colors.HexColor("#FBF0D3"), colors.HexColor("#8A5A00")
-BLUE, BLUE_BG, BLUE_INK = colors.HexColor("#2F6DB5"), colors.HexColor("#DCE8F7"), colors.HexColor("#1F4E8C")
-SIGNAL = {"Leader": (GREEN_BG, GREEN_INK), "Turning up": (BLUE_BG, BLUE_INK), "Fading": (AMBER_BG, AMBER_INK),
-          "Laggard": (RED_BG, RED_INK), "N/A": (SOFT, MUTED)}
-VERDICT = {"STRONG": (GREEN_BG, GREEN_INK), "MIXED": (AMBER_BG, AMBER_INK), "WEAK": (RED_BG, RED_INK), "N/A": (SOFT, MUTED)}
-FOOTER = "A Group Scanner  |  Weekly Sector Report  |  Educational only, not investment advice"
+NAVY = colors.HexColor("#0B1F3A")       # cover
+NAVY_2 = colors.HexColor("#1C3359")     # bars
+GOLD = colors.HexColor("#B8955A")       # the one accent: kickers and thin rules
+INK = colors.HexColor("#111827")
+MUTED = colors.HexColor("#6B7280")
+FAINT = colors.HexColor("#9CA3AF")
+HAIR = colors.HexColor("#E5E7EB")
+AXIS = colors.HexColor("#CBD5E1")
+TINT = colors.HexColor("#F7F8FA")
+POS, POS_BG = colors.HexColor("#0F7B4F"), colors.HexColor("#E9F6EF")
+NEG, NEG_BG = colors.HexColor("#B42318"), colors.HexColor("#FCEEEC")
+AMB, AMB_BG = colors.HexColor("#A15C07"), colors.HexColor("#FDF3E1")
+BLU, BLU_BG = colors.HexColor("#1D4E89"), colors.HexColor("#EAF1FA")
+SIGNALS = ["Leader", "Turning up", "Fading", "Laggard"]
+SIGNAL = {"Leader": POS, "Turning up": BLU, "Fading": AMB, "Laggard": NEG, "N/A": FAINT}
+VERDICT = {"STRONG": (POS_BG, POS), "MIXED": (AMB_BG, AMB), "WEAK": (NEG_BG, NEG), "N/A": (TINT, MUTED)}
+
+# TradingView symbols of the sector indices (the Chart button beside each sector).
+TV_INDEX = {"NIFTY PSU BANK": "CNXPSUBANK", "BANKNIFTY": "BANKNIFTY", "FINNIFTY": "CNXFINANCE", "NIFTY REALTY": "CNXREALTY",
+            "NIFTY INFRA": "CNXINFRA", "NIFTY PHARMA": "CNXPHARMA", "NIFTY MEDIA": "CNXMEDIA", "NIFTY IT": "CNXIT",
+            "NIFTY AUTO": "CNXAUTO", "NIFTY FMCG": "CNXFMCG", "NIFTY METAL": "CNXMETAL", "NIFTY ENERGY": "CNXENERGY",
+            "NIFTY": "NIFTY"}
 
 
 def _style(name, size=10, leading=None, color=INK, bold=False, align=TA_LEFT, space_after=0):
     return ParagraphStyle(name, fontName="Helvetica-Bold" if bold else "Helvetica", fontSize=size,
-                          leading=leading or size * 1.32, textColor=color, alignment=align, spaceAfter=space_after)
+                          leading=leading or size * 1.38, textColor=color, alignment=align, spaceAfter=space_after)
 
 
-S_BODY = _style("body", 10.5, color=INK)
-S_SMALL = _style("small", 8.5, color=MUTED)
-S_CELL = _style("cell", 9, color=INK)
-S_CELL_B = _style("cellb", 9, color=INK, bold=True)
-S_H2 = _style("h2", 12.5, color=NAVY, bold=True, space_after=4)
-S_INSIGHT_T = _style("it", 12, color=NAVY, bold=True)
-S_INSIGHT = _style("ib", 10.5, color=INK)
+S_TITLE = _style("title", 21, leading=25, color=INK, bold=True)
+S_SUB = _style("sub", 9.5, color=MUTED)
+S_BODY = _style("body", 9.8, leading=14.5, color=INK)
+S_SMALL = _style("small", 8, leading=11, color=MUTED)
+S_CELL = _style("cell", 8.8, color=INK)
+S_CELL_M = _style("cellm", 8, color=MUTED)
+S_NUM = _style("num", 8.8, align=TA_RIGHT)
+S_H3 = _style("h3", 13, leading=16, color=INK, bold=True)
+S_LABEL = _style("label", 7, leading=9, color=MUTED, bold=True)
+S_INS_T = _style("inst", 10.5, leading=14, color=INK, bold=True)
+S_INS = _style("ins", 9.5, leading=13.5, color=MUTED)
 
 
 def pct(v, digits=2) -> str:
     return "n/a" if v is None else f"{v:+.{digits}f}"
 
 
-def nice_date(iso) -> str:
+def pctp(v) -> str:
+    """A return with its % sign, or n/a."""
+    return "n/a" if v is None else f"{v:+.2f}%"
+
+
+def rank(v) -> str:
+    return f"#{v}" if v else ""
+
+
+def nice_date(iso, fmt="%d %b %Y") -> str:
     try:
-        return dt.date.fromisoformat(iso).strftime("%d %b %Y")
+        return dt.date.fromisoformat(iso).strftime(fmt)
     except (TypeError, ValueError):
         return str(iso)
 
 
 def colour_of(v) -> colors.Color:
-    return MUTED if v is None else GREEN_INK if v > 0 else RED_INK if v < 0 else INK
+    return MUTED if v is None else POS if v > 0 else NEG if v < 0 else INK
+
+
+def hexof(c: colors.Color) -> str:
+    return "#" + c.hexval()[2:]
+
+
+def num(v, suffix="", bold=False) -> str:
+    """A coloured number for a Paragraph (green up, red down)."""
+    txt = f"{pct(v)}{suffix if v is not None else ''}"
+    return f"<font color='{hexof(colour_of(v))}'>{'<b>' + txt + '</b>' if bold else txt}</font>"
+
+
+def sec_key(key: str) -> str:
+    return f"sec_{key}"
+
+
+def sector_link(label: str, key: str | None, bold: bool = True) -> str:
+    """A sector name that jumps to its section (plain text when there is no section to jump to)."""
+    text = f"<b>{esc(label)}</b>" if bold else esc(label)
+    return f"<a href='#{sec_key(key)}' color='{hexof(INK)}'>{text}</a>" if key else text
+
+
+def tv_url(symbol: str) -> str:
+    return "https://www.tradingview.com/chart/?symbol=NSE:" + symbol.replace("&", "_").replace("-", "_")
+
+
+def stock_link(symbol: str, bold: bool = True) -> str:
+    """A stock symbol that opens its chart on TradingView."""
+    text = f"<b>{esc(symbol)}</b>" if bold else esc(symbol)
+    return f"<a href={quoteattr(tv_url(symbol))} color='{hexof(INK)}'>{text}</a>"
+
+
+def spaced(canvas, x, y, text, font="Helvetica-Bold", size=7, color=MUTED, space=1.3, right=False) -> float:
+    """Letter-spaced label text on the canvas; returns its width."""
+    width = stringWidth(text, font, size) + space * (len(text) - 1)
+    t = canvas.beginText(x - width if right else x, y)
+    t.setFont(font, size)
+    t.setCharSpace(space)
+    t.setFillColor(color)
+    t.textOut(text)
+    t.setCharSpace(0)  # the PDF text state outlives the text object: reset it, or every later string is spaced too
+    canvas.drawText(t)
+    return width
+
+
+def _fit(text: str, font: str, size: float, max_w: float) -> str:
+    """Shorten text with an ellipsis until it fits `max_w` points."""
+    if stringWidth(text, font, size) <= max_w:
+        return text
+    while len(text) > 2 and stringWidth(text + "…", font, size) > max_w:
+        text = text[:-1]
+    return text.rstrip() + "…"
+
+
+# ---- flowables ----------------------------------------------------------------------------------------------------
+
+class Anchor(Flowable):
+    """An invisible jump target, also listed in the PDF's bookmarks sidebar when `title` is given."""
+
+    def __init__(self, key: str, title: str | None = None, level: int = 0):
+        super().__init__()
+        self.key, self.title, self.level = key, title, level
+
+    def wrap(self, aw, ah):
+        return 0, 0
+
+    def draw(self):
+        self.canv.bookmarkHorizontal(self.key, 0, 14)
+        if self.title:
+            self.canv.addOutlineEntry(self.title, self.key, level=self.level, closed=self.key == "sectors")
+
+
+class Kicker(Flowable):
+    """A short gold rule and a letter-spaced label above a section title."""
+
+    def __init__(self, text: str, color=GOLD):
+        super().__init__()
+        self.text, self.color = text.upper(), color
+
+    def wrap(self, aw, ah):
+        return aw, 12
+
+    def draw(self):
+        self.canv.setStrokeColor(self.color)
+        self.canv.setLineWidth(1.2)
+        self.canv.line(0, 4.2, 9 * mm, 4.2)
+        spaced(self.canv, 11.5 * mm, 1.8, self.text, size=7, color=self.color, space=1.4)
+
+
+class Button(Flowable):
+    """A rounded, clickable button: jumps inside the PDF (`dest`) or opens a web page (`url`)."""
+
+    def __init__(self, width: float, height: float, title: str, *, dest: str | None = None, url: str | None = None,
+                 meta: str | None = None, value: str | None = None, value_color=INK, accent=None, small: bool = False):
+        super().__init__()
+        self.width, self.height = width, height
+        self.title, self.dest, self.url, self.meta = title, dest, url, meta
+        self.value, self.value_color, self.accent, self.small = value, value_color, accent, small
+
+    def wrap(self, aw, ah):
+        return self.width, self.height
+
+    def draw(self):
+        c, w, h = self.canv, self.width, self.height
+        r = 2.2 if self.small else 3
+        c.setFillColor(colors.white if self.small else TINT)
+        c.setStrokeColor(AXIS if self.small else HAIR)
+        c.setLineWidth(0.6)
+        c.roundRect(0, 0, w, h, r, stroke=1, fill=1)
+        x = 3.2 * mm
+        if self.accent is not None:
+            c.setFillColor(self.accent)
+            c.roundRect(0, 0, 1.6 * mm, h, r, stroke=0, fill=1)
+            c.rect(0.9 * mm, 0, 0.7 * mm, h, stroke=0, fill=1)  # square off the inner edge of the accent strip
+            x = 4.2 * mm
+        if self.small:
+            c.setFillColor(INK)
+            c.setFont("Helvetica-Bold", 6.6)
+            c.drawCentredString(w / 2, h / 2 - 2.3, self.title)
+        else:
+            title_y = h / 2 + (1.2 if self.meta else -3.2)
+            value_w = stringWidth(self.value, "Helvetica-Bold", 9.2) + 3 * mm if self.value else 0
+            if self.value:
+                c.setFillColor(self.value_color)
+                c.setFont("Helvetica-Bold", 9.2)
+                c.drawRightString(w - 3.2 * mm, title_y, self.value)
+            c.setFillColor(INK)
+            c.setFont("Helvetica-Bold", 9.2)
+            c.drawString(x, title_y, _fit(self.title, "Helvetica-Bold", 9.2, w - x - 3.2 * mm - value_w))
+            if self.meta:
+                c.setFillColor(MUTED)
+                c.setFont("Helvetica", 7)
+                c.drawString(x, h / 2 - 8.2, _fit(self.meta, "Helvetica", 7, w - x - 3.2 * mm))
+        if self.dest:
+            c.linkRect("", self.dest, (0, 0, w, h), relative=1, thickness=0)
+        elif self.url:
+            c.linkURL(self.url, (0, 0, w, h), relative=1, thickness=0)
 
 
 class Bar(Flowable):
-    """A horizontal bar for the ranking tables (negative values grow to the left of a zero line)."""
+    """A thin horizontal bar around a zero line (negative values grow to the left)."""
 
-    def __init__(self, value: float | None, max_abs: float, fill, width: float = 70 * mm, height: float = 3.2 * mm):
+    def __init__(self, value: float | None, max_abs: float, width: float, zero_at: float, height: float = 2.6 * mm):
         super().__init__()
-        self.value, self.max_abs, self.fill, self.width, self.height = value, max_abs or 1, fill, width, height
+        self.value, self.max_abs, self.width, self.zero_at, self.height = value, max_abs or 1, width, zero_at, height
 
     def wrap(self, *_):
         return self.width, self.height
 
     def draw(self):
+        c = self.canv
+        zero = self.width * self.zero_at
+        c.setStrokeColor(HAIR)
+        c.setLineWidth(0.6)
+        c.line(zero, -1.2, zero, self.height + 1.2)
         if self.value is None:
             return
-        zero = self.width * 0.18
-        span = self.width - zero
-        length = abs(self.value) / self.max_abs * span
-        self.canv.setFillColor(self.fill)
+        pos_span, neg_span = self.width - zero, zero
         if self.value >= 0:
-            self.canv.rect(zero, 0, max(length, 1.5), self.height, stroke=0, fill=1)
+            c.setFillColor(NAVY_2)
+            c.roundRect(zero, 0, max(self.value / self.max_abs * pos_span, 1.2), self.height, 1, stroke=0, fill=1)
         else:
-            self.canv.rect(zero - min(length, zero), 0, min(length, zero), self.height, stroke=0, fill=1)
+            length = min(abs(self.value) / self.max_abs * pos_span, neg_span)
+            c.setFillColor(NEG)
+            c.roundRect(zero - length, 0, max(length, 1.2), self.height, 1, stroke=0, fill=1)
 
 
-def header_bar(title: str, subtitle: str | None = None) -> Table:
-    content = [Paragraph(title, _style("hb", 16, color=colors.white, bold=True))]
+class StackBar(Flowable):
+    """One sector's breadth: Leader / Turning up / Fading / Laggard counts as one bar split by colour."""
+
+    def __init__(self, counts: dict, width: float, height: float = 3.4 * mm):
+        super().__init__()
+        self.counts, self.width, self.height = counts or {}, width, height
+
+    def wrap(self, *_):
+        return self.width, self.height
+
+    def draw(self):
+        c = self.canv
+        vals = [(self.counts.get(s, 0) or 0, SIGNAL[s]) for s in SIGNALS]
+        total = sum(v for v, _ in vals)
+        c.setFillColor(TINT)
+        c.roundRect(0, 0, self.width, self.height, 1.2, stroke=0, fill=1)
+        if not total:
+            return
+        x = 0.0
+        for v, col in vals:
+            if not v:
+                continue
+            seg = v / total * self.width
+            c.setFillColor(col)
+            c.rect(x, 0, seg, self.height, stroke=0, fill=1)
+            if seg >= 9:
+                c.setFillColor(colors.white)
+                c.setFont("Helvetica-Bold", 6.5)
+                c.drawCentredString(x + seg / 2, self.height / 2 - 2.2, str(v))
+            x += seg
+        c.setStrokeColor(colors.white)  # hairline gaps between the segments
+        c.setLineWidth(0.8)
+        x = 0.0
+        for v, _ in vals[:-1]:
+            x += v / total * self.width
+            if v and x < self.width - 0.5:
+                c.line(x, 0, x, self.height)
+
+
+class Legend(Flowable):
+    """A row of small coloured squares with labels."""
+
+    def __init__(self, items: list[tuple[str, colors.Color]], size: float = 7.4):
+        super().__init__()
+        self.items, self.size = items, size
+
+    def wrap(self, aw, ah):
+        return aw, 10
+
+    def draw(self):
+        c = self.canv
+        x = 0.0
+        for label, col in self.items:
+            c.setFillColor(col)
+            c.roundRect(x, 1.2, 6, 6, 1.2, stroke=0, fill=1)
+            c.setFillColor(MUTED)
+            c.setFont("Helvetica", self.size)
+            c.drawString(x + 9, 1.6, label)
+            x += 9 + stringWidth(label, "Helvetica", self.size) + 14
+
+
+class MomentumMap(Flowable):
+    """Every sector by its 1M (x) and 1W (y) return against the Nifty 50, in four quadrants. Points jump to sectors."""
+
+    def __init__(self, sectors: list[dict], bench: dict, width: float, height: float = 86 * mm):
+        super().__init__()
+        self.width, self.height = width, height
+        b1w, b1m = bench.get("r1w"), bench.get("r1m")
+        self.relative = b1w is not None and b1m is not None
+        self.points = [(s["label"], s.get("key"), s["r1m"] - (b1m if self.relative else 0), s["r1w"] - (b1w if self.relative else 0),
+                        s.get("verdict") or "N/A")
+                       for s in sectors if s.get("r1w") is not None and s.get("r1m") is not None]
+
+    def wrap(self, *_):
+        return self.width, self.height
+
+    @staticmethod
+    def _step(span: float) -> float:
+        for st in (0.5, 1, 2, 2.5, 5, 10, 20, 25, 50, 100):
+            if span / st <= 3:
+                return st
+        return 200
+
+    def draw(self):
+        c = self.canv
+        left, right, bottom, top = 12 * mm, 3 * mm, 10 * mm, 4 * mm
+        pw, ph = self.width - left - right, self.height - bottom - top
+        xs = [p[2] for p in self.points] or [1]
+        ys = [p[3] for p in self.points] or [1]
+        xmax = max(1.0, max(abs(v) for v in xs) * 1.18)
+        ymax = max(1.0, max(abs(v) for v in ys) * 1.18)
+
+        def px(v):
+            return left + (v + xmax) / (2 * xmax) * pw
+
+        def py(v):
+            return bottom + (v + ymax) / (2 * ymax) * ph
+
+        x0, y0 = px(0), py(0)
+        quads = [((x0, y0, left + pw, bottom + ph), colors.HexColor("#F2F9F5"), "LEADING", "right-top"),
+                 ((left, y0, x0, bottom + ph), colors.HexColor("#F4F7FC"), "IMPROVING", "left-top"),
+                 ((x0, bottom, left + pw, y0), colors.HexColor("#FDF8EF"), "WEAKENING", "right-bottom"),
+                 ((left, bottom, x0, y0), colors.HexColor("#FDF5F4"), "LAGGING", "left-bottom")]
+        label_boxes: list[tuple[float, float, float, float]] = []
+        for (ax, ay, bx, by), fill, label, corner in quads:
+            c.setFillColor(fill)
+            c.rect(ax, ay, bx - ax, by - ay, stroke=0, fill=1)
+        for (ax, ay, bx, by), fill, label, corner in quads:
+            lw = stringWidth(label, "Helvetica-Bold", 6.4) + 1.3 * (len(label) - 1)
+            if bx - ax < lw + 6 * mm or by - ay < 7 * mm:
+                continue  # a quadrant too thin to hold its name
+            tx = bx - 2.5 * mm if corner.startswith("right") else ax + 2.5 * mm
+            ty = by - 4.2 * mm if corner.endswith("top") else ay + 2.2 * mm
+            spaced(c, tx, ty, label, size=6.4, color=FAINT, space=1.3, right=corner.startswith("right"))
+            x1 = tx - lw if corner.startswith("right") else tx
+            label_boxes.append((x1 - 1, ty - 1.5, x1 + lw + 1, ty + 7))
+
+        # grid ticks
+        c.setFont("Helvetica", 6.6)
+        c.setFillColor(FAINT)
+        c.setStrokeColor(HAIR)
+        c.setLineWidth(0.4)
+        sx, sy = self._step(xmax), self._step(ymax)
+        k = 1
+        while k * sx < xmax:
+            for v in (k * sx, -k * sx):
+                c.line(px(v), bottom, px(v), bottom + ph)
+                c.drawCentredString(px(v), bottom - 9, f"{v:+g}")
+            k += 1
+        k = 1
+        while k * sy < ymax:
+            for v in (k * sy, -k * sy):
+                c.line(left, py(v), left + pw, py(v))
+                c.drawRightString(left - 3, py(v) - 2.2, f"{v:+g}")
+            k += 1
+        c.drawCentredString(x0, bottom - 9, "0")
+        c.drawRightString(left - 3, y0 - 2.2, "0")
+        c.setStrokeColor(AXIS)
+        c.setLineWidth(0.9)
+        c.line(x0, bottom, x0, bottom + ph)
+        c.line(left, y0, left + pw, y0)
+        c.setStrokeColor(HAIR)
+        c.setLineWidth(0.6)
+        c.rect(left, bottom, pw, ph, stroke=1, fill=0)
+
+        what = "vs Nifty 50, pp" if self.relative else "%"
+        c.setFillColor(MUTED)
+        c.setFont("Helvetica", 7)
+        c.drawCentredString(left + pw / 2, 0.5, f"1-month return ({what})")
+        c.saveState()
+        c.translate(2.6 * mm, bottom + ph / 2)
+        c.rotate(90)
+        c.drawCentredString(0, 0, f"1-week return ({what})")
+        c.restoreState()
+
+        # points first, then labels where they collide with nothing
+        placed = [(label, key, px(xv), py(yv), verdict) for label, key, xv, yv, verdict in self.points]
+        boxes = list(label_boxes) + [(cx - 3.5, cy - 3.5, cx + 3.5, cy + 3.5) for _, _, cx, cy, _ in placed]
+        for label, key, cx, cy, verdict in placed:
+            c.setFillColor(VERDICT.get(verdict, VERDICT["N/A"])[1])
+            c.setStrokeColor(colors.white)
+            c.setLineWidth(0.9)
+            c.circle(cx, cy, 3.1, stroke=1, fill=1)
+        c.setFont("Helvetica-Bold", 7.2)
+        for label, key, cx, cy, verdict in sorted(placed, key=lambda p: (p[3], p[2])):
+            tw = stringWidth(label, "Helvetica-Bold", 7.2)
+            options = [(cx + 5, cy - 2.4), (cx - 5 - tw, cy - 2.4), (cx - tw / 2, cy + 5), (cx - tw / 2, cy - 10.5),
+                       (cx + 5, cy + 4), (cx + 5, cy - 9), (cx - 5 - tw, cy + 4), (cx - 5 - tw, cy - 9),
+                       (cx + 5, cy + 10), (cx + 5, cy - 15), (cx - 5 - tw, cy + 10), (cx - 5 - tw, cy - 15)]
+            chosen = None
+            for tx, ty in options:
+                box = (tx - 1, ty - 1.5, tx + tw + 1, ty + 7)
+                inside = box[0] >= left + 1 and box[2] <= left + pw - 1 and box[1] >= bottom + 1 and box[3] <= bottom + ph - 1
+                if inside and not any(box[0] < b[2] and box[2] > b[0] and box[1] < b[3] and box[3] > b[1] for b in boxes):
+                    chosen = (tx, ty, box)
+                    break
+            if chosen is None:  # very crowded: keep it inside the plot, next to its point
+                tx = min(max(cx + 5, left + 2), left + pw - tw - 2)
+                ty = min(max(cy - 2.4, bottom + 2), bottom + ph - 8)
+                chosen = (tx, ty, (tx - 1, ty - 1.5, tx + tw + 1, ty + 7))
+            tx, ty, box = chosen
+            boxes.append(box)
+            c.setFillColor(INK)
+            c.drawString(tx, ty, label)
+            if key:
+                c.linkRect("", sec_key(key), (min(cx - 4, box[0]), min(cy - 4, box[1]), max(cx + 4, box[2]), max(cy + 4, box[3])),
+                           relative=1, thickness=0)
+
+
+# ---- building blocks ----------------------------------------------------------------------------------------------
+
+def section(kicker: str, title: str, subtitle: str | None = None, anchor: str | None = None, outline: str | None = None) -> list:
+    out: list = [Anchor(anchor, outline)] if anchor else []
+    out += [Kicker(kicker), Spacer(1, 5), Paragraph(title, S_TITLE)]
     if subtitle:
-        content.append(Paragraph(subtitle, _style("hs", 9.5, color=NAVY_SUB)))
-    t = Table([[content]], colWidths=[CONTENT_W])
-    t.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, -1), NAVY), ("LEFTPADDING", (0, 0), (-1, -1), 12),
-                           ("TOPPADDING", (0, 0), (-1, -1), 10), ("BOTTOMPADDING", (0, 0), (-1, -1), 10)]))
+        out += [Spacer(1, 3), Paragraph(subtitle, S_SUB)]
+    return out + [Spacer(1, 12)]
+
+
+def pill(text: str, bg, ink, width: float = 19 * mm) -> Table:
+    t = Table([[Paragraph(f"<b>{esc(text)}</b>", _style("pill", 7.2, leading=8.5, color=ink, align=TA_CENTER))]], colWidths=[width])
+    t.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, -1), bg), ("ROUNDEDCORNERS", [3, 3, 3, 3]),
+                           ("TOPPADDING", (0, 0), (-1, -1), 2.2), ("BOTTOMPADDING", (0, 0), (-1, -1), 2.6),
+                           ("LEFTPADDING", (0, 0), (-1, -1), 2), ("RIGHTPADDING", (0, 0), (-1, -1), 2)]))
     return t
 
 
-def kpi_strip(items: list[tuple[str, str, colors.Color]]) -> Table:
-    cells = [[Paragraph(label, _style("kl", 8, color=MUTED)), Paragraph(value, _style("kv", 15, color=col, bold=True))]
-             for label, value, col in items]
-    t = Table([cells], colWidths=[CONTENT_W / len(items)] * len(items))
-    t.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, -1), SOFT), ("LINEAFTER", (0, 0), (-2, -1), 3, colors.white),
-                           ("VALIGN", (0, 0), (-1, -1), "TOP"), ("TOPPADDING", (0, 0), (-1, -1), 7),
-                           ("BOTTOMPADDING", (0, 0), (-1, -1), 8), ("LEFTPADDING", (0, 0), (-1, -1), 8)]))
+def verdict_pill(v: str | None) -> Table:
+    bg, ink = VERDICT.get(v or "N/A", VERDICT["N/A"])
+    return pill(v or "N/A", bg, ink)
+
+
+def signal_txt(sig: str) -> Paragraph:
+    c = hexof(SIGNAL.get(sig, FAINT))
+    return Paragraph(f"<font color='{c}' size=11>•</font> <font color='{c}'><b>{esc(sig)}</b></font>", _style("sig", 8.6))
+
+
+def kpis(items: list[tuple[str, str, str]]) -> Table:
+    """Headline numbers: a thin ink rule on top, a small label, a large value and a quiet note."""
+    gap = 5 * mm
+    n = len(items)
+    cw = (CONTENT_W - gap * (n - 1)) / n
+    row, widths = [], []
+    for i, (label, value, note) in enumerate(items):
+        if i:
+            row.append("")
+            widths.append(gap)
+        row.append([Paragraph(label.upper(), S_LABEL), Spacer(1, 4), Paragraph(value, _style("kv", 17, leading=20, bold=True)),
+                    Spacer(1, 2), Paragraph(note, S_SMALL)])
+        widths.append(cw)
+    t = Table([row], colWidths=widths)
+    style = [("VALIGN", (0, 0), (-1, -1), "TOP"), ("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+             ("TOPPADDING", (0, 0), (-1, -1), 8), ("BOTTOMPADDING", (0, 0), (-1, -1), 0)]
+    for i in range(0, len(row), 2):
+        style.append(("LINEABOVE", (i, 0), (i, 0), 1.1, INK))
+    t.setStyle(TableStyle(style))
     return t
 
 
-def note_box(html: str) -> Table:
-    t = Table([[Paragraph(html, S_BODY)]], colWidths=[CONTENT_W])
-    t.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, -1), SOFT), ("LEFTPADDING", (0, 0), (-1, -1), 10),
+def table(rows: list[list], widths: list[float], extra: list | None = None, right_from: int = 1, left_cols: tuple = (),
+          pad: float = 4.6) -> Table:
+    """Hairline table: small muted header over an ink rule, hairlines between rows, numbers right-aligned
+    (columns from `right_from` on, except `left_cols`)."""
+    head = [Paragraph(str(h).upper(), _style("th", 6.8, leading=8.5, color=MUTED, bold=True,
+                                             align=TA_RIGHT if i >= right_from and i not in left_cols else TA_LEFT))
+            if isinstance(h, str) else h for i, h in enumerate(rows[0])]
+    t = Table([head] + rows[1:], colWidths=widths, repeatRows=1)
+    t.setStyle(TableStyle([
+        ("FONTNAME", (0, 1), (-1, -1), "Helvetica"), ("FONTSIZE", (0, 1), (-1, -1), 8.8), ("TEXTCOLOR", (0, 1), (-1, -1), INK),
+        ("LINEBELOW", (0, 0), (-1, 0), 0.9, INK), ("LINEBELOW", (0, 1), (-1, -1), 0.4, HAIR),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"), ("ALIGN", (right_from, 1), (-1, -1), "RIGHT"),
+        ("TOPPADDING", (0, 0), (-1, -1), pad), ("BOTTOMPADDING", (0, 0), (-1, -1), pad),
+        ("LEFTPADDING", (0, 0), (-1, -1), 3), ("RIGHTPADDING", (0, 0), (-1, -1), 3),
+        ("BOTTOMPADDING", (0, 0), (-1, 0), 5),
+    ] + (extra or [])))
+    return t
+
+
+def quiet_box(html: str) -> Table:
+    t = Table([[Paragraph(html, _style("qb", 8.8, leading=13, color=MUTED))]], colWidths=[CONTENT_W])
+    t.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, -1), TINT), ("LINEBEFORE", (0, 0), (0, -1), 1.6, GOLD),
+                           ("LEFTPADDING", (0, 0), (-1, -1), 11), ("RIGHTPADDING", (0, 0), (-1, -1), 11),
                            ("TOPPADDING", (0, 0), (-1, -1), 8), ("BOTTOMPADDING", (0, 0), (-1, -1), 9)]))
     return t
 
 
-def grid(rows: list[list], widths: list[float], extra: list | None = None, zebra: bool = False) -> Table:
-    t = Table(rows, colWidths=widths, repeatRows=1)
-    style = [
-        ("BACKGROUND", (0, 0), (-1, 0), NAVY), ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"), ("FONTSIZE", (0, 0), (-1, -1), 9),
-        ("LINEBELOW", (0, 1), (-1, -1), 0.5, LINE), ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("TOPPADDING", (0, 0), (-1, -1), 4.2), ("BOTTOMPADDING", (0, 0), (-1, -1), 4.2),
-        ("ALIGN", (1, 0), (-1, -1), "CENTER"),
-    ]
-    if zebra:
-        style.append(("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F7F9FC")]))
-    t.setStyle(TableStyle(style + (extra or [])))
+def button_grid(buttons: list[Button], cols: int, gap: float = 4 * mm) -> Table:
+    widths: list[float] = []
+    for c in range(cols):
+        if c:
+            widths.append(gap)
+        widths.append((CONTENT_W - gap * (cols - 1)) / cols)
+    rows = []
+    for i in range(0, len(buttons), cols):
+        row: list = []
+        for j, b in enumerate(buttons[i:i + cols]):
+            if j:
+                row.append("")
+            row.append(b)
+        while len(row) < len(widths):
+            row.append("")
+        rows.append(row)
+    t = Table(rows or [[""] * len(widths)], colWidths=widths)
+    t.setStyle(TableStyle([("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                           ("TOPPADDING", (0, 0), (-1, -1), 0), ("BOTTOMPADDING", (0, 0), (-1, -1), gap * 0.75),
+                           ("VALIGN", (0, 0), (-1, -1), "TOP")]))
     return t
 
 
 def insights(report: dict) -> list[tuple[str, str]]:
     secs = report.get("sectors", [])
     s = report.get("summary", {})
+    b = report.get("benchmark", {}) or {}
     out: list[tuple[str, str]] = []
     strong = s.get("strong_sectors") or []
     if strong:
@@ -147,7 +573,12 @@ def insights(report: dict) -> list[tuple[str, str]]:
         top = min(ranked, key=lambda x: (x["rank_1w"] + x["rank_1m"]) / 2)
         both = " - #1 on both 1W and 1M" if top["rank_1w"] == 1 and top["rank_1m"] == 1 else ""
         out.append((f"{top['label']} leads{both}",
-                    f"{top['label']} returned {pct(top['r1w'])}% over the week (#{top['rank_1w']}) and {pct(top['r1m'])}% over the month (#{top['rank_1m']})."))
+                    f"{top['label']} returned {pctp(top['r1w'])} over the week (#{top['rank_1w']}) and {pctp(top['r1m'])} over the month (#{top['rank_1m']})."))
+        if b.get("r1w") is not None and b.get("r1m") is not None:
+            beat = [x["label"] for x in ranked if x["r1w"] > b["r1w"] and x["r1m"] > b["r1m"]]
+            out.append((f"{len(beat)} of {len(ranked)} sectors beat the Nifty 50 on both horizons",
+                        (f"{', '.join(beat)} returned more than the Nifty 50 ({pctp(b['r1w'])} 1W, {pctp(b['r1m'])} 1M) over the week and the month."
+                         if beat else f"No sector beat the Nifty 50 ({pctp(b['r1w'])} 1W, {pctp(b['r1m'])} 1M) over both the week and the month.")))
         swing = max(ranked, key=lambda x: abs(x["rank_1w"] - x["rank_1m"]))
         if abs(swing["rank_1w"] - swing["rank_1m"]) >= 4:
             better = "the week" if swing["rank_1w"] < swing["rank_1m"] else "the month"
@@ -155,14 +586,14 @@ def insights(report: dict) -> list[tuple[str, str]]:
                         f"#{swing['rank_1w']} on 1W but #{swing['rank_1m']} on 1M - stronger over {better}. Check both horizons."))
         last = max(ranked, key=lambda x: (x["rank_1w"] + x["rank_1m"]) / 2)
         out.append((f"{last['label']} is the weakest",
-                    f"{pct(last['r1w'])}% on the week (#{last['rank_1w']}) and {pct(last['r1m'])}% on the month (#{last['rank_1m']})."))
+                    f"{pctp(last['r1w'])} on the week (#{last['rank_1w']}) and {pctp(last['r1m'])} on the month (#{last['rank_1m']})."))
     movers = report.get("top_movers") or []
     if movers:
         a = movers[0]
         txt = f"{a['symbol']} beats {a['sector']} by {pct(a['vs1w'])}pp (1W) and {pct(a['vs1m'])}pp (1M)"
         if len(movers) > 1:
-            b = movers[1]
-            txt += f"; {b['symbol']} beats {b['sector']} by {pct(b['vs1w'])}pp and {pct(b['vs1m'])}pp"
+            m2 = movers[1]
+            txt += f"; {m2['symbol']} beats {m2['sector']} by {pct(m2['vs1w'])}pp and {pct(m2['vs1m'])}pp"
         out.append(("Stock-level edge", txt + "."))
     out = [(esc(t), esc(x)) for t, x in out]
     out.append(("Breadth", f"{s.get('leaders')} of {s.get('rows')} stock rows beat their sector on both 1W and 1M; "
@@ -170,220 +601,351 @@ def insights(report: dict) -> list[tuple[str, str]]:
     return out
 
 
+# ---- page furniture -----------------------------------------------------------------------------------------------
+
 def _cover(canvas, doc, report: dict) -> None:
-    canvas.saveState()
-    canvas.setFillColor(NAVY)
-    canvas.rect(0, 0, W, H, stroke=0, fill=1)
-    x = M + 4
-    canvas.setFillColor(colors.white)
-    canvas.setFont("Helvetica-Bold", 34)
-    for i, line in enumerate(["Sector & Stock", "Relative Strength", "Report"]):
-        canvas.drawString(x, H * 0.66 - i * 42, line)
-    canvas.setFillColor(NAVY_SUB)
-    canvas.setFont("Helvetica", 15)
+    s = report.get("summary", {})
+    b = report.get("benchmark", {}) or {}
+    secs = report.get("sectors", [])
+    c = canvas
+    c.saveState()
+    c.showOutline()
+    c.setFillColor(NAVY)
+    c.rect(0, 0, W, H, stroke=0, fill=1)
+    x = M + 2
+    spaced(c, x, H - 30 * mm, "A GROUP SCANNER", size=8, color=GOLD, space=2.2)
+    spaced(c, W - M, H - 30 * mm, "WEEKLY", size=8, color=colors.HexColor("#8EA3C4"), space=2.2, right=True)
+
+    c.setFillColor(colors.white)
+    c.setFont("Helvetica-Bold", 38)
+    c.drawString(x, H * 0.60, "Weekly Sector")
+    c.drawString(x, H * 0.60 - 44, "Report")
+    c.setStrokeColor(GOLD)
+    c.setLineWidth(1.4)
+    c.line(x, H * 0.60 - 66, x + 26 * mm, H * 0.60 - 66)
+    c.setFillColor(colors.HexColor("#C9D4E6"))
+    c.setFont("Helvetica", 13)
+    c.drawString(x, H * 0.60 - 90, "Sector and stock relative strength")
     end = report.get("end_date") or report.get("as_of")
-    try:
-        end_txt = dt.date.fromisoformat(end).strftime("%d %b %Y")
-    except (TypeError, ValueError):
-        end_txt = str(end)
-    canvas.drawString(x, H * 0.66 - 3 * 42 - 6, "Weekly market education report")
-    canvas.drawString(x, H * 0.66 - 3 * 42 - 26, f"Week ending {end_txt}")
-    canvas.setFillColor(colors.white)
-    canvas.setFont("Helvetica-Bold", 16)
-    canvas.drawString(x, H * 0.36, "A Group Scanner")
-    canvas.setFillColor(NAVY_SUB)
-    canvas.setFont("Helvetica", 9.5)
-    labels = " · ".join(s["label"] for s in report.get("sectors", []))
-    words, line, y = labels.split(" "), "", H * 0.36 - 20
-    for w_ in words:
-        if canvas.stringWidth(line + " " + w_, "Helvetica", 9.5) > CONTENT_W - 8:
-            canvas.drawString(x, y, line.strip())
-            y -= 13
-            line = ""
-        line += " " + w_
-    canvas.drawString(x, y, line.strip())
-    canvas.setFont("Helvetica", 8.5)
-    canvas.drawString(x, M + 18, "For educational purposes only. Not investment advice, and not a recommendation to buy, sell or hold")
-    canvas.drawString(x, M + 6, "any security. Data: Angel One daily closes; sector lists: NSE. See the method and disclaimer at the end.")
-    canvas.restoreState()
+    c.drawString(x, H * 0.60 - 108, f"Week ending {nice_date(end, '%d %B %Y')}")
+
+    # an "open contents" button on the cover
+    label = "OPEN CONTENTS"
+    lw = stringWidth(label, "Helvetica-Bold", 7.4) + 1.6 * (len(label) - 1)
+    bw, bh, by = lw + 14 * mm, 10 * mm, H * 0.60 - 150
+    c.setStrokeColor(GOLD)
+    c.setLineWidth(0.9)
+    c.roundRect(x, by, bw, bh, bh / 2, stroke=1, fill=0)
+    spaced(c, x + (bw - lw) / 2, by + bh / 2 - 2.6, label, size=7.4, color=colors.white, space=1.6)
+    c.linkRect("", "contents", (x, by, x + bw, by + bh), relative=0, thickness=0)
+
+    # three headline numbers along the bottom
+    rated = [z for z in secs if z.get("verdict") not in (None, "N/A")]
+    stats = [("TOP SECTOR", str(s.get("top_sector") or "n/a"), f"{pctp(s.get('top_sector_r1w'))} 1W  |  {pctp(s.get('top_sector_r1m'))} 1M"),
+             ("STRONG ON RSI", f"{len(s.get('strong_sectors') or [])} of {len(rated)}", "sectors with D, W, M RSI above 60"),
+             ("NIFTY 50", f"{pctp(b.get('r1w'))}", f"1W  |  {pctp(b.get('r1m'))} 1M")]
+    y = 62 * mm
+    col = (W - 2 * M) / 3
+    c.setStrokeColor(colors.HexColor("#2A4470"))
+    c.setLineWidth(0.6)
+    c.line(x, y + 16 * mm, W - M, y + 16 * mm)
+    for i, (label, value, note) in enumerate(stats):
+        cx = x + i * col
+        spaced(c, cx, y + 8 * mm, label, size=7, color=GOLD, space=1.6)
+        c.setFillColor(colors.white)
+        c.setFont("Helvetica-Bold", 17)
+        value_txt = value
+        while stringWidth(value_txt, "Helvetica-Bold", 17) > col - 6 * mm and len(value_txt) > 4:
+            value_txt = value_txt[:-2].rstrip() + "…"
+        c.drawString(cx, y, value_txt)
+        c.setFillColor(colors.HexColor("#8EA3C4"))
+        c.setFont("Helvetica", 8.5)
+        c.drawString(cx, y - 5.5 * mm, note)
+
+    c.setFillColor(colors.HexColor("#7F93B5"))
+    c.setFont("Helvetica", 7.5)
+    c.drawString(x, 20 * mm, "For educational purposes only. Not investment advice, and not a recommendation to buy, sell or hold any security.")
+    c.drawString(x, 20 * mm - 10, "Data: Angel One daily closes. Sector lists: NSE index constituents. Method and disclaimer on the last page.")
+    c.restoreState()
 
 
-def _page(canvas, doc) -> None:
-    canvas.saveState()
-    canvas.setFillColor(NAVY)
-    canvas.rect(0, H - 5, W, 5, stroke=0, fill=1)
-    canvas.setFont("Helvetica", 8)
-    canvas.setFillColor(MUTED)
-    canvas.drawString(M, 10 * mm, FOOTER)
-    canvas.drawRightString(W - M, 10 * mm, str(doc.page))
-    canvas.restoreState()
+def _page(canvas, doc, report: dict) -> None:
+    c = canvas
+    c.saveState()
+    end = nice_date(report.get("end_date") or report.get("as_of"), "%d %b %Y").upper()
+    y = H - 13 * mm
+    wd = spaced(c, M, y, "WEEKLY SECTOR REPORT", size=6.8, color=INK, space=1.5)
+    spaced(c, M + wd + 10, y, f"WEEK ENDING {end}", size=6.8, color=FAINT, space=1.5)
+    # CONTENTS button, top right of every page
+    label = "CONTENTS"
+    lw = stringWidth(label, "Helvetica-Bold", 6.4) + 1.4 * (len(label) - 1)
+    bw, bh = lw + 7 * mm, 5 * mm
+    bx, by = W - M - bw, y - 1.7 * mm
+    c.setFillColor(TINT)
+    c.setStrokeColor(AXIS)
+    c.setLineWidth(0.6)
+    c.roundRect(bx, by, bw, bh, bh / 2, stroke=1, fill=1)
+    spaced(c, bx + (bw - lw) / 2, by + bh / 2 - 2.2, label, size=6.4, color=INK, space=1.4)
+    c.linkRect("", "contents", (bx, by, bx + bw, by + bh), relative=0, thickness=0)
+    c.setStrokeColor(HAIR)
+    c.setLineWidth(0.5)
+    c.line(M, H - 16.5 * mm, W - M, H - 16.5 * mm)
+    c.line(M, 13.5 * mm, W - M, 13.5 * mm)
+    c.setFillColor(FAINT)
+    c.setFont("Helvetica", 7)
+    c.drawString(M, 9.5 * mm, "A Group Scanner  ·  For education only, not investment advice")
+    c.setFillColor(INK)
+    c.setFont("Helvetica-Bold", 7.5)
+    c.drawRightString(W - M, 9.5 * mm, f"{doc.page:02d}")
+    c.restoreState()
+
+
+# ---- the document -------------------------------------------------------------------------------------------------
+
+def _sector_block(x: dict) -> list:
+    stocks = x.get("stocks", [])
+    n = len(stocks)
+    rsi = x.get("rsi") or {}
+    rsi_txt = "n/a" if rsi.get("d") is None else f"{rsi['d']:.0f} / {rsi['w']:.0f} / {rsi['m']:.0f}"
+    line = "Equal-weight line of its stocks" if x.get("equal_weight") else esc(str(x.get("index_label")))
+    tv = TV_INDEX.get(x.get("index_label") or "")
+    chart = Button(15 * mm, 5.2 * mm, "CHART", url="https://www.tradingview.com/chart/?symbol=NSE:" + tv, small=True) if tv else ""
+    head = Table([[Paragraph(esc(x["label"]), S_H3), chart, verdict_pill(x.get("verdict"))]],
+                 colWidths=[CONTENT_W - 38 * mm, 18 * mm, 20 * mm])
+    head.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "MIDDLE"), ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                              ("RIGHTPADDING", (0, 0), (-1, -1), 0), ("ALIGN", (1, 0), (-1, 0), "RIGHT"),
+                              ("TOPPADDING", (0, 0), (-1, -1), 0), ("BOTTOMPADDING", (0, 0), (-1, -1), 0)]))
+    meta = Paragraph(
+        f"{line}  ·  1W {num(x.get('r1w'), '%', True)} <font color='{hexof(FAINT)}'>{rank(x.get('rank_1w'))}</font>"
+        f"  ·  1M {num(x.get('r1m'), '%', True)} <font color='{hexof(FAINT)}'>{rank(x.get('rank_1m'))}</font>"
+        f"  ·  RSI D/W/M <b>{rsi_txt}</b>  ·  beat the sector: {x.get('beat_1w')}/{n} on 1W, {x.get('beat_1m')}/{n} on 1M",
+        _style("meta", 8.4, leading=12, color=MUTED))
+    out: list = [CondPageBreak(55 * mm), Anchor(sec_key(x["key"]), x["label"], level=1), head, Spacer(1, 3), meta, Spacer(1, 7)]
+    if n:
+        rows = [["Stock", "1W %", "1M %", "vs sector 1W", "vs sector 1M", "Signal"]]
+        for st in stocks:
+            rows.append([Paragraph(stock_link(st["symbol"]), S_CELL), Paragraph(num(st["r1w"]), S_NUM), Paragraph(num(st["r1m"]), S_NUM),
+                         Paragraph(num(st["vs1w"], "", True), S_NUM), Paragraph(num(st["vs1m"], "", True), S_NUM), signal_txt(st["signal"])])
+        out.append(table(rows, [44 * mm, 22 * mm, 22 * mm, 27 * mm, 27 * mm, CONTENT_W - 142 * mm],
+                         [("ALIGN", (5, 0), (5, -1), "LEFT"), ("LEFTPADDING", (5, 0), (5, -1), 12)], right_from=1, left_cols=(5,)))
+    else:
+        out.append(Paragraph("No stock data for this sector this week.", S_SMALL))
+    leaders = [st["symbol"] for st in stocks if st["signal"] == "Leader"]
+    laggards = [st["symbol"] for st in stocks if st["signal"] == "Laggard"]
+    take = (f"<b>Leads on both horizons:</b> {esc(', '.join(leaders[:8])) or 'none'}"
+            + (f"   <b>Trails on both:</b> {esc(', '.join(laggards[:6]))}" if laggards else ""))
+    out += [Spacer(1, 6), Paragraph(take, _style("take", 8.4, leading=12, color=MUTED)), Spacer(1, 16)]
+    return out
 
 
 def build_pdf(report: dict) -> bytes:
     buf = io.BytesIO()
-    doc = BaseDocTemplate(buf, pagesize=A4, leftMargin=M, rightMargin=M, topMargin=M, bottomMargin=18 * mm,
-                          title="Weekly Sector & Stock Relative Strength", author="A Group Scanner")
-    frame = Frame(M, 18 * mm, CONTENT_W, H - M - 18 * mm, id="f", leftPadding=0, rightPadding=0, topPadding=0, bottomPadding=0)
+    doc = BaseDocTemplate(buf, pagesize=A4, leftMargin=M, rightMargin=M, topMargin=TOP, bottomMargin=BOTTOM,
+                          title="Weekly Sector Report", author="A Group Scanner",
+                          subject="Sector and stock relative strength (education only)")
+    frame = Frame(M, BOTTOM, CONTENT_W, H - TOP - BOTTOM, id="f", leftPadding=0, rightPadding=0, topPadding=0, bottomPadding=0)
     doc.addPageTemplates([
         PageTemplate(id="cover", frames=[frame], onPage=lambda c, d: _cover(c, d, report)),
-        PageTemplate(id="page", frames=[frame], onPage=_page),
+        PageTemplate(id="page", frames=[frame], onPage=lambda c, d: _page(c, d, report)),
     ])
     secs = report.get("sectors", [])
     s = report.get("summary", {})
-    b = report.get("benchmark", {})
-    story: list = [Spacer(1, 1)]
-    from reportlab.platypus import NextPageTemplate
-    story += [NextPageTemplate("page"), PageBreak()]
+    b = report.get("benchmark", {}) or {}
+    by_label = {x["label"]: x["key"] for x in secs}
+    story: list = [Spacer(1, 1), NextPageTemplate("page"), PageBreak()]
+
+    # ---- contents: every section and every sector as a button ----
+    story += section("Navigate", "Contents", "Every button is a link. The CONTENTS button at the top of each page brings you back here.",
+                     anchor="contents", outline="Contents")
+    story += [Paragraph("THE REPORT", S_LABEL), Spacer(1, 6)]
+    report_buttons = [("At a glance", "glance", "Headline numbers, findings"), ("Rankings", "rankings", "1W and 1M, with breadth"),
+                      ("Scorecard", "scorecard", "RSI verdicts, momentum map"), ("Sector by sector", "sectors", "Every stock vs its sector"),
+                      ("Leaders", "leaders", "Beat their sector on both"), ("Laggards", "laggards", "Trail their sector on both"),
+                      ("Study buckets", "buckets", "Four lists to study"), ("Method", "method", "Calculation and disclaimer")]
+    bw4 = (CONTENT_W - 3 * 4 * mm) / 4
+    story += [button_grid([Button(bw4, 12.5 * mm, t, dest=d, meta=m) for t, d, m in report_buttons], 4), Spacer(1, 10)]
+    story += [Paragraph("SECTORS  ·  STRONGEST VERDICT FIRST", S_LABEL), Spacer(1, 6)]
+    bw3 = (CONTENT_W - 2 * 4 * mm) / 3
+    sec_buttons = []
+    for x in secs:
+        v = x.get("verdict") or "N/A"
+        ranks = f"#{x.get('rank_1w')} on 1W  ·  #{x.get('rank_1m')} on 1M" if x.get("rank_1w") else "no index data"
+        sec_buttons.append(Button(bw3, 12.5 * mm, x["label"], dest=sec_key(x["key"]), meta=f"{v}  ·  {ranks}",
+                                  value=f"{pctp(x.get('r1w'))}" if x.get("r1w") is not None else None,
+                                  value_color=colour_of(x.get("r1w")), accent=VERDICT.get(v, VERDICT["N/A"])[1]))
+    story += [button_grid(sec_buttons, 3), Spacer(1, 8)]
+    story.append(quiet_box("<b><font color='#111827'>Tips.</font></b> The coloured strip on a sector button is its verdict "
+                           "(green STRONG, amber MIXED, red WEAK) and the number is its 1-week return. In the tables, tap a "
+                           "<b>stock symbol</b> to open its chart on TradingView, a <b>sector name</b> to jump to that sector, "
+                           "and <b>CHART</b> beside a sector to open its index. The bookmarks panel of your PDF viewer lists "
+                           "every section too."))
+    story.append(PageBreak())
 
     # ---- at a glance ----
-    story.append(header_bar("This week at a glance", f"Week ending {nice_date(report.get('end_date'))} | 1-week and 1-month returns | Nifty 50: {pct(b.get('r1w'))}% 1W, {pct(b.get('r1m'))}% 1M"))
-    story.append(Spacer(1, 8))
-    story.append(kpi_strip([
-        ("Top sector (1W + 1M rank)", f"{esc(str(s.get('top_sector')))}<br/><font size=9 color='#5B677D'>{pct(s.get('top_sector_r1w'))}% | {pct(s.get('top_sector_r1m'))}%</font>", NAVY),
-        ("Beat their sector on 1W and 1M", f"{s.get('leaders')} of {s.get('rows')}", GREEN_INK),
-        ("Trail their sector on 1W and 1M", f"{s.get('laggards')} of {s.get('rows')}", RED_INK),
+    story += section("This week", "At a glance",
+                     f"Week ending {nice_date(report.get('end_date'))}. Returns over one week (1W) and one month (1M); "
+                     f"Nifty 50 {pctp(b.get('r1w'))} 1W and {pctp(b.get('r1m'))} 1M.", anchor="glance", outline="At a glance")
+    top_key = by_label.get(s.get("top_sector"))
+    story.append(kpis([
+        ("Top sector", sector_link(str(s.get("top_sector")), top_key, bold=False), f"{pctp(s.get('top_sector_r1w'))} 1W  ·  {pctp(s.get('top_sector_r1m'))} 1M"),
+        ("Beat their sector", f"<font color='{hexof(POS)}'>{s.get('leaders')}</font>", f"of {s.get('rows')} stock rows, on 1W and 1M"),
+        ("Trail their sector", f"<font color='{hexof(NEG)}'>{s.get('laggards')}</font>", f"of {s.get('rows')} stock rows, on 1W and 1M"),
     ]))
-    story.append(Spacer(1, 12))
+    story.append(Spacer(1, 16))
     for i, (title, text) in enumerate(insights(report), start=1):
-        story.append(KeepTogether([Paragraph(f"{i}. {title}", S_INSIGHT_T), Paragraph(text, S_INSIGHT), Spacer(1, 7)]))
-    story.append(Spacer(1, 4))
-    story.append(note_box("<b>How to read:</b> vs 1W / vs 1M = stock return minus its sector's return, in percentage points (pp). "
-                          "<b>Signal:</b> Leader = beats the sector on 1W and 1M; Turning up = 1W only; Fading = 1M only; Laggard = neither. "
-                          "<b>Sector verdict:</b> STRONG = daily, weekly and monthly RSI all above 60; WEAK = all below 40; otherwise MIXED."))
+        row = Table([[Paragraph(f"{i:02d}", _style("no", 10, color=GOLD, bold=True)),
+                      [Paragraph(title, S_INS_T), Spacer(1, 2), Paragraph(text, S_INS)]]], colWidths=[11 * mm, CONTENT_W - 11 * mm])
+        row.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                                 ("RIGHTPADDING", (0, 0), (-1, -1), 0), ("TOPPADDING", (0, 0), (-1, -1), 7),
+                                 ("BOTTOMPADDING", (0, 0), (-1, -1), 8), ("LINEBELOW", (0, 0), (-1, -1), 0.4, HAIR)]))
+        story.append(KeepTogether([row]))
+    story.append(Spacer(1, 14))
+    story.append(quiet_box("<b><font color='#111827'>How to read.</font></b> <b>vs sector</b> = the stock's return minus its "
+                           "sector's return, in percentage points (pp). <b>Signal:</b> Leader beats the sector on 1W and 1M, "
+                           "Turning up on 1W only, Fading on 1M only, Laggard on neither. <b>Verdict:</b> STRONG when the sector "
+                           "index's daily, weekly and monthly RSI(14) are all above 60, WEAK when all are below 40, otherwise MIXED."))
     story.append(PageBreak())
 
-    # ---- rankings ----
-    story.append(header_bar("Sector rankings", "Every sector on the same dates; bars to scale"))
-    for key, title in (("r1w", "1-week ranking"), ("r1m", "1-month ranking")):
-        story.append(Spacer(1, 8))
-        story.append(Paragraph(title, S_H2))
+    # ---- rankings side by side, then breadth ----
+    story += section("Rankings", "Sector returns", "Every sector on the same dates; bars to scale within each column. Tap a sector to open it.",
+                     anchor="rankings", outline="Rankings")
+    half = (CONTENT_W - 8 * mm) / 2
+
+    def ranking(key: str, title: str) -> list:
         ordered = sorted((x for x in secs if x.get(key) is not None), key=lambda x: -x[key])
-        max_abs = max((abs(x[key]) for x in ordered), default=1)
-        n = len(ordered)
-        rows = [["#", "Sector", "Return %", ""]]
-        extra = []
+        max_abs = max((abs(x[key]) for x in ordered), default=1) or 1
+        neg_share = max((abs(x[key]) for x in ordered if x[key] < 0), default=0) / max_abs
+        zero_at = min(0.4, max(0.06, neg_share / (1 + neg_share)))
+        rows = [["#", "Sector", "Return", ""]]
         for i, x in enumerate(ordered, start=1):
-            tier = GREEN if i <= 3 else AMBER if i > n - 2 else BLUE
-            rows.append([str(i), Paragraph(f"<b>{esc(x['label'])}</b>", S_CELL), pct(x[key]), Bar(x[key], max_abs, tier)])
-            extra.append(("TEXTCOLOR", (2, i), (2, i), colour_of(x[key])))
-        story.append(grid(rows, [10 * mm, 50 * mm, 24 * mm, CONTENT_W - 84 * mm], extra + [("ALIGN", (3, 0), (3, -1), "LEFT")]))
-    story.append(Spacer(1, 6))
-    story.append(Paragraph("Green = top 3, blue = middle, amber = bottom 2. Capital Market has no index on Angel One: its line is the equal-weight average of its stocks.", S_SMALL))
-    story.append(PageBreak())
+            rows.append([Paragraph(f"<font color='{hexof(FAINT)}'>{i}</font>", S_CELL), Paragraph(sector_link(x["label"], x["key"]), S_CELL),
+                         Paragraph(num(x[key], "%"), S_NUM), Bar(x[key], max_abs, half - 66 * mm, zero_at)])
+        t = table(rows, [6 * mm, 34 * mm, 17 * mm, half - 57 * mm], [("LEFTPADDING", (3, 0), (3, -1), 9), ("RIGHTPADDING", (3, 0), (3, -1), 0)],
+                  right_from=2, pad=3.2)
+        return [Paragraph(title, _style("rt", 10.5, bold=True)), Spacer(1, 6), t]
 
-    # ---- scorecard ----
-    story.append(header_bar("Sector scorecard", "Verdict from the sector index's daily, weekly and monthly RSI(14)"))
-    story.append(Spacer(1, 8))
-    rows = [["Sector", "1W %", "#", "1M %", "#", "RSI D", "RSI W", "RSI M", "Beat 1W | 1M", "Verdict"]]
-    extra = []
-    for i, x in enumerate(secs, start=1):
+    pair = Table([[ranking("r1w", "One week"), "", ranking("r1m", "One month")]], colWidths=[half, 8 * mm, half])
+    pair.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0)]))
+    story += [pair, Spacer(1, 6),
+              Paragraph("Capital Market has no index on Angel One: its line is the equal-weight average of its stocks.", S_SMALL),
+              Spacer(1, 12)]
+
+    breadth_rows = [["Sector", "", "Beat 1W / 1M"]]
+    for x in secs:
         n = len(x.get("stocks", []))
-        rsi = x.get("rsi") or {}
-        rows.append([Paragraph(f"<b>{esc(x['label'])}</b>", S_CELL), pct(x.get("r1w")), f"#{x.get('rank_1w')}", pct(x.get("r1m")), f"#{x.get('rank_1m')}",
-                     *("n/a" if rsi.get(k) is None else f"{rsi[k]:.1f}" for k in ("d", "w", "m")),
-                     f"{x.get('beat_1w')}/{n} | {x.get('beat_1m')}/{n}", x.get("verdict")])
-        bg, ink = VERDICT.get(x.get("verdict"), VERDICT["N/A"])
-        extra += [("BACKGROUND", (9, i), (9, i), bg), ("TEXTCOLOR", (9, i), (9, i), ink), ("FONTNAME", (9, i), (9, i), "Helvetica-Bold"),
-                  ("TEXTCOLOR", (1, i), (1, i), colour_of(x.get("r1w"))), ("TEXTCOLOR", (3, i), (3, i), colour_of(x.get("r1m")))]
-        for j, k in zip((5, 6, 7), ("d", "w", "m")):
-            v = rsi.get(k)
-            if v is not None:
-                extra.append(("TEXTCOLOR", (j, i), (j, i), GREEN_INK if v > 60 else RED_INK if v < 40 else AMBER_INK))
-    story.append(grid(rows, [36 * mm, 16 * mm, 10 * mm, 17 * mm, 10 * mm, 14 * mm, 14 * mm, 14 * mm, 25 * mm, 22 * mm], extra))
-    story.append(Spacer(1, 10))
-    story.append(note_box("<b>How to use:</b> study the STRONG sectors first, then the stocks that beat their own sector on both horizons. "
-                          "Ranks compare every sector on the same dates; each stock is compared with its own sector line."))
+        breadth_rows.append([Paragraph(sector_link(x["label"], x["key"]), S_CELL), StackBar(x.get("counts", {}), CONTENT_W - 74 * mm),
+                             Paragraph(f"{x.get('beat_1w')}/{n}  ·  {x.get('beat_1m')}/{n}", S_NUM)])
+    story.append(KeepTogether([
+        Paragraph("Breadth inside each sector", _style("bh", 12.5, leading=15, bold=True)), Spacer(1, 3),
+        Paragraph("How many of each sector's stocks lead, turn up, fade or lag against their own sector line.", S_SMALL), Spacer(1, 7),
+        Legend([(sig, SIGNAL[sig]) for sig in SIGNALS]), Spacer(1, 5),
+        table(breadth_rows, [38 * mm, CONTENT_W - 66 * mm, 28 * mm], [("LEFTPADDING", (1, 0), (1, -1), 4)], right_from=2, pad=2.7),
+    ]))
     story.append(PageBreak())
 
-    # ---- one section per sector ----
+    # ---- scorecard, then the momentum map ----
+    score = section("Scorecard", "Sector verdicts", "From each sector index's daily, weekly and monthly RSI(14). Green above 60, red below 40.",
+                    anchor="scorecard", outline="Scorecard")
+    rows = [["Sector", "1W %", "#", "1M %", "#", "RSI D", "RSI W", "RSI M", "Beat 1W / 1M",
+             Paragraph("<b>VERDICT</b>", _style("th", 6.8, leading=8.5, color=MUTED, align=TA_CENTER))]]
+
+    def rsi_cell(v):
+        if v is None:
+            return Paragraph(f"<font color='{hexof(FAINT)}'>n/a</font>", S_NUM)
+        c = POS if v > 60 else NEG if v < 40 else INK
+        txt = f"{v:.1f}" if c is INK else f"<b>{v:.1f}</b>"
+        return Paragraph(f"<font color='{hexof(c)}'>{txt}</font>", S_NUM)
+
     for x in secs:
         n = len(x.get("stocks", []))
         rsi = x.get("rsi") or {}
-        rsi_txt = "n/a" if rsi.get("d") is None else f"{rsi['d']:.0f} / {rsi['w']:.0f} / {rsi['m']:.0f}"
-        story.append(header_bar(esc(f"{x['label']}: {x.get('verdict')} - #{x.get('rank_1w')} on 1W, #{x.get('rank_1m')} on 1M"),
-                                "Equal-weight line of its stocks" if x.get("equal_weight") else esc(f"{x.get('index_label')} index line")))
-        story.append(Spacer(1, 6))
-        story.append(kpi_strip([
-            ("Sector 1W", f"{pct(x.get('r1w'))}%", colour_of(x.get("r1w"))), ("Sector 1M", f"{pct(x.get('r1m'))}%", colour_of(x.get("r1m"))),
-            ("RSI D / W / M", rsi_txt, NAVY), ("Beat sector 1W", f"{x.get('beat_1w')} of {n}", NAVY), ("Beat sector 1M", f"{x.get('beat_1m')} of {n}", NAVY),
-        ]))
-        story.append(Spacer(1, 6))
-        rows = [["Stock", "1W %", "1M %", "vs 1W", "vs 1M", "Signal"]]
-        extra = []
-        for i, st in enumerate(x.get("stocks", []), start=1):
-            rows.append([Paragraph(f"<b>{esc(st['symbol'])}</b>", S_CELL), pct(st["r1w"]), pct(st["r1m"]), pct(st["vs1w"]), pct(st["vs1m"]), st["signal"]])
-            sb, si = SIGNAL.get(st["signal"], SIGNAL["N/A"])
-            extra += [("TEXTCOLOR", (1, i), (1, i), colour_of(st["r1w"])), ("TEXTCOLOR", (2, i), (2, i), colour_of(st["r1m"])),
-                      ("BACKGROUND", (3, i), (3, i), GREEN_BG if st["vs1w"] > 0 else RED_BG), ("TEXTCOLOR", (3, i), (3, i), GREEN_INK if st["vs1w"] > 0 else RED_INK),
-                      ("BACKGROUND", (4, i), (4, i), GREEN_BG if st["vs1m"] > 0 else RED_BG), ("TEXTCOLOR", (4, i), (4, i), GREEN_INK if st["vs1m"] > 0 else RED_INK),
-                      ("FONTNAME", (3, i), (4, i), "Helvetica-Bold"),
-                      ("BACKGROUND", (5, i), (5, i), sb), ("TEXTCOLOR", (5, i), (5, i), si), ("FONTNAME", (5, i), (5, i), "Helvetica-Bold")]
-        if n:
-            story.append(grid(rows, [44 * mm, 22 * mm, 22 * mm, 26 * mm, 26 * mm, CONTENT_W - 140 * mm], extra))
-        else:
-            story.append(Paragraph("No stock data for this sector.", S_SMALL))
-        leaders = [st["symbol"] for st in x.get("stocks", []) if st["signal"] == "Leader"]
-        laggards = [st["symbol"] for st in x.get("stocks", []) if st["signal"] == "Laggard"]
-        c = x.get("counts", {})
-        story.append(Spacer(1, 6))
-        story.append(note_box(f"<b>Takeaway:</b> {esc(', '.join(leaders[:6])) or 'no stock'} lead{'s' if len(leaders) == 1 else ''} the sector on both horizons"
-                              + (f"; {esc(', '.join(laggards[:5]))} trail on both." if laggards else ".")))
-        story.append(Paragraph(f"Signals: Leader {c.get('Leader', 0)} | Turning up {c.get('Turning up', 0)} | Fading {c.get('Fading', 0)} | Laggard {c.get('Laggard', 0)}. vs = percentage points vs the sector line.", S_SMALL))
-        story.append(PageBreak())
+        rows.append([Paragraph(sector_link(x["label"], x["key"]), S_CELL), Paragraph(num(x.get("r1w")), S_NUM),
+                     Paragraph(f"<font color='{hexof(FAINT)}'>{x.get('rank_1w') or ''}</font>", S_NUM),
+                     Paragraph(num(x.get("r1m")), S_NUM),
+                     Paragraph(f"<font color='{hexof(FAINT)}'>{x.get('rank_1m') or ''}</font>", S_NUM),
+                     rsi_cell(rsi.get("d")), rsi_cell(rsi.get("w")), rsi_cell(rsi.get("m")),
+                     f"{x.get('beat_1w')}/{n}  ·  {x.get('beat_1m')}/{n}", verdict_pill(x.get("verdict"))])
+    story.append(KeepTogether(score + [table(rows, [35 * mm, 15 * mm, 8 * mm, 15 * mm, 8 * mm, 14 * mm, 14 * mm, 14 * mm, 25 * mm, CONTENT_W - 148 * mm],
+                                             [("ALIGN", (9, 0), (9, -1), "CENTER")], right_from=1, pad=3.9)]))
+    story.append(Spacer(1, 16))
+    rel = b.get("r1w") is not None and b.get("r1m") is not None
+    story.append(KeepTogether([
+        Paragraph("Momentum map", _style("mh", 12.5, leading=15, bold=True)), Spacer(1, 3),
+        Paragraph(("Each sector's 1-week and 1-month return minus the Nifty 50's. Top right leads the market on both; "
+                   "top left is improving; bottom right is weakening; bottom left lags. Tap a point to open the sector.")
+                  if rel else "Each sector's 1-week and 1-month return. Tap a point to open the sector.", S_SMALL), Spacer(1, 6),
+        Legend([("STRONG", POS), ("MIXED", AMB), ("WEAK", NEG), ("no verdict", FAINT)]), Spacer(1, 4),
+        MomentumMap(secs, b, CONTENT_W),
+    ]))
+    story.append(PageBreak())
 
-    # ---- leaders and laggards ----
-    def stock_table(title: str, sub: str, rows_src: list[dict], good: bool) -> None:
-        story.append(header_bar(title, sub))
-        story.append(Spacer(1, 8))
-        rows = [["Stock", "Sector", "1W %", "1M %", "vs 1W", "vs 1M"]]
-        extra = []
-        for i, st in enumerate(rows_src, start=1):
-            rows.append([Paragraph(f"<b>{esc(st['symbol'])}</b>", S_CELL), Paragraph(esc(st["sector"]), _style("sec", 8.5, color=MUTED)),
-                         pct(st["r1w"]), pct(st["r1m"]), pct(st["vs1w"]), pct(st["vs1m"])])
-            extra += [("TEXTCOLOR", (2, i), (2, i), colour_of(st["r1w"])), ("TEXTCOLOR", (3, i), (3, i), colour_of(st["r1m"])),
-                      ("BACKGROUND", (4, i), (5, i), GREEN_BG if good else RED_BG), ("TEXTCOLOR", (4, i), (5, i), GREEN_INK if good else RED_INK),
-                      ("FONTNAME", (4, i), (5, i), "Helvetica-Bold")]
-        story.append(grid(rows, [36 * mm, 40 * mm, 22 * mm, 22 * mm, 30 * mm, CONTENT_W - 150 * mm], extra))
-        story.append(PageBreak())
+    # ---- every sector, flowing ----
+    story += section("Sectors", "Sector by sector", "Each stock against its own sector line, strongest verdicts first. "
+                     "Tap a stock symbol for its chart.", anchor="sectors", outline="Sector by sector")
+    for x in secs:
+        story += _sector_block(x)
 
-    stock_table(f"{s.get('leaders')} stock rows beat their sector on 1W and 1M", "Top 15 by combined outperformance (1W + 1M); a stock in two sectors can appear twice",
-                report.get("top_movers", []), True)
-    stock_table(f"{s.get('laggards')} stock rows trail their sector on 1W and 1M", "The deepest gaps first", report.get("laggards", []), False)
+    # ---- leaders and laggards (flow on from the last sector) ----
+    def movers(kicker: str, title: str, sub: str, src: list[dict], anchor: str, outline: str) -> list:
+        rows = [["Stock", "Sector", "1W %", "1M %", "vs sector 1W", "vs sector 1M"]]
+        for st in src:
+            rows.append([Paragraph(stock_link(st["symbol"]), S_CELL),
+                         Paragraph(sector_link(st["sector"], by_label.get(st["sector"]), bold=False), _style("cs", 8, color=MUTED)),
+                         Paragraph(num(st["r1w"]), S_NUM), Paragraph(num(st["r1m"]), S_NUM),
+                         Paragraph(num(st["vs1w"], "", True), S_NUM), Paragraph(num(st["vs1m"], "", True), S_NUM)])
+        body = table(rows, [34 * mm, 40 * mm, 21 * mm, 21 * mm, 29 * mm, CONTENT_W - 145 * mm], right_from=2) if src else Paragraph("None this week.", S_SMALL)
+        return [KeepTogether(section(kicker, title, sub, anchor=anchor, outline=outline) + [body]), Spacer(1, 24)]
 
-    # ---- study buckets ----
-    story.append(header_bar("Four study buckets", "From 1W and 1M returns vs each stock's sector. For learning only; not a buy or sell list."))
-    story.append(Spacer(1, 8))
-    meta = {"strength_leaders": ("Strength leaders", "Leaders in strong sectors", GREEN_BG, GREEN_INK),
-            "watch": ("Watch", "Near-leaders and pullbacks in strong sectors", BLUE_BG, BLUE_INK),
-            "stock_specific": ("Stock-specific", "Leaders outside the strong sectors", AMBER_BG, AMBER_INK),
-            "relative_weakness": ("Relative weakness", "Laggards and bounce-only in strong sectors", RED_BG, RED_INK)}
-    for key, (title, sub, bg, ink) in meta.items():
-        head = Table([[Paragraph(f"<font size=13><b>{title}</b></font>  <font size=9>{sub}</font>", _style("bk", 10, color=ink))]], colWidths=[CONTENT_W])
-        head.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, -1), bg), ("LEFTPADDING", (0, 0), (-1, -1), 10),
-                                  ("TOPPADDING", (0, 0), (-1, -1), 6), ("BOTTOMPADDING", (0, 0), (-1, -1), 6)]))
-        body = [Paragraph(f"<b>{esc(sec)}:</b> {esc(', '.join(syms))}", S_BODY) for sec, syms in (report.get("buckets", {}).get(key) or {}).items()]
-        story.append(KeepTogether([head, Spacer(1, 4)] + (body or [Paragraph("None this week.", S_SMALL)]) + [Spacer(1, 10)]))
+    story += movers("Leaders", f"{s.get('leaders')} stocks beat their sector on both horizons",
+                    "The top 15 by combined outperformance (1W + 1M). A stock in two sectors can appear twice.",
+                    report.get("top_movers", []), "leaders", "Leaders")
+    story += movers("Laggards", f"{s.get('laggards')} stocks trail their sector on both horizons",
+                    "The 15 deepest gaps first.", report.get("laggards", []), "laggards", "Laggards")
+
+    # ---- study buckets, 2 x 2 ----
+    meta = [("strength_leaders", "Strength leaders", "Leaders in strong sectors", POS),
+            ("watch", "Watch", "Near-leaders and pullbacks in strong sectors", BLU),
+            ("stock_specific", "Stock-specific", "Leaders outside the strong sectors", AMB),
+            ("relative_weakness", "Relative weakness", "Laggards and bounce-only in strong sectors", NEG)]
+    half_b = (CONTENT_W - 8 * mm) / 2
+    cards = []
+    for key, title, sub, ink in meta:
+        items = (report.get("buckets", {}).get(key) or {}).items()
+        body = [Paragraph(f"{sector_link(sec, by_label.get(sec))}  {', '.join(stock_link(sym, bold=False) for sym in syms)}",
+                          _style("bb", 8.8, leading=13, color=MUTED)) for sec, syms in items] or [Paragraph("None this week.", S_SMALL)]
+        cards.append([Paragraph(f"<font color='{hexof(ink)}'><b>{title}</b></font>", _style("bt", 12, leading=15)),
+                      Paragraph(sub, S_SMALL), Spacer(1, 6)] + body)
+    grid2 = Table([[cards[0], "", cards[1]], [cards[2], "", cards[3]]], colWidths=[half_b, 8 * mm, half_b])
+    gstyle = [("VALIGN", (0, 0), (-1, -1), "TOP"), ("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+              ("TOPPADDING", (0, 0), (-1, -1), 9), ("BOTTOMPADDING", (0, 0), (-1, -1), 18)]
+    for (r, cidx), (_, _, _, ink) in zip([(0, 0), (0, 2), (1, 0), (1, 2)], meta):
+        gstyle.append(("LINEABOVE", (cidx, r), (cidx, r), 1.6, ink))
+    grid2.setStyle(TableStyle(gstyle))
+    story.append(KeepTogether(section("Study list", "Four study buckets",
+                                      "From 1W and 1M returns against each stock's own sector. For learning only; not a buy or sell list.",
+                                      anchor="buckets", outline="Study buckets") + [grid2]))
     story.append(PageBreak())
 
     # ---- method & disclaimer ----
-    story.append(header_bar("Notes on the numbers", esc(f"Angel One daily closes up to {nice_date(report.get('end_date'))}; sector lists: {report.get('constituents_source', 'NSE')}")))
-    story.append(Spacer(1, 8))
+    story += section("Method", "Notes on the numbers",
+                     esc(f"Angel One daily closes up to {nice_date(report.get('end_date'))}. Sector lists: {report.get('constituents_source', 'NSE')}."),
+                     anchor="method", outline="Method and disclaimer")
     notes = [
-        ("One set of dates", "1W = the last close vs the last close on or before 7 days earlier; 1M = vs 1 calendar month earlier. "
+        ("One set of dates", "1W is the last close against the last close on or before 7 days earlier; 1M against one calendar month earlier. "
                              "Every sector and every stock uses the same dates, so a stock has one return wherever it appears."),
         ("Sector verdict", "STRONG when the sector index's daily, weekly and monthly RSI(14) are all above 60; WEAK when all three are "
-                           "below 40; otherwise MIXED. Weekly and monthly RSI include the period in progress."),
-        ("Groups", "Near-leader = beats the sector on one horizon and is within 1.5pp on the other. Bounce-only = beats the sector "
+                           "below 40; otherwise MIXED. Weekly and monthly RSI include the week and month in progress."),
+        ("Momentum map", "Each sector's 1W and 1M return minus the Nifty 50's, in percentage points; the quadrant tells whether the sector "
+                         "is ahead of the market on both horizons, only on one, or on neither."),
+        ("Groups", "Near-leader: beats the sector on one horizon and is within 1.5pp on the other. Bounce-only: beats the sector "
                    "this week but trails it by more than 1.5pp on the month."),
         ("Coverage", "Sector members are NSE's current index constituents. Capital Market has no index on Angel One, so its sector line "
                      "is the equal-weight average of its stocks and it has no RSI verdict."
                      + (f" No data this week for: {esc(', '.join(report['missing']))}." if report.get("missing") else "")),
     ]
     for t, txt in notes:
-        story.append(KeepTogether([Paragraph(t, S_H2), Paragraph(txt, S_BODY), Spacer(1, 6)]))
-    story.append(Spacer(1, 6))
-    story.append(header_bar("Disclaimer"))
-    story.append(Spacer(1, 6))
+        story.append(KeepTogether([Paragraph(t, _style("nt", 10, bold=True)), Spacer(1, 2), Paragraph(txt, S_BODY), Spacer(1, 9)]))
+    story += [Spacer(1, 8)] + section("Disclaimer", "Important information")
     for t, txt in (
         ("Purpose.", "Generated by A Group Scanner for personal market learning and education only."),
         ("Not a recommendation.", "Nothing here is a recommendation, offer or solicitation to buy, sell or hold any security, or investment, "
@@ -392,9 +954,10 @@ def build_pdf(report: dict) -> bytes:
                                         "Advisers) Regulations. Consult a SEBI-registered professional before acting."),
         ("Market risk.", "Investments in securities markets are subject to market risks. Past performance does not indicate future results."),
         ("Data and method.", "Built automatically from Angel One price data and NSE index lists; it may contain delays, gaps or errors. "
-                             "Rankings use only 1W and 1M price returns and RSI, and ignore valuation, earnings, liquidity, news and risk."),
+                             "Rankings use only 1W and 1M price returns and RSI, and ignore valuation, earnings, liquidity, news and risk. "
+                             "Chart links open TradingView, a third-party site."),
     ):
-        story.append(Paragraph(f"<b>{t}</b> {txt}", _style("disc", 9.5, color=INK, space_after=5)))
+        story.append(Paragraph(f"<font color='#111827'><b>{t}</b></font> {txt}", _style("disc", 8.6, leading=12.5, color=MUTED, space_after=5)))
 
     doc.build(story)
     return buf.getvalue()
