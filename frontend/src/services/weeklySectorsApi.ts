@@ -56,6 +56,7 @@ export interface SectorRow {
   label: string;
   index_label: string | null;
   equal_weight: boolean;
+  tv_symbol?: string | null;
   end_date: string | null;
   r1w: number | null;
   r1m: number | null;

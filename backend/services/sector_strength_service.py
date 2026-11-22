@@ -41,29 +41,29 @@ SNAPSHOT = Path(__file__).resolve().parent.parent / "data" / "sector_constituent
 
 # key, label, Angel One index name (None = equal-weight line), NSE constituent file
 SECTORS: list[dict[str, Any]] = [
-    {"key": "psu_bank", "label": "PSU Bank", "index": "NIFTY PSU BANK", "file": NSE_ARCHIVES + "ind_niftypsubanklist.csv"},
-    {"key": "bank", "label": "Banking", "index": "BANKNIFTY", "file": NSE_ARCHIVES + "ind_niftybanklist.csv"},
-    {"key": "fin_service", "label": "Financial Services", "index": "FINNIFTY", "file": NSE_ARCHIVES + "ind_niftyfinancelist.csv"},
-    {"key": "realty", "label": "Realty", "index": "NIFTY REALTY", "file": NSE_ARCHIVES + "ind_niftyrealtylist.csv"},
-    {"key": "infra", "label": "Infrastructure", "index": "NIFTY INFRA", "file": NSE_ARCHIVES + "ind_niftyinfralist.csv"},
-    {"key": "pharma", "label": "Pharma", "index": "NIFTY PHARMA", "file": NSE_ARCHIVES + "ind_niftypharmalist.csv"},
-    {"key": "media", "label": "Media", "index": "NIFTY MEDIA", "file": NSE_ARCHIVES + "ind_niftymedialist.csv"},
-    {"key": "capital_markets", "label": "Capital Market", "index": None, "file": NIFTY_INDICES + "ind_niftycapitalmarkets_list.csv"},
-    {"key": "it", "label": "IT", "index": "NIFTY IT", "file": NSE_ARCHIVES + "ind_niftyitlist.csv"},
-    {"key": "auto", "label": "Auto", "index": "NIFTY AUTO", "file": NSE_ARCHIVES + "ind_niftyautolist.csv"},
-    {"key": "fmcg", "label": "FMCG", "index": "NIFTY FMCG", "file": NSE_ARCHIVES + "ind_niftyfmcglist.csv"},
-    {"key": "metal", "label": "Metal", "index": "NIFTY METAL", "file": NSE_ARCHIVES + "ind_niftymetallist.csv"},
-    {"key": "energy", "label": "Energy", "index": "NIFTY ENERGY", "file": NSE_ARCHIVES + "ind_niftyenergylist.csv"},
+    {"key": "psu_bank", "tv": "NSE:CNXPSUBANK", "label": "PSU Bank", "index": "NIFTY PSU BANK", "file": NSE_ARCHIVES + "ind_niftypsubanklist.csv"},
+    {"key": "bank", "tv": "NSE:BANKNIFTY", "label": "Banking", "index": "BANKNIFTY", "file": NSE_ARCHIVES + "ind_niftybanklist.csv"},
+    {"key": "fin_service", "tv": "NSE:CNXFINANCE", "label": "Financial Services", "index": "FINNIFTY", "file": NSE_ARCHIVES + "ind_niftyfinancelist.csv"},
+    {"key": "realty", "tv": "NSE:CNXREALTY", "label": "Realty", "index": "NIFTY REALTY", "file": NSE_ARCHIVES + "ind_niftyrealtylist.csv"},
+    {"key": "infra", "tv": "NSE:CNXINFRA", "label": "Infrastructure", "index": "NIFTY INFRA", "file": NSE_ARCHIVES + "ind_niftyinfralist.csv"},
+    {"key": "pharma", "tv": "NSE:CNXPHARMA", "label": "Pharma", "index": "NIFTY PHARMA", "file": NSE_ARCHIVES + "ind_niftypharmalist.csv"},
+    {"key": "media", "tv": "NSE:CNXMEDIA", "label": "Media", "index": "NIFTY MEDIA", "file": NSE_ARCHIVES + "ind_niftymedialist.csv"},
+    {"key": "capital_markets", "tv": "NSE:NIFTY_CAPITAL_MKT", "label": "Capital Market", "index": None, "file": NIFTY_INDICES + "ind_niftycapitalmarkets_list.csv"},
+    {"key": "it", "tv": "NSE:CNXIT", "label": "IT", "index": "NIFTY IT", "file": NSE_ARCHIVES + "ind_niftyitlist.csv"},
+    {"key": "auto", "tv": "NSE:CNXAUTO", "label": "Auto", "index": "NIFTY AUTO", "file": NSE_ARCHIVES + "ind_niftyautolist.csv"},
+    {"key": "fmcg", "tv": "NSE:CNXFMCG", "label": "FMCG", "index": "NIFTY FMCG", "file": NSE_ARCHIVES + "ind_niftyfmcglist.csv"},
+    {"key": "metal", "tv": "NSE:CNXMETAL", "label": "Metal", "index": "NIFTY METAL", "file": NSE_ARCHIVES + "ind_niftymetallist.csv"},
+    {"key": "energy", "tv": "NSE:CNXENERGY", "label": "Energy", "index": "NIFTY ENERGY", "file": NSE_ARCHIVES + "ind_niftyenergylist.csv"},
     # 2026-11-22: more sectors. Private Bank / PSE / CPSE have an index on Angel One; the others do not, so their line
     # is the equal-weight average of their stocks (like Capital Market) and they get no RSI verdict.
-    {"key": "pvt_bank", "label": "Private Bank", "index": "NIFTY PVT BANK", "file": NSE_ARCHIVES + "ind_nifty_privatebanklist.csv"},
-    {"key": "pse", "label": "PSE", "index": "NIFTY PSE", "file": NSE_ARCHIVES + "ind_niftypselist.csv"},
-    {"key": "cpse", "label": "CPSE", "index": "NIFTY CPSE", "file": NSE_ARCHIVES + "ind_niftycpselist.csv"},
-    {"key": "healthcare", "label": "Healthcare", "index": None, "file": NSE_ARCHIVES + "ind_niftyhealthcarelist.csv"},
-    {"key": "oil_gas", "label": "Oil & Gas", "index": None, "file": NSE_ARCHIVES + "ind_niftyoilgaslist.csv"},
-    {"key": "consumer_durables", "label": "Consumer Durables", "index": None, "file": NSE_ARCHIVES + "ind_niftyconsumerdurableslist.csv"},
-    {"key": "defence", "label": "Defence", "index": None, "file": NSE_ARCHIVES + "ind_niftyindiadefence_list.csv"},
-    {"key": "chemicals", "label": "Chemicals", "index": None, "file": NIFTY_INDICES + "ind_niftychemicals_list.csv"},
+    {"key": "pvt_bank", "tv": "NSE:NIFTYPVTBANK", "label": "Private Bank", "index": "NIFTY PVT BANK", "file": NSE_ARCHIVES + "ind_nifty_privatebanklist.csv"},
+    {"key": "pse", "tv": "NSE:CNXPSE", "label": "PSE", "index": "NIFTY PSE", "file": NSE_ARCHIVES + "ind_niftypselist.csv"},
+    {"key": "cpse", "tv": "NSE:CPSE", "label": "CPSE", "index": "NIFTY CPSE", "file": NSE_ARCHIVES + "ind_niftycpselist.csv"},
+    {"key": "healthcare", "tv": "NSE:NIFTY_HEALTHCARE", "label": "Healthcare", "index": None, "file": NSE_ARCHIVES + "ind_niftyhealthcarelist.csv"},
+    {"key": "oil_gas", "tv": "NSE:NIFTY_OIL_AND_GAS", "label": "Oil & Gas", "index": None, "file": NSE_ARCHIVES + "ind_niftyoilgaslist.csv"},
+    {"key": "consumer_durables", "tv": "NSE:NIFTY_CONSR_DURBL", "label": "Consumer Durables", "index": None, "file": NSE_ARCHIVES + "ind_niftyconsumerdurableslist.csv"},
+    {"key": "defence", "tv": "NSE:NIFTY_IND_DEFENCE", "label": "Defence", "index": None, "file": NSE_ARCHIVES + "ind_niftyindiadefence_list.csv"},
+    {"key": "chemicals", "tv": "NSE:NIFTY_CHEMICALS", "label": "Chemicals", "index": None, "file": NIFTY_INDICES + "ind_niftychemicals_list.csv"},
 ]
 BENCHMARK_INDEX = "NIFTY"
 INDEX_HISTORY_DAYS = 1900   # ~5 years: enough for a monthly RSI(14), one Angel One request
@@ -197,7 +197,7 @@ async def _run(job: SectorJob, provider: AngelOneProvider, as_of: dt.date) -> No
     await asyncio.gather(*(fetch_index(k, n) for k, n in indices))
     await asyncio.gather(*(fetch_stock(s) for s in symbols))
     job.phase = "Building the report"
-    sectors = [{"key": s["key"], "label": s["label"], "index_label": s["index"], "equal_weight": s["index"] is None} for s in SECTORS]
+    sectors = [{"key": s["key"], "label": s["label"], "index_label": s["index"], "equal_weight": s["index"] is None, "tv_symbol": s.get("tv")} for s in SECTORS]
     report = build_report(pd.Timestamp(as_of), sectors, index_data, stock_data, constituents, index_data.get("__bench__"))
     report["constituents_source"] = source
     job.result = report

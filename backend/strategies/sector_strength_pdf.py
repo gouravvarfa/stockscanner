@@ -8,7 +8,7 @@ Smart parts (all real PDF links, they work in any PDF viewer):
 - a Contents page of buttons (every section, and every sector with its verdict and 1W return),
 - a CONTENTS button at the top of every page, and a bookmarks sidebar,
 - sector names everywhere (rankings, scorecard, momentum map, leaders, buckets) jump to that sector,
-- every stock symbol opens its chart in the Scanner app; a Chart button beside each sector opens its index,
+- every stock symbol opens its chart on TradingView; a Chart button beside each sector opens its index,
 - a momentum map (each sector's 1W and 1M return against the Nifty 50, in four quadrants) and
   breadth bars (how many stocks in each sector lead, turn up, fade or lag).
 
@@ -57,9 +57,6 @@ SIGNAL = {"Leader": POS, "Turning up": BLU, "Fading": AMB, "Laggard": NEG, "N/A"
 VERDICT = {"STRONG": (POS_BG, POS), "MIXED": (AMB_BG, AMB), "WEAK": (NEG_BG, NEG), "N/A": (TINT, MUTED)}
 BREADTH_STYLE = {"Broad": (POS_BG, POS), "Moderate": (AMB_BG, AMB), "Narrow": (NEG_BG, NEG)}
 
-# Chart links open the Scanner app itself (its chart drawer), not a third-party site. PUBLIC_APP_URL can point them at
-# another address of the app.
-APP_URL = os.environ.get("PUBLIC_APP_URL", "https://a-group-scanner.vercel.app").rstrip("/")
 
 
 def _style(name, size=10, leading=None, color=INK, bold=False, align=TA_LEFT, space_after=0):
@@ -124,15 +121,16 @@ def sector_link(label: str, key: str | None, bold: bool = True) -> str:
     return f"<a href='#{sec_key(key)}' color='{hexof(INK)}'>{text}</a>" if key else text
 
 
-def chart_url(symbol: str) -> str:
-    """The app's Weekly Sectors page with this stock's (or index's) chart open."""
-    return f"{APP_URL}/weekly-sectors?chart={quote(symbol)}"
+def tv_url(symbol: str) -> str:
+    """TradingView chart of an NSE stock ("PNB") or a full TradingView symbol ("NSE:NIFTY_HEALTHCARE")."""
+    s = symbol if ":" in symbol else "NSE:" + symbol.replace("&", "_").replace("-", "_")
+    return "https://www.tradingview.com/chart/?symbol=" + quote(s, safe=":")
 
 
 def stock_link(symbol: str, bold: bool = True) -> str:
-    """A stock symbol that opens its chart in the Scanner app."""
+    """A stock symbol that opens its chart on TradingView."""
     text = f"<b>{esc(symbol)}</b>" if bold else esc(symbol)
-    return f"<a href={quoteattr(chart_url(symbol))} color='{hexof(INK)}'>{text}</a>"
+    return f"<a href={quoteattr(tv_url(symbol))} color='{hexof(INK)}'>{text}</a>"
 
 
 def spaced(canvas, x, y, text, font="Helvetica-Bold", size=7, color=MUTED, space=1.3, right=False) -> float:
@@ -756,8 +754,8 @@ def _sector_block(x: dict) -> list:
     rsi = x.get("rsi") or {}
     rsi_txt = "n/a" if rsi.get("d") is None else f"{rsi['d']:.0f} / {rsi['w']:.0f} / {rsi['m']:.0f}"
     line = "Equal-weight line of its stocks" if x.get("equal_weight") else esc(str(x.get("index_label")))
-    index = None if x.get("equal_weight") else x.get("index_label")
-    chart = Button(15 * mm, 5.2 * mm, "CHART", url=chart_url(index), small=True) if index else ""
+    tv = x.get("tv_symbol")
+    chart = Button(15 * mm, 5.2 * mm, "CHART", url=tv_url(tv), small=True) if tv else ""
     head = Table([[Paragraph(esc(x["label"]), S_H3), chart, verdict_pill(x.get("verdict"))]],
                  colWidths=[CONTENT_W - 38 * mm, 18 * mm, 20 * mm])
     head.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "MIDDLE"), ("LEFTPADDING", (0, 0), (-1, -1), 0),
@@ -828,7 +826,7 @@ def build_pdf(report: dict) -> bytes:
     story += [button_grid(sec_buttons, 3), Spacer(1, 8)]
     story.append(quiet_box("<b><font color='#111827'>Tips.</font></b> The coloured strip on a sector button is its verdict "
                            "(green STRONG, amber MIXED, red WEAK) and the number is its 1-week return. In the tables, tap a "
-                           "<b>stock symbol</b> to open its chart in the Scanner app, a <b>sector name</b> to jump to that sector, "
+                           "<b>stock symbol</b> to open its chart on TradingView, a <b>sector name</b> to jump to that sector, "
                            "and <b>CHART</b> beside a sector to open its index. The bookmarks panel of your PDF viewer lists "
                            "every section too."))
     story.append(PageBreak())
@@ -1027,7 +1025,7 @@ def build_pdf(report: dict) -> bytes:
         ("Market risk.", "Investments in securities markets are subject to market risks. Past performance does not indicate future results."),
         ("Data and method.", "Built automatically from Angel One price data and NSE index lists; it may contain delays, gaps or errors. "
                              "Rankings use only 1W and 1M price returns and RSI, and ignore valuation, earnings, liquidity, news and risk. "
-                             "Chart links open the Scanner app."),
+                             "Chart links open TradingView, a third-party site."),
     ):
         story.append(Paragraph(f"<font color='#111827'><b>{t}</b></font> {txt}", _style("disc", 8.6, leading=12.5, color=MUTED, space_after=5)))
 

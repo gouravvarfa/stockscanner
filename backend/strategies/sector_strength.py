@@ -224,6 +224,7 @@ def build_report(
         member_marks = [stock_marks[m["symbol"]] for m in members if m["symbol"] in stock_marks]
         rows.append({
             "key": key, "label": s["label"], "index_label": s.get("index_label"), "equal_weight": bool(s.get("equal_weight")),
+            "tv_symbol": s.get("tv_symbol"),
             "end_date": end_date, "r1d": r1d, "r1w": r1w, "r1m": r1m, "rsi": levels, "verdict": verdict(levels),
             "stocks": stocks, "counts": counts, "members": len(members),
             "beat_1w": sum(st["vs1w"] > 0 for st in stocks), "beat_1m": sum(st["vs1m"] > 0 for st in stocks),

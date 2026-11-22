@@ -243,9 +243,9 @@ def test_generated_at_carries_its_time_zone():
     assert gen.tzinfo is not None and gen.utcoffset() == dt.timedelta(0)
 
 
-def test_pdf_chart_links_open_the_scanner_app():
-    from backend.strategies.sector_strength_pdf import build_pdf, chart_url
+def test_pdf_chart_links_open_tradingview():
+    from backend.strategies.sector_strength_pdf import build_pdf, tv_url
 
-    assert chart_url("M&M") == "https://a-group-scanner.vercel.app/weekly-sectors?chart=M%26M"
-    pdf = build_pdf(_report())
-    assert b"weekly-sectors?chart=AAA" in pdf and b"tradingview" not in pdf.lower()
+    assert tv_url("M&M") == "https://www.tradingview.com/chart/?symbol=NSE:M_M"
+    assert tv_url("NSE:NIFTY_HEALTHCARE").endswith("symbol=NSE:NIFTY_HEALTHCARE")
+    assert b"tradingview.com/chart/?symbol=NSE:AAA" in build_pdf(_report())

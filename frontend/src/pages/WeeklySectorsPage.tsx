@@ -237,7 +237,11 @@ export function WeeklySectorsPage() {
   const { openChart } = useChart();
   // A sector's own index chart, with its RSI levels in the chart header.
   const openSectorChart = (s: SectorRow) => {
-    if (!s.index_label) return;
+    if (s.equal_weight || !s.index_label) {
+      // no index on Angel One: its index chart on TradingView
+      if (s.tv_symbol) window.open(`https://www.tradingview.com/chart/?symbol=${encodeURIComponent(s.tv_symbol)}`, "_blank", "noopener");
+      return;
+    }
     openChart(s.index_label, {
       strategy: "Weekly Sectors",
       daily_rsi: s.rsi.d,
@@ -401,7 +405,7 @@ export function WeeklySectorsPage() {
                             {s.label}
                             <span className="wk-name">{s.equal_weight ? "equal-weight of its stocks" : s.index_label}</span>
                           </div>
-                          {!s.equal_weight && s.index_label && <ChartButton label={s.index_label} onOpen={() => openSectorChart(s)} />}
+                          {((!s.equal_weight && s.index_label) || s.tv_symbol) && <ChartButton label={s.index_label ?? s.label} onOpen={() => openSectorChart(s)} />}
                         </div>
                       </td>
                       <td className={tone(s.r1w)}>{pct(s.r1w)}</td>
@@ -464,8 +468,8 @@ export function WeeklySectorsPage() {
                   <h2 style={{ margin: 0 }}>
                     {sector.label} <span className={verdictClass(sector.verdict)}>{sector.verdict}</span>
                   </h2>
-                  {!sector.equal_weight && sector.index_label && (
-                    <ChartButton label={sector.index_label} onOpen={() => openSectorChart(sector)} />
+                  {((!sector.equal_weight && sector.index_label) || sector.tv_symbol) && (
+                    <ChartButton label={sector.index_label ?? sector.label} onOpen={() => openSectorChart(sector)} />
                   )}
                 </div>
                 <p className="muted small" style={{ marginTop: 0 }}>
