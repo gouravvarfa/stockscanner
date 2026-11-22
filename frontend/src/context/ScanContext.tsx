@@ -32,6 +32,7 @@ interface ScanContextValue {
   // Angel One, replacing the cache only on success.
   runFreshScan: () => Promise<void>;
   stopScan: () => Promise<void>;
+  scanQueued: string | null; // waiting for another big scan; starts by itself
   progress: {
     processed: number;
     total: number;
@@ -56,7 +57,7 @@ interface ScanContextValue {
 const ScanContext = createContext<ScanContextValue | undefined>(undefined);
 
 export function ScanProvider({ children }: { children: ReactNode }) {
-  const { result, partial, progressLog, job, running, error, issueKind, cache, run, runFresh, cancel } =
+  const { result, partial, progressLog, job, running, error, issueKind, cache, run, runFresh, cancel, queued } =
     useScanJob<ScanResult>(SCAN_TYPE, { accept: isStrongSectorResult });
 
   // Permanent, device-local Scan History (IndexedDB) — writes progressively
@@ -132,6 +133,7 @@ export function ScanProvider({ children }: { children: ReactNode }) {
         runScan: run,
         runFreshScan: runFresh,
         stopScan: cancel,
+        scanQueued: queued,
         progress,
         partial,
         cacheAgeSeconds,

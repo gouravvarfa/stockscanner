@@ -103,6 +103,7 @@ interface UseScanJobResult<T> {
   runFresh: () => Promise<void>; // Fresh Scan: always starts a new job
   cancel: () => Promise<void>;
   clearSaved: () => Promise<void>; // delete this device's saved result
+  queued: string | null; // waiting for another big scan to finish; starts by itself
 }
 
 /**
@@ -132,6 +133,22 @@ export function useScanJob<T = unknown>(scanType: ScanType, options: UseScanJobO
   const progressCursor = useRef(0);
   const [error, setError] = useState<string | null>(null);
   const [issueKind, setIssueKind] = useState<ScanIssueKind>(null);
+  // Queue (2026-11-22): another big scan already running on the server -> wait and start by itself, never stop it.
+  const [queued, setQueued] = useState<string | null>(null);
+  const queueTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const clearQueue = () => {
+    if (queueTimer.current) clearTimeout(queueTimer.current);
+    queueTimer.current = null;
+    setQueued(null);
+  };
+  const heavyBusy = (e: unknown) => e instanceof ScanApiError && e.status === 429 && /another big scan/i.test(e.message);
+  const queueRetry = (e: unknown, again: () => void) => {
+    const m = /\(([a-z_]+)\)/.exec(e instanceof Error ? e.message : "");
+    const name = m ? ({ a_group: "Dashboard scan", cup_breakout: "Cup Breakout scan", value_buy: "Value Buy scan" } as Record<string, string>)[m[1]] ?? m[1] : "big scan";
+    setQueued(`Queued — starts by itself when the running ${name} finishes (the server runs one big scan at a time).`);
+    if (queueTimer.current) clearTimeout(queueTimer.current);
+    queueTimer.current = setTimeout(again, 15_000);
+  };
   const [cache, setCache] = useState<CacheEnvelope<T> | null>(null);
 
   const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -306,6 +323,7 @@ export function useScanJob<T = unknown>(scanType: ScanType, options: UseScanJobO
     if (local) await deleteLocalScanCache(scanType); // an older kind of result: not shown, not kept
     try {
       const res = await withColdStartRetry(() => scanJobsApi.start<T>(scanType));
+      clearQueue();
       if (res.status === "cached") {
         setResult(res.cache.result);
         setCache(res.cache);
@@ -338,6 +356,10 @@ export function useScanJob<T = unknown>(scanType: ScanType, options: UseScanJobO
           }
         }
       }
+      if (heavyBusy(e)) {
+        queueRetry(e, () => void runRef.current());
+        return;
+      }
       setIssueKind("error");
       setError(e instanceof Error ? e.message : String(e));
     }
@@ -346,11 +368,10 @@ export function useScanJob<T = unknown>(scanType: ScanType, options: UseScanJobO
   const runFresh = useCallback(async () => {
     setError(null);
     setIssueKind(null);
-    // Fresh Scan invalidates this device's cached result up front; the new
-    // result replaces it once the job completes.
-    await deleteLocalScanCache(scanType);
+    // 2026-11-22: the saved result stays (on screen and on this device) until the new scan replaces it.
     try {
       const res = await withColdStartRetry(() => scanJobsApi.fresh<T>(scanType));
+      clearQueue();
       if (res.status === "started") {
         setJob(res.job);
         setRunning(true);
@@ -358,12 +379,21 @@ export function useScanJob<T = unknown>(scanType: ScanType, options: UseScanJobO
         pollJob(res.job.job_id);
       }
     } catch (e) {
+      if (heavyBusy(e)) {
+        queueRetry(e, () => void runFreshRef.current());
+        return;
+      }
       setIssueKind("error");
       setError(e instanceof Error ? e.message : String(e));
     }
   }, [scanType, pollJob]);
+  const runRef = useRef(run);
+  const runFreshRef = useRef(runFresh);
+  runRef.current = run;
+  runFreshRef.current = runFresh;
 
   const cancel = useCallback(async () => {
+    clearQueue();
     if (job?.job_id) {
       // Optimistic: stop polling and flip back to Run/Fresh Scan immediately,
       // rather than waiting up to POLL_INTERVAL_MS for the next poll to see
@@ -449,5 +479,5 @@ export function useScanJob<T = unknown>(scanType: ScanType, options: UseScanJobO
     setCache(null);
   }, [scanType]);
 
-  return { result, partial, progressLog, job, running, error, issueKind, cache, run, runFresh, cancel, clearSaved };
+  return { result, partial, progressLog, job, running, error, issueKind, cache, run, runFresh, cancel, clearSaved, queued };
 }

@@ -36,7 +36,7 @@ function minutes(seconds: number | null | undefined): string {
 }
 
 export function ValueBuyPage() {
-  const { result, partial, job, running, error, cache, run, runFresh, cancel } = useScanJob<ScanResult>("value_buy");
+  const { result, partial, job, running, error, cache, run, runFresh, cancel, queued } = useScanJob<ScanResult>("value_buy");
   const { openChart } = useChart();
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("monthly_rsi");
@@ -135,6 +135,12 @@ export function ValueBuyPage() {
         </div>
       )}
 
+      {queued && (
+        <div className="notice-banner queue-banner">
+          <span>{queued}</span>
+          <button type="button" className="secondary-button" onClick={() => void cancel()}>Cancel</button>
+        </div>
+      )}
       {error && <div className={running ? "notice-banner" : "error-banner"}>{error}</div>}
 
       {!result && !running && !error && (

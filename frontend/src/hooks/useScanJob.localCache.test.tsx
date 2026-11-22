@@ -112,7 +112,7 @@ describe("useScanJob device-local cache", () => {
     expect(result.current.result).toEqual(LOCAL.result);
   });
 
-  it("Fresh Scan invalidates the local cache before starting", async () => {
+  it("Fresh Scan keeps the saved result until the new scan replaces it", async () => {
     api.fresh.mockResolvedValue({ status: "started", job: job() });
     api.getJob.mockResolvedValue(job());
     const { result } = renderHook(() => useScanJob("cup_breakout"));
@@ -120,8 +120,8 @@ describe("useScanJob device-local cache", () => {
     await act(async () => {
       await result.current.runFresh();
     });
-    expect(deleteLocal).toHaveBeenCalledWith("cup_breakout");
-    expect(deleteLocal.mock.invocationCallOrder[0]).toBeLessThan(api.fresh.mock.invocationCallOrder[0]);
+    expect(api.fresh).toHaveBeenCalled();
+    expect(deleteLocal).not.toHaveBeenCalled();
   });
 
   it("a completed scan's result is saved locally", async () => {

@@ -138,7 +138,7 @@ function partialToCupResult(signal: { extra: Record<string, unknown> }): CupResu
 }
 
 export function CupBreakoutPage() {
-  const { result, partial, progressLog, job, running, error, run, runFresh, cancel, cache, clearSaved } = useScanJob<CupScanResult>(SCAN_TYPE);
+  const { result, partial, progressLog, job, running, error, run, runFresh, cancel, cache, clearSaved, queued } = useScanJob<CupScanResult>(SCAN_TYPE);
   const { openChart } = useChart();
 
   // Permanent, device-local Scan History (IndexedDB) — same mechanism the
@@ -253,6 +253,13 @@ export function CupBreakoutPage() {
           )}
         </div>
       </div>
+
+      {queued && (
+        <div className="notice-banner queue-banner">
+          <span>{queued}</span>
+          <button type="button" className="secondary-button" onClick={() => void cancel()}>Cancel</button>
+        </div>
+      )}
 
       {/* The result lives only on this laptop (browser storage on its disk); Render keeps no copy (2026-11-22). */}
       {!running && result && (

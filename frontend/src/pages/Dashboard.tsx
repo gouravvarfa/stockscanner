@@ -211,6 +211,7 @@ export function Dashboard() {
     partial,
     cacheAgeSeconds,
     localRows,
+    scanQueued,
   } = useScan();
   const { openChart } = useChart();
 
@@ -385,6 +386,12 @@ export function Dashboard() {
         </div>
       )}
 
+      {scanQueued && (
+        <div className="notice-banner queue-banner">
+          <span>{scanQueued}</span>
+          <button type="button" className="secondary-button" onClick={() => void stopScan()}>Cancel</button>
+        </div>
+      )}
       {scanError && !scanning && scanIssueKind === "interrupted" && (
         <div className="notice-banner">
           <div>

@@ -20,6 +20,26 @@ import "./gannTime/gannTime.css";
  * 2026-11-22: English, Weekly Sectors layout, and a Run scan button on the single-stock tab.
  */
 
+// Last results stay on this device until a new scan replaces them (2026-11-22): page changes, other scans and
+// server restarts never wipe them.
+const SECTORS_KEY = "gann:sectors";
+const STOCK_KEY = "gann:stock";
+function loadSaved<T>(key: string): T | null {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as T) : null;
+  } catch {
+    return null;
+  }
+}
+function save(key: string, value: unknown) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    /* storage full or blocked: the result is still on screen */
+  }
+}
+
 const fmtDate = (iso: string) =>
   new Date(`${iso}T00:00:00`).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 const fmtPrice = (v: number) => `₹${v.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -43,8 +63,15 @@ function Strength({ n }: { n: number }) {
 
 /* ------------------------------------------------------------ strong sectors */
 function SectorView({ onOpen }: { onOpen: (symbol: string) => void }) {
-  const [data, setData] = useState<GannSectorScan | null>(null);
+  const [data, setDataRaw] = useState<GannSectorScan | null>(() => loadSaved<GannSectorScan>(SECTORS_KEY));
   const [error, setError] = useState<string | null>(null);
+  // the server's view wins while it is running or has something; an idle server (e.g. after a restart) never
+  // hides the result saved on this device; a finished scan replaces the saved one
+  const setData = (next: GannSectorScan) => {
+    if (next.status === "idle") return;
+    if (next.status === "done") save(SECTORS_KEY, next);
+    setDataRaw(next);
+  };
 
   async function start() {
     setError(null);
@@ -223,10 +250,18 @@ function StockView({ symbol, onPick }: { symbol: string; onPick: (s: string) => 
     if (!symbol) return;
     setQuery(symbol);
     setHits([]);
+    const saved = loadSaved<GannStockDetail>(STOCK_KEY);
+    if (runId === 0 && saved && saved.symbol === symbol) {
+      setData(saved); // the last analysis, straight from this device; Run scan refreshes it
+      return;
+    }
     setLoading(true);
     setError(null);
     getGannStock(symbol)
-      .then(setData)
+      .then((d) => {
+        setData(d);
+        save(STOCK_KEY, d);
+      })
       .catch((e) => { setData(null); setError(e instanceof Error ? e.message : "No data for this stock."); })
       .finally(() => setLoading(false));
   }, [symbol, runId]);
@@ -385,7 +420,7 @@ export function GannTimePage() {
   const [params, setParams] = useSearchParams();
   // Single stock first (user, 2026-11-22); the Strong sectors scan is the second tab.
   const tab = params.get("tab") === "sectors" ? "sectors" : "stock";
-  const symbol = (params.get("symbol") ?? "").toUpperCase();
+  const symbol = (params.get("symbol") ?? loadSaved<GannStockDetail>(STOCK_KEY)?.symbol ?? "").toUpperCase();
   const openStock = (s: string) => setParams({ tab: "stock", symbol: s });
 
   return (
