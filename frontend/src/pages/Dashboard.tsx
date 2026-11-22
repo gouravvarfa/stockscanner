@@ -6,11 +6,9 @@ import { useChart } from "../chart/ChartContext";
 import { useScan } from "../context/ScanContext";
 import { BestStockCard } from "../components/BestStockCard";
 import { StockDetailPanel } from "../components/StockDetailPanel";
-import { ConditionChip } from "../components/ConditionChip";
-import { SourceBadge } from "../components/SourceBadge";
 import { InstrumentBadge } from "../components/InstrumentBadge";
-import { FilterIcon } from "../components/icons";
-import { ChartBarIcon } from "../components/icons";
+import { StockLogo } from "../components/StockLogo";
+import { ChartBarIcon, TrendIcon } from "../components/icons";
 
 // PRD Forming / NRD Forming are their own tabs (placed right after PRD / NRD)
 // but are deliberately NOT among the six strategies in STRATEGY_NAMES, so
@@ -102,8 +100,36 @@ function divergenceDetail(signal: StrategySignal): DivergenceDetail | null {
   };
 }
 
-function fmtDay(v: string | null | undefined): string {
-  return v ? String(v).slice(0, 10) : "—";
+// One date style on the whole page: "17 Nov 2026" (a plain YYYY-MM-DD is read as that calendar day, not UTC).
+function fmtDate(v: string | null | undefined): string {
+  if (!v) return "—";
+  const s = String(v);
+  const ymd = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  const d = ymd ? new Date(+ymd[1], +ymd[2] - 1, +ymd[3]) : new Date(s);
+  return Number.isNaN(d.getTime())
+    ? s.slice(0, 10)
+    : d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+function fmtPrice(v: number | null | undefined): string {
+  return v === null || v === undefined || Number.isNaN(v)
+    ? "—"
+    : `₹${v.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function ago(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const h = Math.floor(m / 60);
+  const d = Math.floor(h / 24);
+  return d > 0 ? `${d}d ${h % 24}h ago` : h > 0 ? `${h}h ${m % 60}m ago` : `${m}m ago`;
+}
+
+const TF_LABEL: Record<string, string> = { DAILY: "Daily", WEEKLY: "Weekly", MONTHLY: "Monthly" };
+
+function tabLabel(name: TabName): string {
+  if (name === "PRD" || name === "NRD") return `${name} Signals`;
+  if (name === "PRD Forming" || name === "NRD Forming") return name;
+  return strategyDisplayName(name);
 }
 
 interface DivergenceLeg {
@@ -135,9 +161,11 @@ function bestDivergenceLeg(signal: StrategySignal): DivergenceLeg | null {
 
 function FreshnessBadge({ leg }: { leg: DivergenceLeg | null }) {
   if (!leg || leg.bars_ago === null) return <span className="muted small">—</span>;
+  const when = leg.bars_ago === 0 ? "latest bar" : `${leg.bars_ago} bar${leg.bars_ago === 1 ? "" : "s"} ago`;
   return (
-    <span className={leg.fresh ? "chip chip-pass" : "muted small"}>
-      {leg.fresh ? "Fresh" : ""} — {leg.bars_ago} bar{leg.bars_ago === 1 ? "" : "s"} ago
+    <span className="dash-fresh">
+      {leg.fresh && <span className="chip chip-pass">Fresh</span>}
+      <span className="muted small">{when}</span>
     </span>
   );
 }
@@ -187,20 +215,19 @@ export function Dashboard() {
   const { openChart } = useChart();
 
   const [activeStrategy, setActiveStrategy] = useState<TabName>("PRD");
-  const [showFilters, setShowFilters] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>("symbol");
   const [asc, setAsc] = useState(true);
-  const [sourceFilter, setSourceFilter] = useState<string>("all");
   const [timeframeFilter, setTimeframeFilter] = useState<string>("all");
   const [symbolSearch, setSymbolSearch] = useState("");
   const [page, setPage] = useState(1);
 
-  useEffect(() => setPage(1), [activeStrategy, sourceFilter, timeframeFilter, symbolSearch]);
+  useEffect(() => setPage(1), [activeStrategy, timeframeFilter, symbolSearch]);
 
-  // A/B + Status columns: PRD's confirmed/forming tabs, and NRD Forming (NRD's
-  // confirmed tab keeps its original simpler RSI-leg/bars-ago columns).
+  // A/B columns: PRD's confirmed/forming tabs, and NRD Forming (NRD's confirmed tab keeps its simpler
+  // RSI-leg/bars-ago columns). The tab itself says PRD/NRD and confirmed/forming, so no column repeats it.
   const isAbTab = activeStrategy === "PRD" || activeStrategy === "PRD Forming" || activeStrategy === "NRD Forming";
-  const abBadgeLabel = activeStrategy === "NRD Forming" ? "NRD" : "PRD";
+  // a developing setup shows how far apart A and B are; a confirmed one shows how fresh it is
+  const isFormingTab = activeStrategy === "PRD Forming" || activeStrategy === "NRD Forming";
   const abPriceLabel = activeStrategy === "NRD Forming" ? "high" : "low";
   const isDivergenceTab = isAbTab || activeStrategy === "NRD";
   const signalsForActive: StrategySignal[] = latest?.strategies?.[activeStrategy] ?? [];
@@ -221,16 +248,10 @@ export function Dashboard() {
   const prdBreakdown = useMemo(() => countTimeframes(prdSignals), [prdSignals]);
   const nrdBreakdown = useMemo(() => countTimeframes(nrdSignals), [nrdSignals]);
 
-  const sources = useMemo(() => {
-    const set = new Set(signalsForActive.map((s) => String(s.extra.data_source ?? "")).filter(Boolean));
-    return ["all", ...Array.from(set).sort()];
-  }, [signalsForActive]);
-
   const [selected, setSelected] = useState<StrategySignal | null>(null);
 
   const filtered = useMemo(() => {
     let rows = signalsForActive;
-    if (sourceFilter !== "all") rows = rows.filter((s) => s.extra.data_source === sourceFilter);
     if (isDivergenceTab && timeframeFilter !== "all") {
       rows = rows.filter((s) => timeframesOf(s).includes(timeframeFilter));
     }
@@ -261,7 +282,7 @@ export function Dashboard() {
       return asc ? (av as number) - (bv as number) : (bv as number) - (av as number);
     });
     return sorted;
-  }, [signalsForActive, sourceFilter, timeframeFilter, symbolSearch, sortKey, asc, isDivergenceTab]);
+  }, [signalsForActive, timeframeFilter, symbolSearch, sortKey, asc, isDivergenceTab]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
@@ -286,7 +307,20 @@ export function Dashboard() {
     }
   }
 
-  const columnCount = isDivergenceTab ? (isAbTab ? 13 : 10) : activeStrategy === "Strategy One" ? 8 : activeStrategy === "Value Buy" ? 7 : 7;
+  // Stock | (Timeframe) | (A | B) | Signal date | 3 RSI-type columns | (Score) | Price | Chart
+  const columnCount = (isDivergenceTab ? (isAbTab ? 10 : 8) : 7) + (activeStrategy === "Strategy One" ? 1 : 0);
+
+  // a sortable column header: the active one shows its direction
+  const sortTh = (key: SortKey, label: string, num = false) => (
+    <th
+      className={`dash-sort${num ? " num-cell" : ""}${sortKey === key ? " active" : ""}`}
+      onClick={() => sortBy(key)}
+      aria-sort={sortKey === key ? (asc ? "ascending" : "descending") : "none"}
+    >
+      {label}
+      <span className="dash-sort-mark" aria-hidden="true">{sortKey === key ? (asc ? "▲" : "▼") : ""}</span>
+    </th>
+  );
 
   return (
     <div className="page">
@@ -297,7 +331,10 @@ export function Dashboard() {
             Setups in the stocks of today&apos;s STRONG sectors only (sector index daily, weekly and monthly RSI above 60)
           </p>
         </div>
-        <div style={{ display: "flex", gap: 10 }}>
+        <div className="dash-actions">
+          {!scanning && cacheAgeSeconds !== null && (
+            <span className="dash-last-scan">Last scan {ago(cacheAgeSeconds)}</span>
+          )}
           <button className="primary-button" onClick={runScan} disabled={scanning}>
             {scanning ? "Scanning strong sectors…" : "Run Scan"}
           </button>
@@ -346,12 +383,6 @@ export function Dashboard() {
             )}
           </div>
         </div>
-      )}
-
-      {!scanning && cacheAgeSeconds !== null && (
-        <p style={{ fontSize: 12, opacity: 0.7, marginTop: -6, marginBottom: 12 }}>
-          Cached data — age {Math.floor(cacheAgeSeconds / 3600)}h {Math.floor((cacheAgeSeconds % 3600) / 60)}m
-        </p>
       )}
 
       {scanError && !scanning && scanIssueKind === "interrupted" && (
@@ -409,32 +440,44 @@ export function Dashboard() {
       )}
 
       {latest && (
-        <div className="card dash-strong">
-          <div className="dash-strong-head">
-            <strong>Today&apos;s strong sectors</strong>
-            <span className="muted small">
-              Daily, weekly and monthly RSI of the sector index all above 60 · from the Weekly Sectors rule
+        <section className="card dash-strong" aria-labelledby="dash-strong-title">
+          <div className="dash-card-head">
+            <div>
+              <h2 id="dash-strong-title">Today&apos;s strong sectors</h2>
+              <p className="muted small">Daily, weekly and monthly RSI of the sector index all above 60</p>
+            </div>
+            <span className="dash-card-meta">
+              {latest.stocks_scanned} stocks scanned
+              {latest.stocks_failed ? ` · ${latest.stocks_failed} failed` : ""} ·{" "}
+              {new Date(latest.finished_at).toLocaleString("en-IN", {
+                day: "2-digit",
+                month: "short",
+                hour: "numeric",
+                minute: "2-digit",
+              })}
             </span>
           </div>
           {(latest.strong_sectors ?? []).length === 0 ? (
-            <p className="muted small" style={{ margin: "6px 0 0" }}>
+            <p className="muted small" style={{ margin: 0 }}>
               No sector is STRONG right now, so there were no stocks to scan. See <Link to="/weekly-sectors">Weekly Sectors</Link>.
             </p>
           ) : (
             <div className="dash-strong-list">
               {(latest.strong_sectors ?? []).map((s) => (
                 <span key={s.key} className="dash-strong-chip" title={s.index}>
-                  <b>{s.label}</b> · {s.stocks} stocks · RSI {[s.rsi.d, s.rsi.w, s.rsi.m].map((v) => (v === null ? "n/a" : v.toFixed(0))).join("/")}
+                  <b>{s.label}</b>
+                  <span className="dash-strong-sep">·</span>
+                  {s.stocks} stocks
+                  <span className="dash-strong-sep">·</span>
+                  RSI {[s.rsi.d, s.rsi.w, s.rsi.m].map((v) => (v === null ? "n/a" : v.toFixed(0))).join(" / ")}
                 </span>
               ))}
             </div>
           )}
-          <p className="muted small" style={{ margin: "10px 0 0" }}>
-            Data as of <b>{new Date(latest.finished_at).toLocaleString("en-IN")}</b> · {latest.stocks_scanned} stocks scanned
-            {latest.stocks_failed ? ` · ${latest.stocks_failed} failed` : ""} · {latest.execution_seconds.toFixed(0)}s · Value Buy has its
-            own page: <Link to="/value-buy">open Value Buy</Link>
+          <p className="muted small dash-foot">
+            Value Buy scans the whole A Group on its own page: <Link to="/value-buy">open Value Buy</Link>
           </p>
-        </div>
+        </section>
       )}
 
       {latest && (
@@ -460,8 +503,19 @@ export function Dashboard() {
                   >
                     <div className="tb-summary-label">{strategyDisplayName(name).toUpperCase()}</div>
                     <div className={`tb-summary-value${count ? " wk-up" : ""}`}>{count}</div>
-                    <div className="tb-config-hint" style={{ margin: 0 }}>
-                      {breakdown ? `D ${breakdown.daily} · W ${breakdown.weekly} · M ${breakdown.monthly}` : count === 1 ? "stock" : "stocks"}
+                    <div className="tb-config-hint dash-tile-sub" style={{ margin: 0 }}>
+                      {breakdown ? (
+                        <span
+                          className="dash-tf"
+                          title={`Daily ${breakdown.daily} · Weekly ${breakdown.weekly} · Monthly ${breakdown.monthly}`}
+                        >
+                          D <b>{breakdown.daily}</b> · W <b>{breakdown.weekly}</b> · M <b>{breakdown.monthly}</b>
+                        </span>
+                      ) : count === 1 ? (
+                        "stock"
+                      ) : (
+                        "stocks"
+                      )}
                     </div>
                   </button>
                 );
@@ -473,225 +527,229 @@ export function Dashboard() {
 
           {activeStrategy === "Strategy One" && <BestStockCard stock={latest.best} />}
 
-          <div className="tabs">
-            {TAB_NAMES.map((name) => (
-              <button
-                key={name}
-                className={activeStrategy === name ? "tab active" : "tab"}
-                onClick={() => setActiveStrategy(name)}
-              >
-                {name === "PRD" || name === "NRD"
-                  ? `${name} Signals`
-                  : name === "PRD Forming" || name === "NRD Forming"
-                    ? name
-                    : strategyDisplayName(name)}
-                <span className="tab-count">{latest.strategies?.[name]?.length ?? 0}</span>
-              </button>
-            ))}
-          </div>
-
-          <div className="filter-toggle-row">
-            <button className="secondary-button" onClick={() => setShowFilters((v) => !v)}>
-              <FilterIcon style={{ verticalAlign: -3, marginRight: 6 }} />
-              Filter
-            </button>
-          </div>
-
-          {showFilters && (
-            <div className="card filters-row filter-panel">
-              {isDivergenceTab && (
-                <label>
-                  Timeframe
-                  <select value={timeframeFilter} onChange={(e) => setTimeframeFilter(e.target.value)}>
+          {/* Signals (2026-11-22 tidy-up): setup tabs, search and the table in one card. No columns that only repeat the
+              tab (type, status) or are always the same (data source); one date style; the table fits the page. */}
+          <section className="card dash-signals" aria-labelledby="dash-signals-title">
+            <div className="dash-card-head">
+              <div>
+                <h2 id="dash-signals-title">Signals</h2>
+                <p className="muted small">Every stock that qualified, by setup. Click a row for its details.</p>
+              </div>
+              <div className="dash-tools">
+                {isDivergenceTab && (
+                  <select
+                    className="dash-input"
+                    value={timeframeFilter}
+                    onChange={(e) => setTimeframeFilter(e.target.value)}
+                    aria-label="Timeframe"
+                  >
                     <option value="all">All timeframes</option>
                     <option value="DAILY">Daily</option>
                     <option value="WEEKLY">Weekly</option>
                     <option value="MONTHLY">Monthly</option>
                   </select>
-                </label>
-              )}
-              <label>
-                Data Source
-                <select value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value)}>
-                  {sources.map((s) => (
-                    <option key={s} value={s}>
-                      {s === "all" ? "All sources" : s}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Search symbol
-                <input type="text" value={symbolSearch} onChange={(e) => setSymbolSearch(e.target.value)} placeholder="e.g. RELIANCE" />
-              </label>
+                )}
+                <input
+                  className="dash-input dash-search"
+                  type="search"
+                  value={symbolSearch}
+                  onChange={(e) => setSymbolSearch(e.target.value)}
+                  placeholder="Search symbol"
+                  aria-label="Search symbol"
+                />
+              </div>
             </div>
-          )}
 
-          {!scanning && signalsForActive.length === 0 ? (
-            <div className="card state-block">
-              <div className="state-title">No signals found</div>
-              <div className="state-subtitle">No stocks currently qualify for {activeStrategy} in this scan.</div>
+            <div className="tabs dash-tabs" role="tablist" aria-label="Setup">
+              {TAB_NAMES.map((name) => (
+                <button
+                  key={name}
+                  type="button"
+                  role="tab"
+                  aria-selected={activeStrategy === name}
+                  className={activeStrategy === name ? "tab active" : "tab"}
+                  onClick={() => setActiveStrategy(name)}
+                >
+                  {tabLabel(name)}
+                  <span className="tab-count">{latest.strategies?.[name]?.length ?? 0}</span>
+                </button>
+              ))}
             </div>
-          ) : (
-            <div className="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th onClick={() => sortBy("symbol")}>Symbol</th>
-                    {isDivergenceTab && <th>Divergence Type</th>}
-                    {isDivergenceTab && <th>Timeframe</th>}
-                    {isAbTab && <th>Status</th>}
-                    {isAbTab && <th>A (date · {abPriceLabel})</th>}
-                    {isAbTab && <th>B / Current (date · price)</th>}
-                    <th>Signal Date</th>
-                    {isDivergenceTab ? (
-                      <>
-                        <th>{isAbTab ? "A RSI" : "RSI Leg 1"}</th>
-                        <th>{isAbTab ? "B / Current RSI" : "RSI Leg 2"}</th>
-                        <th>{isAbTab ? "Candle Distance" : "Bars Ago"}</th>
-                      </>
-                    ) : (
-                      <>
-                        <th onClick={() => sortBy("daily_rsi")}>Daily RSI</th>
-                        <th onClick={() => sortBy("weekly_rsi")}>Weekly RSI</th>
-                        <th onClick={() => sortBy("monthly_rsi")}>Monthly RSI</th>
-                      </>
-                    )}
-                    {activeStrategy === "Strategy One" && <th onClick={() => sortBy("score")}>Score</th>}
-                    {activeStrategy === "Value Buy" && <th>Conditions</th>}
-                    <th onClick={() => sortBy("price")} className="num-cell">Price</th>
-                    <th>Data Source</th>
-                    <th>Chart</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {scanning ? (
-                    <SkeletonRows columns={columnCount} />
-                  ) : (
-                    pageRows.map((s, rowIndex) => {
-                      const detail = isAbTab ? divergenceDetail(s) : null;
-                      const tfs = timeframesOf(s);
-                      const leg = bestDivergenceLeg(s);
-                      const price = s.extra.current_price as number | undefined;
-                      const source = s.extra.data_source as string | undefined;
-                      const isForming = Boolean(detail?.status.endsWith("_FORMING"));
-                      return (
-                        <tr key={pageRowKeys[rowIndex]} onClick={() => setSelected(s)} className="clickable-row">
-                          <td className="symbol-cell">{s.symbol}<InstrumentBadge type={s.instrument_type} />{typeof s.extra.sector === "string" && s.extra.sector && <span className="sector-chip">{s.extra.sector}</span>}</td>
-                          {isDivergenceTab && (
-                            <td>
-                              <span className={`divergence-badge divergence-badge-${(isAbTab ? abBadgeLabel : activeStrategy).toLowerCase()}`}>
-                                {isAbTab ? abBadgeLabel : activeStrategy}
-                              </span>
-                            </td>
-                          )}
-                          {isDivergenceTab && (
-                            <td>
-                              {tfs.length > 0 ? (
-                                <span className="timeframe-chip">{tfs.join(" + ")}</span>
-                              ) : (
-                                "—"
+
+            {!scanning && signalsForActive.length === 0 ? (
+              <p className="muted dash-empty">No stock qualifies for {tabLabel(activeStrategy)} in this scan.</p>
+            ) : !scanning && filtered.length === 0 ? (
+              <p className="muted dash-empty">No signal matches this search.</p>
+            ) : (
+              <>
+                <div className="table-wrap">
+                  <table className="dash-signal-table">
+                    <thead>
+                      <tr>
+                        {sortTh("symbol", "Stock")}
+                        {isDivergenceTab && <th>Timeframe</th>}
+                        {isAbTab && <th>A ({abPriceLabel})</th>}
+                        {isAbTab && <th>B / now</th>}
+                        <th>Signal date</th>
+                        {isDivergenceTab ? (
+                          <>
+                            <th className="num-cell">{isAbTab ? "A RSI" : "RSI leg 1"}</th>
+                            <th className="num-cell">{isAbTab ? "B RSI" : "RSI leg 2"}</th>
+                            <th>{isFormingTab ? "A to B" : "Freshness"}</th>
+                          </>
+                        ) : (
+                          <>
+                            {sortTh("daily_rsi", "Daily RSI", true)}
+                            {sortTh("weekly_rsi", "Weekly RSI", true)}
+                            {sortTh("monthly_rsi", "Monthly RSI", true)}
+                          </>
+                        )}
+                        {activeStrategy === "Strategy One" && sortTh("score", "Score", true)}
+                        {sortTh("price", "Price", true)}
+                        <th aria-label="Chart" />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {scanning ? (
+                        <SkeletonRows columns={columnCount} />
+                      ) : (
+                        pageRows.map((s, rowIndex) => {
+                          const detail = isAbTab ? divergenceDetail(s) : null;
+                          const tfs = timeframesOf(s);
+                          const leg = bestDivergenceLeg(s);
+                          const price = s.extra.current_price as number | undefined;
+                          const sector = typeof s.extra.sector === "string" ? s.extra.sector : "";
+                          return (
+                            <tr key={pageRowKeys[rowIndex]} onClick={() => setSelected(s)} className="clickable-row">
+                              <td>
+                                <div className="dash-stock">
+                                  <span className="wk-logo">
+                                    <StockLogo symbol={s.symbol} />
+                                  </span>
+                                  <span className="dash-stock-text">
+                                    <span className="dash-stock-sym">
+                                      {s.symbol}
+                                      <InstrumentBadge type={s.instrument_type} />
+                                    </span>
+                                    {sector && <span className="dash-stock-sub">{sector}</span>}
+                                  </span>
+                                </div>
+                              </td>
+                              {isDivergenceTab && (
+                                <td>
+                                  {tfs.length > 0 ? (
+                                    <span className="timeframe-chip">{tfs.map((t) => TF_LABEL[t] ?? t).join(" + ")}</span>
+                                  ) : (
+                                    "—"
+                                  )}
+                                </td>
                               )}
-                            </td>
-                          )}
-                          {isAbTab && (
-                            <>
-                              <td>
-                                <span className={isForming ? "chip" : "chip chip-pass"}>
-                                  {isForming ? `${abBadgeLabel} FORMING` : `${abBadgeLabel} CONFIRMED`}
-                                </span>
+                              {isAbTab && (
+                                <>
+                                  <td>
+                                    {detail ? (
+                                      <span className="dash-two">
+                                        {fmtDate(detail.a_date)}
+                                        <small>{fmtPrice(detail.a_price)}</small>
+                                      </span>
+                                    ) : (
+                                      "—"
+                                    )}
+                                  </td>
+                                  <td>
+                                    {detail ? (
+                                      <span className="dash-two">
+                                        {fmtDate(detail.b_date)}
+                                        <small>{fmtPrice(detail.b_price)}</small>
+                                      </span>
+                                    ) : (
+                                      "—"
+                                    )}
+                                  </td>
+                                </>
+                              )}
+                              <td>{fmtDate(s.signal_date)}</td>
+                              {isDivergenceTab ? (
+                                <>
+                                  <td className="num-cell">{fmt(leg?.rsi1 ?? null)}</td>
+                                  <td className="num-cell">{fmt(leg?.rsi2 ?? null)}</td>
+                                  <td>
+                                    {isFormingTab && detail?.distance != null ? (
+                                      <span className="muted">{detail.distance} candles</span>
+                                    ) : (
+                                      <FreshnessBadge leg={leg} />
+                                    )}
+                                  </td>
+                                </>
+                              ) : (
+                                <>
+                                  <td className="num-cell">{fmt(s.daily_rsi)}</td>
+                                  <td className="num-cell">{fmt(s.weekly_rsi)}</td>
+                                  <td className="num-cell">{fmt(s.monthly_rsi)}</td>
+                                </>
+                              )}
+                              {activeStrategy === "Strategy One" && (
+                                <td className="num-cell">{fmt(s.extra.score as number | undefined)}</td>
+                              )}
+                              <td className="num-cell">{fmtPrice(price)}</td>
+                              <td className="dash-chart-cell">
+                                <button
+                                  type="button"
+                                  className="wk-chart-btn"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    openChart(s.symbol, {
+                                      strategy: s.strategy,
+                                      daily_rsi: s.daily_rsi,
+                                      weekly_rsi: s.weekly_rsi,
+                                      monthly_rsi: s.monthly_rsi,
+                                      signal_date: s.signal_date,
+                                      divergence_timeframe: tfs.length > 0 ? tfs.join(" + ") : null,
+                                      explanation: s.explanation,
+                                    });
+                                  }}
+                                  aria-label={`Open the ${s.symbol} chart`}
+                                >
+                                  <TrendIcon width={13} height={13} aria-hidden="true" />
+                                  Chart
+                                </button>
                               </td>
-                              <td>{detail ? `${fmtDay(detail.a_date)} · ${fmt(detail.a_price, 2)}` : "—"}</td>
-                              <td>{detail ? `${fmtDay(detail.b_date)} · ${fmt(detail.b_price, 2)}` : "—"}</td>
-                            </>
-                          )}
-                          <td>{s.signal_date ? new Date(s.signal_date).toLocaleDateString() : "N/A"}</td>
-                          {isDivergenceTab ? (
-                            <>
-                              <td className="num-cell">{fmt(leg?.rsi1 ?? null)}</td>
-                              <td className="num-cell">{fmt(leg?.rsi2 ?? null)}</td>
-                              <td>
-                                {isAbTab && detail?.distance != null ? (
-                                  <span className="muted small">{detail.distance} candles</span>
-                                ) : (
-                                  <FreshnessBadge leg={leg} />
-                                )}
-                              </td>
-                            </>
-                          ) : (
-                            <>
-                              <td className="num-cell">{fmt(s.daily_rsi)}</td>
-                              <td className="num-cell">{fmt(s.weekly_rsi)}</td>
-                              <td className="num-cell">{fmt(s.monthly_rsi)}</td>
-                            </>
-                          )}
-                          {activeStrategy === "Strategy One" && (
-                            <td className="num-cell">{fmt(s.extra.score as number | undefined)}</td>
-                          )}
-                          {activeStrategy === "Value Buy" && (
-                            <td>
-                              <div className="chip-row">
-                                {Object.entries(s.conditions).map(([k, v]) => (
-                                  <ConditionChip key={k} label={k} passed={v} />
-                                ))}
-                              </div>
-                            </td>
-                          )}
-                          <td className="num-cell">{price !== undefined ? `₹${price.toFixed(2)}` : "—"}</td>
-                          <td>
-                            <SourceBadge source={source} />
-                          </td>
-                          <td>
-                            <button
-                              type="button"
-                              className="secondary-button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                openChart(s.symbol, {
-                                  strategy: s.strategy,
-                                  daily_rsi: s.daily_rsi,
-                                  weekly_rsi: s.weekly_rsi,
-                                  monthly_rsi: s.monthly_rsi,
-                                  signal_date: s.signal_date,
-                                  divergence_timeframe: tfs.length > 0 ? tfs.join(" + ") : null,
-                                  explanation: s.explanation,
-                                });
-                              }}
-                            >
-                              Chart
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-              {!scanning && filtered.length > 0 && (
-                <div className="table-pagination">
-                  <span>
-                    Showing {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, filtered.length)} of{" "}
-                    {filtered.length} signals
-                  </span>
-                  <div className="pagination-controls">
-                    <button disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}>
-                      Previous
-                    </button>
-                    {Array.from({ length: totalPages }, (_, i) => i + 1)
-                      .slice(Math.max(0, currentPage - 3), Math.max(0, currentPage - 3) + 5)
-                      .map((p) => (
-                        <button key={p} className={p === currentPage ? "active" : ""} onClick={() => setPage(p)}>
-                          {p}
-                        </button>
-                      ))}
-                    <button disabled={currentPage === totalPages} onClick={() => setPage(currentPage + 1)}>
-                      Next
-                    </button>
-                  </div>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
                 </div>
-              )}
-            </div>
-          )}
+                {!scanning && filtered.length > 0 && (
+                  <div className="dash-pagination">
+                    <span>
+                      {totalPages > 1
+                        ? `Showing ${(currentPage - 1) * PAGE_SIZE + 1}–${Math.min(currentPage * PAGE_SIZE, filtered.length)} of ${filtered.length} signals`
+                        : `${filtered.length} signal${filtered.length === 1 ? "" : "s"}`}
+                    </span>
+                    {totalPages > 1 && (
+                      <div className="pagination-controls">
+                        <button disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}>
+                          Previous
+                        </button>
+                        {Array.from({ length: totalPages }, (_, i) => i + 1)
+                          .slice(Math.max(0, currentPage - 3), Math.max(0, currentPage - 3) + 5)
+                          .map((p) => (
+                            <button key={p} className={p === currentPage ? "active" : ""} onClick={() => setPage(p)}>
+                              {p}
+                            </button>
+                          ))}
+                        <button disabled={currentPage === totalPages} onClick={() => setPage(currentPage + 1)}>
+                          Next
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+          </section>
         </>
       )}
 

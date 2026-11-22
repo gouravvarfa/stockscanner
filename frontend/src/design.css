@@ -1372,3 +1372,48 @@ h1, .page-header h1, .app-content > h1, .app-content > div > h1:first-child { fo
 .act-name, .act-count { font-weight: 600; }
 .act-main { font-weight: 550; }
 .act-val { font-weight: 500; }
+
+/* ==========================================================================
+   Dashboard tidy-up (2026-11-22, user: "Dashboard looks messy; logos there too")
+   Every card has the same head (title and note on the left, meta or tools on the right). A stock is always:
+   logo, symbol, FUTURE/EQUITY badge, sector underneath.
+   ========================================================================== */
+.dash-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.dash-last-scan { font-size: 12.5px; color: var(--text-muted); margin-right: 4px; white-space: nowrap; }
+.dash-card-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 8px 16px; margin-bottom: 14px; }
+.dash-card-head h2 { margin: 0; font-size: 16px; }
+.dash-card-head p { margin: 3px 0 0; }
+.dash-card-meta { font-size: 12.5px; color: var(--text-muted); white-space: nowrap; padding-top: 3px; }
+.dash-strong .dash-strong-list { margin-top: 0; }
+.dash-strong-sep { opacity: 0.45; }
+.dash-strong-chip { gap: 6px; }
+.dash-foot { margin: 12px 0 0; }
+.dash-tile-sub { white-space: nowrap; }
+.dash-tf b { font-weight: 600; color: var(--text-primary); }
+.dash-stock { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.dash-stock-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.3; }
+.dash-stock-sym { display: inline-flex; align-items: center; font-weight: 600; color: var(--text-primary); white-space: nowrap; }
+.dash-stock-sym .instrument-badge { margin-left: 8px; }
+.dash-stock-sub { font-size: 11.5px; color: var(--text-muted); }
+.dash-rank-table th:nth-child(4) { color: var(--text-muted); }
+.dash-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.dash-input { height: 34px; padding: 0 12px; border-radius: 9px; border: 1px solid var(--border); background: var(--bg-surface);
+  color: var(--text-primary); font: inherit; font-size: 13px; }
+.dash-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); }
+.dash-search { width: 200px; }
+.dash-tabs { margin-bottom: 14px; }
+.dash-signal-table th, .dash-signal-table td { white-space: nowrap; vertical-align: middle; }
+.dash-sort { cursor: pointer; user-select: none; }
+.dash-sort:hover, .dash-sort.active { color: var(--text-primary); }
+.dash-sort-mark { display: inline-block; width: 10px; margin-left: 4px; font-size: 8px; vertical-align: 1px; }
+.dash-two { display: flex; flex-direction: column; line-height: 1.3; font-variant-numeric: tabular-nums; }
+.dash-two small { font-size: 11.5px; color: var(--text-muted); }
+.dash-chart-cell { width: 1%; text-align: right; }
+.dash-empty { margin: 4px 2px 2px; }
+.dash-pagination { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 2px 0;
+  font-size: 12.5px; color: var(--text-muted); }
+@media (max-width: 700px) {
+  .dash-tools, .dash-search { width: 100%; }
+  .dash-tools select { flex: 1; }
+}
+.dash-fresh { display: inline-flex; align-items: center; gap: 6px; }

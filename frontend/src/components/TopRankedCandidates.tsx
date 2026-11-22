@@ -3,6 +3,7 @@ import { useChart } from "../chart/ChartContext";
 import { rankingApi, type LatestRankingOut, type RankedCandidateOut } from "../services/rankingApi";
 import { strategyDisplayName } from "../services/api";
 import { InstrumentBadge } from "./InstrumentBadge";
+import { StockLogo } from "./StockLogo";
 import { TrendIcon } from "./icons";
 
 /**
@@ -44,12 +45,15 @@ export function TopRankedCandidates({ refreshKey }: { refreshKey: unknown }) {
     });
 
   return (
-    <div className="card">
-      <h2 style={{ marginTop: 0 }}>Top ranked candidates</h2>
-      <p className="muted small" style={{ marginTop: 0 }}>
-        Ranked by setup strength, not a buy recommendation. Only stocks that qualified for at least one setup. Click a row for
-        the score breakdown.
-      </p>
+    <section className="card" aria-labelledby="dash-ranked-title">
+      <div className="dash-card-head">
+        <div>
+          <h2 id="dash-ranked-title">Top ranked candidates</h2>
+          <p className="muted small">
+            Ranked by setup strength across every setup, not a buy recommendation. Click a row for the score breakdown.
+          </p>
+        </div>
+      </div>
       {!data || data.top_candidates.length === 0 ? (
         <p className="muted" style={{ marginBottom: 0 }}>None</p>
       ) : (
@@ -69,8 +73,16 @@ export function TopRankedCandidates({ refreshKey }: { refreshKey: unknown }) {
                 <Fragment key={c.symbol}>
                   <tr className="wk-click" onClick={() => setExpanded((cur) => (cur === c.symbol ? null : c.symbol))}>
                     <td className="muted">{i + 1}</td>
-                    <td className="wk-sym">
-                      {c.symbol} <InstrumentBadge type={c.instrument_type} />
+                    <td>
+                      <div className="dash-stock">
+                        <span className="wk-logo">
+                          <StockLogo symbol={c.symbol} />
+                        </span>
+                        <span className="dash-stock-sym">
+                          {c.symbol}
+                          <InstrumentBadge type={c.instrument_type} />
+                        </span>
+                      </div>
                     </td>
                     <td>
                       <div className="dash-setups">
@@ -121,6 +133,6 @@ export function TopRankedCandidates({ refreshKey }: { refreshKey: unknown }) {
           </table>
         </div>
       )}
-    </div>
+    </section>
   );
 }
