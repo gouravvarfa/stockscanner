@@ -412,25 +412,6 @@ export function WeeklySectorsPage() {
             </ol>
           </div>
 
-          <ActionCard
-            report={report}
-            onStock={(st, label) =>
-              openChart(st.symbol, {
-                strategy: `Weekly Sectors · ${label}`,
-                daily_rsi: st.rsi_d ?? null,
-                weekly_rsi: null,
-                monthly_rsi: null,
-                signal_date: report.end_date,
-                explanation: `${st.symbol}: ${pct(st.r1w)} 1W, ${pct(st.r1m)} 1M; leader of ${label}.`,
-                indicators: ALL_INDICATORS,
-              })
-            }
-            onSector={(key) => {
-              setSelected(key);
-              detailRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-            }}
-          />
-
           <div className="wk-rank-grid">
             <RankPanel title="1-week ranking" sectors={report.sectors} field="r1w" />
             <RankPanel title="1-month ranking" sectors={report.sectors} field="r1m" />
@@ -583,6 +564,24 @@ export function WeeklySectorsPage() {
               advice.
             </p>
           </div>
+          <ActionCard
+            report={report}
+            onStock={(st, label) =>
+              openChart(st.symbol, {
+                strategy: `Weekly Sectors · ${label}`,
+                daily_rsi: st.rsi_d ?? null,
+                weekly_rsi: null,
+                monthly_rsi: null,
+                signal_date: report.end_date,
+                explanation: `${st.symbol}: ${pct(st.r1w)} 1W, ${pct(st.r1m)} 1M; leader of ${label}.`,
+                indicators: ALL_INDICATORS,
+              })
+            }
+            onSector={(key) => {
+              setSelected(key);
+              detailRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+            }}
+          />
         </>
       )}
     </div>
