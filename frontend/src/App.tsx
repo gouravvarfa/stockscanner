@@ -26,11 +26,15 @@ import { Settings } from "./pages/Settings";
 import { TopBottomBacktest } from "./pages/TopBottomBacktest";
 import { TopBottomErrorBoundary } from "./pages/topBottom/TopBottomErrorBoundary";
 import { startAutoConnect } from "./services/angeloneAutoConnect";
+import { useAutoUpdate } from "./hooks/useAutoUpdate";
 
 export default function App() {
   const [logsOpen, setLogsOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const chart = useChart();
+
+  // A new deploy reloads the open app by itself (hooks/useAutoUpdate.ts).
+  const updating = useAutoUpdate();
 
   // Wake the backend and reconnect Angel One as soon as the app opens (see angeloneAutoConnect.ts).
   useEffect(() => startAutoConnect(), []);
@@ -59,6 +63,7 @@ export default function App() {
 
   return (
     <div className="app-shell">
+      {updating && <div className="update-toast" role="status">Updating to the new version…</div>}
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <div className="app-main">
         <Header
