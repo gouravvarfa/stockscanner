@@ -286,6 +286,12 @@ async def get_job_results(job_id: str) -> dict:
     return job.result
 
 
+@router.post("/jobs/{job_id}/forget")
+async def forget_job(job_id: str) -> dict:
+    """The device has saved this finished job's result on its own disk: drop the server's copy from memory."""
+    return {"forgotten": job_manager.forget(job_id)}
+
+
 @router.post("/jobs/{job_id}/cancel")
 async def cancel_job(job_id: str, device_id: str | None = None) -> dict:
     """A device can only cancel a job it owns — cancelling with a mismatched

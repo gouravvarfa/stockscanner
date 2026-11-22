@@ -57,10 +57,18 @@ describe("device-local scan cache (IndexedDB)", () => {
 
   it("expires after 24 hours and deletes the expired row", async () => {
     const db = await freshModule();
-    await db.putLocalScanCache("cup_breakout", envelope());
-    expect(await db.getLocalScanCache("cup_breakout", completedMs + 23.9 * HOUR)).not.toBeNull();
-    expect(await db.getLocalScanCache("cup_breakout", completedMs + 24 * HOUR)).toBeNull();
+    await db.putLocalScanCache("a_group", { ...envelope(), scan_type: "a_group" });
+    expect(await db.getLocalScanCache("a_group", completedMs + 23.9 * HOUR)).not.toBeNull();
+    expect(await db.getLocalScanCache("a_group", completedMs + 24 * HOUR)).toBeNull();
     // Deleted, not just hidden: even an "earlier" clock can't resurrect it.
+    expect(await db.getLocalScanCache("a_group", completedMs)).toBeNull();
+  });
+
+  it("keeps the Cup result until it is deleted (no 24h expiry)", async () => {
+    const db = await freshModule();
+    await db.putLocalScanCache("cup_breakout", envelope());
+    expect(await db.getLocalScanCache("cup_breakout", completedMs + 400 * 24 * HOUR)).not.toBeNull();
+    await db.deleteLocalScanCache("cup_breakout");
     expect(await db.getLocalScanCache("cup_breakout", completedMs)).toBeNull();
   });
 

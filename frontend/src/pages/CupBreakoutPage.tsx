@@ -138,7 +138,7 @@ function partialToCupResult(signal: { extra: Record<string, unknown> }): CupResu
 }
 
 export function CupBreakoutPage() {
-  const { result, partial, progressLog, job, running, error, run, runFresh, cancel } = useScanJob<CupScanResult>(SCAN_TYPE);
+  const { result, partial, progressLog, job, running, error, run, runFresh, cancel, cache, clearSaved } = useScanJob<CupScanResult>(SCAN_TYPE);
   const { openChart } = useChart();
 
   // Permanent, device-local Scan History (IndexedDB) — same mechanism the
@@ -253,6 +253,24 @@ export function CupBreakoutPage() {
           )}
         </div>
       </div>
+
+      {/* The result lives only on this laptop (browser storage on its disk); Render keeps no copy (2026-11-22). */}
+      {!running && result && (
+        <div className="cup-saved">
+          <span>
+            Saved on this device{cache?.completed_at ? ` · scan of ${new Date(cache.completed_at).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" })}` : ""} · not stored on the server
+          </span>
+          <button
+            type="button"
+            className="secondary-button cup-delete"
+            onClick={() => {
+              if (window.confirm("Delete the saved Cup scan from this device?")) void clearSaved();
+            }}
+          >
+            Delete
+          </button>
+        </div>
+      )}
 
       {running && job && (
         <div className="card">

@@ -266,6 +266,9 @@ export async function storageStats(): Promise<{ scans: number; stocks: number; e
 // ---------------------------------------------------------------------------
 
 export const LOCAL_SCAN_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+// Scan types whose result stays on this device's disk until the user deletes it or a new scan replaces it
+// (2026-11-22, user: the Cup result lives on the laptop, not on Render, and is deleted only on request).
+export const KEEP_UNTIL_DELETED = new Set<string>(["cup_breakout"]);
 
 /** Same shape as the backend's CacheEnvelope (services/scanJobsApi.ts). */
 export interface LocalScanCacheEnvelope<T = unknown> {
@@ -307,7 +310,8 @@ export async function getLocalScanCache<T = unknown>(
   try {
     const row = await tx([SCAN_CACHE_STORE], "readonly", (t) => reqToPromise(t.objectStore(SCAN_CACHE_STORE).get(scanType)));
     if (row === undefined) return null;
-    if (!isValidRow(row, scanType) || now - Date.parse(row.envelope.completed_at) >= LOCAL_SCAN_CACHE_TTL_MS) {
+    const expired = !KEEP_UNTIL_DELETED.has(scanType) && now - Date.parse(row.envelope.completed_at) >= LOCAL_SCAN_CACHE_TTL_MS;
+    if (!isValidRow(row, scanType) || expired) {
       await deleteLocalScanCache(scanType);
       return null;
     }

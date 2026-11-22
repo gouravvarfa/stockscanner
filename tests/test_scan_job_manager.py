@@ -275,3 +275,21 @@ async def test_a_still_running_job_is_never_evicted_even_when_many_others_finish
     assert manager.get(long_job.job_id) is not None
     still_running.set()
     await long_job._task
+
+
+async def test_forget_drops_a_finished_job_but_never_a_running_one():
+    """The device saved the result on its own disk -> the server keeps no copy (Cup Breakout, 2026-11-22)."""
+    manager = JobManager()
+    gate = asyncio.Event()
+
+    async def runner(job):
+        await gate.wait()
+        return {"results": [1, 2]}
+
+    job = manager.start_job("cup_breakout", runner)
+    assert manager.forget(job.job_id) is False  # still running: kept
+    gate.set()
+    await job._task
+    assert manager.forget(job.job_id) is True
+    assert manager.get(job.job_id) is None
+    assert manager.forget(job.job_id) is False  # already gone

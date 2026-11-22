@@ -155,6 +155,9 @@ export const scanJobsApi = {
   getProgressLog: (jobId: string, after: number) =>
     request<ProgressLogOut>(`/api/scan/jobs/${jobId}/progress?after=${after}`),
 
+  /** The result is saved on this device's disk: ask the server to drop its in-memory copy. */
+  forgetJob: (jobId: string) => request<{ forgotten: boolean }>(`/api/scan/jobs/${jobId}/forget`, { method: "POST" }),
+
   cancelJob: (jobId: string) =>
     request<{ status: string }>(`/api/scan/jobs/${jobId}/cancel?device_id=${encodeURIComponent(getDeviceId())}`, {
       method: "POST",

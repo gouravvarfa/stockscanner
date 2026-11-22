@@ -8,7 +8,7 @@ import {
   type ScanJobOut,
   type ScanType,
 } from "../services/scanJobsApi";
-import { deleteLocalScanCache, getLocalScanCache, putLocalScanCache } from "../services/localHistoryDb";
+import { KEEP_UNTIL_DELETED, deleteLocalScanCache, getLocalScanCache, putLocalScanCache } from "../services/localHistoryDb";
 
 const POLL_INTERVAL_MS = 1500;
 
@@ -102,6 +102,7 @@ interface UseScanJobResult<T> {
   run: () => Promise<void>; // Normal Scan: serves cache if valid, else starts a job
   runFresh: () => Promise<void>; // Fresh Scan: always starts a new job
   cancel: () => Promise<void>;
+  clearSaved: () => Promise<void>; // delete this device's saved result
 }
 
 /**
@@ -215,6 +216,13 @@ export function useScanJob<T = unknown>(scanType: ScanType, options: UseScanJobO
                 setResult(r);
                 setCache(null); // freshly computed, not from the pre-existing cache envelope
                 saveLocal(scanType, r, latest.completion_time);
+                if (KEEP_UNTIL_DELETED.has(scanType)) {
+                  // saved on this laptop's disk -> the server forgets its copy (Cup Breakout, 2026-11-22)
+                  const at = latest.completion_time ?? new Date().toISOString();
+                  void putLocalScanCache(scanType, { scan_type: scanType, result: r, data_timestamp: at, completed_at: at, provider: "angel_one" })
+                    .then(() => scanJobsApi.forgetJob(jobId))
+                    .catch(() => undefined);
+                }
               }
             } catch (e) {
               setIssueKind("error");
@@ -434,5 +442,12 @@ export function useScanJob<T = unknown>(scanType: ScanType, options: UseScanJobO
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scanType]);
 
-  return { result, partial, progressLog, job, running, error, issueKind, cache, run, runFresh, cancel };
+  // Delete this device's saved result (the copy on the laptop's disk) and clear the screen.
+  const clearSaved = useCallback(async () => {
+    await deleteLocalScanCache(scanType);
+    setResult(null);
+    setCache(null);
+  }, [scanType]);
+
+  return { result, partial, progressLog, job, running, error, issueKind, cache, run, runFresh, cancel, clearSaved };
 }

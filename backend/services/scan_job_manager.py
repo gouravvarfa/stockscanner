@@ -395,6 +395,15 @@ class JobManager:
             return None
         return job
 
+    def forget(self, job_id: str) -> bool:
+        """Drop a FINISHED job (and its result) from memory - the device calls this once it has saved the result on
+        its own disk, so the server keeps no copy (2026-11-22, Cup Breakout). A running job is never dropped."""
+        job = self._jobs.get(job_id)
+        if job is None or job.status == "running":
+            return False
+        del self._jobs[job_id]
+        return True
+
     def list_jobs(self, *, device_id: str | None = None) -> list[ScanJob]:
         """With `device_id`, only that device's own jobs are returned —
         legacy jobs started before this field existed (device_id is None)
