@@ -63,6 +63,75 @@ function pct(v: number | null | undefined): string {
     : `${v > 0 ? "+" : ""}${v.toFixed(2)}%`;
 }
 
+function tone(v: number | null | undefined): string {
+  return v === null || v === undefined ? "muted" : v >= 0 ? "wk-up" : "wk-down";
+}
+
+// The colour key: every band of the chosen period, labelled with where it starts (the middle one is "about zero").
+function scaleOf(steps: number[]) {
+  const [a, b, c, d] = steps;
+  return [
+    { cls: "hm-dn4", label: `-${d}`, title: `down ${d}% or more` },
+    { cls: "hm-dn3", label: `-${c}`, title: `down ${c}% to ${d}%` },
+    { cls: "hm-dn2", label: `-${b}`, title: `down ${b}% to ${c}%` },
+    { cls: "hm-dn1", label: `-${a}`, title: `down ${a}% to ${b}%` },
+    { cls: "hm-flat", label: "0", title: `between -${a}% and +${a}%` },
+    { cls: "hm-up1", label: `+${a}`, title: `up ${a}% to ${b}%` },
+    { cls: "hm-up2", label: `+${b}`, title: `up ${b}% to ${c}%` },
+    { cls: "hm-up3", label: `+${c}`, title: `up ${c}% to ${d}%` },
+    { cls: "hm-up4", label: `+${d}`, title: `up ${d}% or more` },
+  ];
+}
+
+type WatchRow = { st: SectorStock; sectors: string[] };
+
+// One box of "Stocks to watch", in the Weekly Sectors action-list style: a coloured top line, title, count, short note
+// and one row per stock (logo, symbol, sectors, 1-week change). A row opens the stock's chart.
+function WatchBox({ tone: boxTone, title, note, rows, empty, onPick }: {
+  tone: "watch" | "near";
+  title: string;
+  note: string;
+  rows: WatchRow[];
+  empty: string;
+  onPick: (st: SectorStock, sector: string) => void;
+}) {
+  return (
+    <div className={`act-box act-${boxTone}`}>
+      <div className="act-head">
+        <span className="act-name">{title}</span>
+        <span className="act-count">{rows.length}</span>
+      </div>
+      <p className="act-note">{note}</p>
+      {rows.length === 0 ? (
+        <p className="act-empty">{empty}</p>
+      ) : (
+        <ul className="act-items hm-watch-items">
+          {rows.map(({ st, sectors }) => (
+            <li key={st.symbol}>
+              <button
+                type="button"
+                className="hm-watch-row"
+                onClick={() => onPick(st, sectors[0])}
+                title={`${st.name ?? st.symbol}: open chart`}
+              >
+                <span className="hm-watch-logo">
+                  <StockLogo symbol={st.symbol} />
+                </span>
+                <span className="act-main">{st.symbol}</span>
+                <span className="act-sub">{sectors.join(", ")}</span>
+                <span className={`act-val ${tone(st.r1w)}`}>
+                  {pct(st.r1w)}
+                  <small>1W</small>
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 export function HeatmapPage() {
   // The same report run as Weekly Sectors (app level): it keeps going while another page is open.
   const { report, job, running, error, run } = useWeeklyReport();
@@ -97,22 +166,30 @@ export function HeatmapPage() {
     ].filter((g) => g.list.length > 0);
   }, [report, period, strongOnly]);
 
-  // The stocks to look at first: leaders of the STRONG sectors (beat their own sector over 1W and 1M, above the 50-day
-  // average) and the new 52-week highs of the week.
-  const focus = useMemo(() => {
-    const pick = (
-      rows: { st: SectorStock; sector: string }[],
-      key: (x: { st: SectorStock }) => number,
+  // The stocks to look at first (2026-11-22: boxes at the bottom of the page in the Weekly action-list style, ★ in
+  // the grid): the leaders of the STRONG sectors (beat their own sector over 1W and 1M, above the 50-day average) and
+  // the week's new 52-week highs. One row per stock, with every sector it qualified in.
+  const watch = useMemo(() => {
+    if (!report) return { leaders: [] as WatchRow[], highs: [] as WatchRow[] };
+    const collect = (
+      hits: { st: SectorStock; sector: string }[],
+      key: (st: SectorStock) => number,
       n: number,
     ) => {
-      const best = new Map<string, { st: SectorStock; sector: string }>();
-      for (const r of rows)
-        if (!best.has(r.st.symbol) || key(r) > key(best.get(r.st.symbol)!))
-          best.set(r.st.symbol, r);
-      return [...best.values()].sort((a, b) => key(b) - key(a)).slice(0, n);
+      const rows = new Map<string, WatchRow>();
+      for (const { st, sector } of hits) {
+        const row = rows.get(st.symbol);
+        if (!row) rows.set(st.symbol, { st, sectors: [sector] });
+        else {
+          if (!row.sectors.includes(sector)) row.sectors.push(sector);
+          if (key(st) > key(row.st)) row.st = st;
+        }
+      }
+      return [...rows.values()]
+        .sort((a, b) => key(b.st) - key(a.st))
+        .slice(0, n);
     };
-    if (!report) return { leaders: [], highs: [] };
-    const leaders = pick(
+    const leaders = collect(
       report.sectors
         .filter((s) => s.verdict === "STRONG")
         .flatMap((s) =>
@@ -120,23 +197,26 @@ export function HeatmapPage() {
             .filter((st) => st.signal === "Leader" && st.above_50dma !== false)
             .map((st) => ({ st, sector: s.label })),
         ),
-      (x) => x.st.combined,
+      (st) => st.combined,
       10,
     );
-    const highs = pick(
+    const highs = collect(
       report.sectors.flatMap((s) =>
         s.stocks
           .filter((st) => st.high_52w)
           .map((st) => ({ st, sector: s.label })),
       ),
-      (x) => x.st.r1w,
+      (st) => st.r1w,
       12,
     );
     return { leaders, highs };
   }, [report]);
-  const focusSet = useMemo(
-    () => new Set([...focus.leaders, ...focus.highs].map((x) => x.st.symbol)),
-    [focus],
+  const watchSet = useMemo(
+    () =>
+      new Set(
+        [...watch.leaders, ...watch.highs].map((w) => w.st.symbol),
+      ),
+    [watch],
   );
 
   const showChart = (st: SectorStock, sector: string) =>
@@ -233,78 +313,30 @@ export function HeatmapPage() {
 
       {report && (
         <>
-          <div className="card hm-focus-card">
-            <h2 style={{ marginTop: 0 }}>Focus: stocks to watch</h2>
-            <div className="hm-focus-row">
-              <span className="hm-focus-title">Leaders in STRONG sectors</span>
-              <div className="hm-focus-list">
-                {focus.leaders.length === 0 ? (
-                  <span className="muted small">none this week</span>
-                ) : (
-                  focus.leaders.map(({ st, sector }) => (
-                    <button
-                      key={st.symbol}
-                      type="button"
-                      className="hm-focus-chip"
-                      onClick={() => showChart(st, sector)}
-                      title={st.name ?? st.symbol}
-                    >
-                      <b>{st.symbol}</b>
-                      <span className="muted">{sector}</span>
-                      <span className="wk-up">{pct(st.r1w)} 1W</span>
-                    </button>
-                  ))
-                )}
-              </div>
-            </div>
-            <div className="hm-focus-row">
-              <span className="hm-focus-title">New 52-week high this week</span>
-              <div className="hm-focus-list">
-                {focus.highs.length === 0 ? (
-                  <span className="muted small">
-                    {report.benchmark.r1d === undefined
-                      ? "run the report again to see these"
-                      : "none this week"}
-                  </span>
-                ) : (
-                  focus.highs.map(({ st, sector }) => (
-                    <button
-                      key={st.symbol}
-                      type="button"
-                      className="hm-focus-chip"
-                      onClick={() => showChart(st, sector)}
-                      title={st.name ?? st.symbol}
-                    >
-                      <b>{st.symbol}</b>
-                      <span className="muted">{sector}</span>
-                      <span className={st.r1w >= 0 ? "wk-up" : "wk-down"}>
-                        {pct(st.r1w)} 1W
-                      </span>
-                    </button>
-                  ))
-                )}
-              </div>
-            </div>
-            <p className="muted small" style={{ margin: "8px 0 0" }}>
-              Leader = beat its own sector over 1 week and 1 month and trades
-              above its 50-day average. ★ marks these stocks in the grid below.
-              Click any stock for its chart.
-            </p>
-          </div>
-
           <div className="hm-legend">
-            <span className="muted small">Down</span>
-            {[4, 3, 2, 1].map((l) => (
-              <i key={`d${l}`} className={`hm-dn${l}`} />
-            ))}
-            <i className="hm-flat" />
-            {[1, 2, 3, 4].map((l) => (
-              <i key={`u${l}`} className={`hm-up${l}`} />
-            ))}
-            <span className="muted small">Up</span>
-            <span className="muted small hm-legend-note">
-              steps of {conf.steps.join(" / ")}% · Nifty 50{" "}
-              {pct(report.benchmark[period] ?? null)}
+            <div
+              className="hm-scale"
+              role="img"
+              aria-label={`Colour key, % change over ${conf.label}: red is down, green is up`}
+            >
+              <span className="hm-scale-end">Down</span>
+              {scaleOf(conf.steps).map((b) => (
+                <span key={b.cls} className={`hm-scale-band ${b.cls}`} title={b.title}>
+                  {b.label}
+                </span>
+              ))}
+              <span className="hm-scale-end">Up</span>
+            </div>
+            <span className="hm-legend-note">% change, {conf.label}</span>
+            <span className="hm-legend-note">
+              <span className="hm-star hm-star-inline" aria-hidden="true">★</span>
+              stock to watch, listed at the bottom
+            </span>
+            <span className="hm-legend-note">
+              Nifty 50{" "}
+              <b className={tone(report.benchmark[period])}>
+                {pct(report.benchmark[period] ?? null)}
+              </b>
             </span>
           </div>
 
@@ -346,12 +378,12 @@ export function HeatmapPage() {
                           <button
                             key={st.symbol}
                             type="button"
-                            className={`hm-tile ${colourClass(st[period], conf.steps)}${focusSet.has(st.symbol) ? " hm-tile-focus" : ""}`}
+                            className={`hm-tile ${colourClass(st[period], conf.steps)}${watchSet.has(st.symbol) ? " hm-tile-focus" : ""}`}
                             onClick={() => showChart(st, s.label)}
-                            title={`${st.name ?? st.symbol}\n1D ${pct(st.r1d)} · 1W ${pct(st.r1w)} · 1M ${pct(st.r1m)}`}
+                            title={`${st.name ?? st.symbol}${watchSet.has(st.symbol) ? " (stock to watch)" : ""}\n1D ${pct(st.r1d)} · 1W ${pct(st.r1w)} · 1M ${pct(st.r1m)}`}
                           >
-                            {focusSet.has(st.symbol) && (
-                              <span className="hm-star" aria-label="focus">★</span>
+                            {watchSet.has(st.symbol) && (
+                              <span className="hm-star" aria-label="stock to watch">★</span>
                             )}
                             <span className="hm-logo-slot">
                               <StockLogo symbol={st.symbol} />
@@ -366,6 +398,43 @@ export function HeatmapPage() {
               </div>
             </div>
           ))}
+
+          {/* Stocks to watch: always the last thing on the page (user, 2026-11-22), boxes like the Weekly action list */}
+          <section className="card hm-watch" aria-labelledby="hm-watch-title">
+            <div className="act-top">
+              <h2 id="hm-watch-title" style={{ margin: 0 }}>
+                Stocks to watch
+              </h2>
+              <span className="muted small">
+                Week ending{" "}
+                {new Date(report.end_date ?? report.as_of).toLocaleDateString(
+                  "en-IN",
+                  { day: "2-digit", month: "short", year: "numeric" },
+                )}{" "}
+                · marked ★ in the grid above
+              </span>
+            </div>
+            <div className="act-grid hm-watch-grid">
+              <WatchBox
+                tone="watch"
+                title="Sector leaders"
+                note="Beat their STRONG sector over 1 week and 1 month, above the 50-day average"
+                rows={watch.leaders}
+                empty="None this week"
+                onPick={showChart}
+              />
+              <WatchBox
+                tone="near"
+                title="New 52-week highs"
+                note="Made a new 52-week high this week, in any sector"
+                rows={watch.highs}
+                empty={
+                  hasDay ? "None this week" : "Press Refresh once to see these"
+                }
+                onPick={showChart}
+              />
+            </div>
+          </section>
         </>
       )}
     </div>

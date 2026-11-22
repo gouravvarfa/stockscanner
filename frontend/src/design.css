@@ -1158,60 +1158,105 @@ html { scrollbar-gutter: stable; }
 .hm-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; }
 .hm-seg { display: inline-flex; padding: 3px; border-radius: 10px; background: var(--bg-soft); border: 1px solid var(--border); }
 .hm-seg button { border: 0; background: transparent; padding: 6px 14px; border-radius: 8px; font: inherit; font-size: 13px; font-weight: 600; color: var(--text-secondary); cursor: pointer; }
-.hm-seg button.active { background: var(--bg-surface); color: var(--text-primary); box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12); }
+.hm-seg button.active { background: var(--hm-seg-active); color: var(--text-primary); box-shadow: 0 1px 2px rgba(16, 24, 40, 0.1), 0 0 0 1px var(--border); }
 .hm-seg button:disabled { opacity: 0.45; cursor: not-allowed; }
 .hm-check { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-secondary); cursor: pointer; }
-.hm-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 4px 2px 12px; }
-.hm-legend i { display: inline-block; width: 22px; height: 12px; border-radius: 3px; }
-.hm-legend-note { margin-left: 10px; }
+/* colour key: Down [9 labelled bands] Up, then short notes */
+.hm-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; margin: 2px 2px 16px; font-size: 12px; color: var(--text-muted); }
+.hm-scale { display: grid; grid-template-columns: auto repeat(9, minmax(0, 1fr)) auto; align-items: center; gap: 2px; width: min(100%, 520px); }
+.hm-scale-end { font-size: 12px; font-weight: 600; color: var(--text-secondary); padding: 0 6px; }
+.hm-scale-band { text-align: center; font-size: 10.5px; font-weight: 650; line-height: 1; padding: 5px 0; border-radius: 3px;
+  font-variant-numeric: tabular-nums; white-space: nowrap; box-shadow: var(--hm-ring, 0 0 0 0 transparent); cursor: default; }
+.hm-scale-band.hm-dn4 { border-radius: 6px 3px 3px 6px; }
+.hm-scale-band.hm-up4 { border-radius: 3px 6px 6px 3px; }
+.hm-legend-note { display: inline-flex; align-items: center; gap: 6px; }
+.hm-legend-note b { font-weight: 650; }
 .hm-sectors { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 14px; }
 .hm-sector { margin: 0; padding: 14px; }
 .hm-sector-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
 .hm-sector-name { font-weight: 700; font-size: 14.5px; color: var(--text-primary); flex: 1; min-width: 0; }
-.hm-sector-ret { font-weight: 700; font-size: 12.5px; padding: 2px 8px; border-radius: 6px; font-variant-numeric: tabular-nums; }
+.hm-sector-ret { font-weight: 700; font-size: 12.5px; padding: 2px 8px; border-radius: 6px; font-variant-numeric: tabular-nums; box-shadow: var(--hm-ring, 0 0 0 0 transparent); }
 .hm-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 5px; }
 .hm-tile { border: 0; border-radius: 7px; padding: 8px 6px; text-align: center; cursor: pointer; display: flex; flex-direction: column; gap: 2px;
-  font: inherit; transition: transform 0.12s var(--ease), box-shadow 0.12s var(--ease); }
-.hm-tile:hover { transform: translateY(-1px); box-shadow: 0 3px 10px rgba(15, 23, 42, 0.16); }
+  font: inherit; transition: transform 0.12s var(--ease), box-shadow 0.12s var(--ease), filter 0.12s var(--ease);
+  box-shadow: var(--hm-ring, 0 0 0 0 transparent), var(--hm-hover, 0 0 0 0 transparent); }
+.hm-tile:hover { transform: translateY(-1px); --hm-hover: var(--hm-lift); filter: brightness(1.04); }
 .hm-tile:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .hm-sym { font-size: 11.5px; font-weight: 700; letter-spacing: 0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .hm-val { font-size: 11px; font-variant-numeric: tabular-nums; opacity: 0.92; }
-.hm-up1 { background: #dcf3e4; color: #135e36; }
-.hm-up2 { background: #a7e0bc; color: #0f4f2d; }
-.hm-up3 { background: #34a86b; color: #fff; }
-.hm-up4 { background: #137a46; color: #fff; }
-.hm-dn1 { background: #fbe3e1; color: #8f2620; }
-.hm-dn2 { background: #f4b4ae; color: #7a1d18; }
-.hm-dn3 { background: #dd5b51; color: #fff; }
-.hm-dn4 { background: #b4291f; color: #fff; }
-.hm-flat { background: var(--bg-soft); color: var(--text-secondary); }
-.hm-na { background: transparent; color: var(--text-muted); outline: 1px dashed var(--border); }
-:root[data-theme="dark"] .hm-up1 { background: #143d2a; color: #9be3ba; }
-:root[data-theme="dark"] .hm-up2 { background: #1d6a43; color: #e6fff0; }
-:root[data-theme="dark"] .hm-dn1 { background: #47201d; color: #f5b3ad; }
-:root[data-theme="dark"] .hm-dn2 { background: #7d2b25; color: #ffe9e7; }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .hm-up1 { background: #143d2a; color: #9be3ba; }
-  :root:not([data-theme="light"]) .hm-up2 { background: #1d6a43; color: #e6fff0; }
-  :root:not([data-theme="light"]) .hm-dn1 { background: #47201d; color: #f5b3ad; }
-  :root:not([data-theme="light"]) .hm-dn2 { background: #7d2b25; color: #ffe9e7; }
+/* Heatmap colour scale (2026-11-22): diverging, red <- neutral grey -> green, one OKLCH lightness step per band and the
+   same steps on both arms. Light theme: about-zero is palest, the biggest moves deepest. Dark theme: about-zero sits
+   close to the card, the biggest moves are brightest and most saturated. Every label clears APCA Lc 66 on its band. */
+:root {
+  --hm-dn4: #a5242a; --hm-dn4-fg: #ffffff;
+  --hm-dn3: #d74245; --hm-dn3-fg: #ffffff;
+  --hm-dn2: #fec1bc; --hm-dn2-fg: #751f21;
+  --hm-dn1: #fee4e2; --hm-dn1-fg: #862628;
+  --hm-flat: #eef1f5; --hm-flat-fg: #424e5e;
+  --hm-up1: #d7f4e0; --hm-up1-fg: #155534;
+  --hm-up2: #a5e4bb; --hm-up2-fg: #0c492b;
+  --hm-up3: #1e965b; --hm-up3-fg: #ffffff;
+  --hm-up4: #016f3f; --hm-up4-fg: #ffffff;
+  --hm-edge: rgba(16, 24, 40, 0.07);
+  --hm-lift: 0 6px 16px -6px rgba(16, 24, 40, 0.3);
+  --hm-logo-ring: 0 0 0 1px rgba(16, 24, 40, 0.1);
+  --hm-seg-active: var(--bg-surface);
+  --teal: #0e7490;
 }
+:root[data-theme="dark"] {
+  --hm-dn4: #de494a; --hm-dn4-fg: #ffffff;
+  --hm-dn3: #b44140; --hm-dn3-fg: #ffffff;
+  --hm-dn2: #863735; --hm-dn2-fg: #fee9e7;
+  --hm-dn1: #5b2c29; --hm-dn1-fg: #fecdc9;
+  --hm-flat: #2a3036; --hm-flat-fg: #c2cbd8;
+  --hm-up1: #1e452e; --hm-up1-fg: #b9edcb;
+  --hm-up2: #1f623e; --hm-up2-fg: #daf7e3;
+  --hm-up3: #1b814f; --hm-up3-fg: #ffffff;
+  --hm-up4: #069e5d; --hm-up4-fg: #ffffff;
+  --hm-edge: rgba(255, 255, 255, 0.07);
+  --hm-lift: 0 8px 18px -6px rgba(0, 0, 0, 0.75);
+  --hm-logo-ring: 0 0 0 1px rgba(0, 0, 0, 0.35);
+  --hm-seg-active: #232c3d;
+  --teal: #3cc3d8;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --hm-dn4: #de494a; --hm-dn4-fg: #ffffff;
+    --hm-dn3: #b44140; --hm-dn3-fg: #ffffff;
+    --hm-dn2: #863735; --hm-dn2-fg: #fee9e7;
+    --hm-dn1: #5b2c29; --hm-dn1-fg: #fecdc9;
+    --hm-flat: #2a3036; --hm-flat-fg: #c2cbd8;
+    --hm-up1: #1e452e; --hm-up1-fg: #b9edcb;
+    --hm-up2: #1f623e; --hm-up2-fg: #daf7e3;
+    --hm-up3: #1b814f; --hm-up3-fg: #ffffff;
+    --hm-up4: #069e5d; --hm-up4-fg: #ffffff;
+    --hm-edge: rgba(255, 255, 255, 0.07);
+    --hm-lift: 0 8px 18px -6px rgba(0, 0, 0, 0.75);
+    --hm-logo-ring: 0 0 0 1px rgba(0, 0, 0, 0.35);
+    --hm-seg-active: #232c3d;
+    --teal: #3cc3d8;
+  }
+}
+.hm-up1 { background: var(--hm-up1); color: var(--hm-up1-fg); }
+.hm-up2 { background: var(--hm-up2); color: var(--hm-up2-fg); }
+.hm-up3 { background: var(--hm-up3); color: var(--hm-up3-fg); }
+.hm-up4 { background: var(--hm-up4); color: var(--hm-up4-fg); }
+.hm-dn1 { background: var(--hm-dn1); color: var(--hm-dn1-fg); }
+.hm-dn2 { background: var(--hm-dn2); color: var(--hm-dn2-fg); }
+.hm-dn3 { background: var(--hm-dn3); color: var(--hm-dn3-fg); }
+.hm-dn4 { background: var(--hm-dn4); color: var(--hm-dn4-fg); }
+/* about-zero is close to the card colour, so it gets a hairline edge to keep its shape */
+.hm-flat { background: var(--hm-flat); color: var(--hm-flat-fg); --hm-ring: inset 0 0 0 1px var(--hm-edge); }
+.hm-na { background: transparent; color: var(--text-muted); outline: 1px dashed var(--border); }
 @media (max-width: 600px) {
   .hm-sectors { grid-template-columns: 1fr; }
-  .hm-grid { grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); }
+  .hm-grid { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); }
 }
 
-.hm-focus-card h2 { font-size: 16px; }
-.hm-focus-row { display: grid; grid-template-columns: 210px 1fr; gap: 10px; align-items: start; padding: 8px 0; border-top: 1px solid var(--border); }
-.hm-focus-row:first-of-type { border-top: 0; }
-.hm-focus-title { font-size: 13px; font-weight: 700; color: var(--text-primary); padding-top: 5px; }
-.hm-focus-list { display: flex; flex-wrap: wrap; gap: 6px; }
-.hm-focus-chip { display: inline-flex; align-items: center; gap: 7px; padding: 5px 11px; border-radius: 999px; border: 1px solid var(--border);
-  background: var(--bg-surface); font: inherit; font-size: 12.5px; cursor: pointer; transition: border-color 0.15s var(--ease), background 0.15s var(--ease); }
-.hm-focus-chip:hover { border-color: var(--accent); background: var(--accent-soft); }
-.hm-focus-chip .muted { font-size: 11.5px; }
-.hm-tile-focus { box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.85), 0 0 0 2px var(--accent); }
-@media (max-width: 700px) { .hm-focus-row { grid-template-columns: 1fr; } }
+/* Stocks to watch: a thin ring in the tile's own label colour (works on every band and in both themes) and a gold ★ */
+.hm-tile-focus { --hm-ring: inset 0 0 0 1.5px color-mix(in srgb, currentColor 42%, transparent); }
+/* Stocks to watch: the last section of the page, two boxes in the Weekly action-list style (.act-*) */
+.hm-watch { margin-top: 24px; }
 
 /* Dashboard in the Weekly Sectors style (2026-11-22) */
 .dash-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
@@ -1231,7 +1276,7 @@ html { scrollbar-gutter: stable; }
 .act-top { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; margin-bottom: 14px; }
 .act-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
 .act-box { border: 1px solid var(--border); border-top: 3px solid var(--act); border-radius: 10px; padding: 12px 14px; background: var(--bg-surface); }
-.act-watch { --act: var(--success); } .act-near { --act: var(--accent); } .act-out { --act: #0e7490; } .act-weak { --act: var(--danger); }
+.act-watch { --act: var(--success); } .act-near { --act: var(--accent); } .act-out { --act: var(--teal); } .act-weak { --act: var(--danger); }
 .act-head { display: flex; align-items: center; justify-content: space-between; }
 .act-name { font-weight: 700; font-size: 14px; color: var(--text-primary); }
 .act-count { min-width: 24px; text-align: center; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 700;
@@ -1251,8 +1296,71 @@ html { scrollbar-gutter: stable; }
 /* logo always in the same spot: its own row at the top centre of the tile */
 .hm-tile { position: relative; align-items: center; }
 .hm-logo-slot { width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; margin-bottom: 2px; }
-.hm-logo { width: 22px; height: 22px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.1); }
+.hm-logo { width: 22px; height: 22px; border-radius: 50%; background: #fff; box-shadow: var(--hm-logo-ring); }
 .hm-logo { opacity: 0; transition: opacity 0.2s ease; }
 .hm-logo-ok { opacity: 1; }
 .hm-sym { display: block; max-width: 100%; }
-.hm-star { position: absolute; top: 4px; right: 6px; font-size: 11px; line-height: 1; }
+.hm-star { position: absolute; top: 4px; right: 4px; width: 15px; height: 15px; border-radius: 50%; display: grid; place-items: center;
+  font-size: 9px; line-height: 1; background: #f5b70a; color: #3f2c00; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.28); }
+.hm-star-inline { position: static; flex: none; }
+
+/* Stocks to watch boxes: each row is a button (keyboard + click) with the logo on the left */
+.hm-watch-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.hm-watch-grid .act-note { min-height: 2.8em; } /* both notes take two lines, so the rows of the two boxes line up */
+.hm-watch-items li { display: block; padding: 0; }
+.hm-watch-row { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; grid-template-areas: "logo main val" "logo sub val";
+  column-gap: 10px; align-items: center; width: 100%; padding: 7px 6px; border: 0; border-radius: 6px; background: none;
+  font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.hm-watch-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.hm-watch-logo { grid-area: logo; width: 24px; height: 24px; display: grid; place-items: center; }
+.hm-watch-row .act-val small { margin-left: 5px; font-size: 10.5px; font-weight: 600; color: var(--text-muted); }
+@media (max-width: 760px) { .hm-watch-grid { grid-template-columns: 1fr; } .hm-watch-grid .act-note { min-height: 0; } }
+@media (max-width: 600px) {
+  .hm-scale-band { font-size: 9.5px; letter-spacing: -0.02em; }
+  .hm-scale-end { padding: 0 4px; }
+}
+
+/* Weekly Sectors: the five summary tiles fill their row */
+.wk-kpis { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
+
+/* Tab strip (Dashboard, Cup Breakout): compact pills on one line; scrolls sideways on a small screen instead of wrapping */
+.tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; width: fit-content; max-width: 100%; }
+.tabs .tab { margin-right: 0; flex-shrink: 0; white-space: nowrap; }
+
+/* ==========================================================================
+   Typography: calm weights (2026-11-22, user: "bold only where it is needed; proper and professional")
+   One scale everywhere: 400 text · 500 numbers, labels and controls · 550 names in lists · 600 titles and the one
+   figure a tile or row is about. Nothing heavier than 600.
+   ========================================================================== */
+:root { --fw-bold: 600; }
+b, strong { font-weight: 600; }
+h1, .page-header h1, .app-content > h1, .app-content > div > h1:first-child { font-weight: 600; }
+.sidebar-brand .brand-name, .header-left .header-title, .header-brand-mobile { font-weight: 600; }
+.tb-summary-value, .usage-stat .usage-value, .summary-value, .symbol, .score { font-weight: 600; }
+.strategy-card-name, .state-block .state-title, .history-scan-date { font-weight: 600; }
+.ranked-rank { font-weight: 500; }
+.ranked-score, .active-scan-pct, .pagination-controls button.active { font-weight: 600; }
+.tab { font-weight: 500; }
+.tab.active { font-weight: 600; }
+/* Range Analysis: highlighted cells keep their colour, not a heavier face */
+.range-table td.rm-year, .range-table th.rm-year, .range-table td.rm-avg, .range-table th.rm-avg,
+.range-table .rm-orange, .range-table .rm-green, .range-table tfoot td.rm-top { font-weight: 600; }
+/* Weekly Sectors */
+.wk-sym { font-weight: 600; }
+.wk-chip, .wk-move, .wk-vs { font-weight: 600; }
+.wk-insights li::marker { font-weight: 600; }
+.wk-rank-label { font-weight: 500; }
+.wk-rank-v { font-weight: 500; }
+/* Dashboard */
+.dash-strong-chip b { font-weight: 600; }
+.dash-rank-table td.dash-score, .dash-rank-table th:nth-child(4) { font-weight: 600; }
+/* Heatmap */
+.hm-sector-name, .hm-sector-ret { font-weight: 600; }
+.hm-sym { font-weight: 550; }
+.hm-val { font-weight: 500; opacity: 1; }
+.hm-scale-band { font-weight: 500; }
+.hm-legend-note b { font-weight: 600; }
+/* Action list (Weekly) and Stocks to watch (Heatmap) */
+.act-name, .act-count { font-weight: 600; }
+.act-main { font-weight: 550; }
+.act-val { font-weight: 500; }

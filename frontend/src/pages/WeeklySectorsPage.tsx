@@ -376,7 +376,7 @@ export function WeeklySectorsPage() {
         <>
           <div className="card">
             <h2 style={{ marginTop: 0 }}>What&apos;s moving — week ending {niceDate(report.end_date)}</h2>
-            <div className="tb-summary-grid" style={{ marginTop: 12 }}>
+            <div className="tb-summary-grid wk-kpis" style={{ marginTop: 12 }}>
               <div className="tb-summary-tile">
                 <div className="tb-summary-label">Top sector</div>
                 <div className="tb-summary-value">{report.summary.top_sector ?? "—"}</div>
