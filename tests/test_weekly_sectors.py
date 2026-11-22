@@ -236,3 +236,8 @@ def test_rank_changes_follow_a_late_surge():
     by = {s["key"]: s for s in r["sectors"]}
     assert by["jump"]["rank_1w"] == 1 and by["jump"]["prev"]["rank_1w"] == 3 and by["jump"]["rank_change_1w"] == 2
     assert r["changes"]["risers"] == [{"label": "JUMP", "from": 3, "to": 1}]
+
+
+def test_generated_at_carries_its_time_zone():
+    gen = dt.datetime.fromisoformat(_report()["generated_at"])
+    assert gen.tzinfo is not None and gen.utcoffset() == dt.timedelta(0)

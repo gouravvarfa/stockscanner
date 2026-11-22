@@ -323,5 +323,6 @@ def build_report(
             "leaders": len(leaders), "laggards": len(laggards), "rows": len(all_rows), "stocks": len(unique_stocks),
         },
         "missing": sorted(missing),
-        "generated_at": dt.datetime.now().isoformat(timespec="seconds"),
+        # with its time zone: the server runs on UTC, so a bare time was shown 5.5 hours early in India
+        "generated_at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
     }
