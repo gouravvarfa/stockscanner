@@ -42,3 +42,5 @@
 .gt-static li { cursor: default; }
 .gt-static li:hover { background: none; }
 .gt-proj-list { max-height: 300px; overflow-y: auto; overflow-x: hidden; margin: 0; }
+/* the search card sits above the cards below it, so its suggestion list is never hidden behind them */
+.gt-search-card { position: relative; z-index: 30; }

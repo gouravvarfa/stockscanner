@@ -244,7 +244,7 @@ function StockView({ symbol, onPick }: { symbol: string; onPick: (s: string) => 
 
   return (
     <>
-      <section className="card">
+      <section className="card gt-search-card">
         <div className="gt-run">
           <div className="gt-search">
             <input
@@ -383,7 +383,8 @@ function StockView({ symbol, onPick }: { symbol: string; onPick: (s: string) => 
 /* ------------------------------------------------------------ page */
 export function GannTimePage() {
   const [params, setParams] = useSearchParams();
-  const tab = params.get("tab") === "stock" ? "stock" : "sectors";
+  // Single stock first (user, 2026-11-22); the Strong sectors scan is the second tab.
+  const tab = params.get("tab") === "sectors" ? "sectors" : "stock";
   const symbol = (params.get("symbol") ?? "").toUpperCase();
   const openStock = (s: string) => setParams({ tab: "stock", symbol: s });
 
@@ -400,11 +401,11 @@ export function GannTimePage() {
       </div>
 
       <div className="tabs gt-tabs" role="tablist" aria-label="View">
-        <button type="button" role="tab" aria-selected={tab === "sectors"} className={tab === "sectors" ? "tab active" : "tab"} onClick={() => setParams({ tab: "sectors" })}>
-          Strong sectors
-        </button>
         <button type="button" role="tab" aria-selected={tab === "stock"} className={tab === "stock" ? "tab active" : "tab"} onClick={() => setParams(symbol ? { tab: "stock", symbol } : { tab: "stock" })}>
           Single stock
+        </button>
+        <button type="button" role="tab" aria-selected={tab === "sectors"} className={tab === "sectors" ? "tab active" : "tab"} onClick={() => setParams({ tab: "sectors" })}>
+          Strong sectors
         </button>
       </div>
 
