@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useChart } from "../chart/ChartContext";
 import { TrendIcon } from "../components/icons";
-import { RotationMap } from "./weekly/RotationMap";
 import { useWeeklyReport } from "../context/WeeklyReportContext";
 import {
   downloadWeeklyPdf,
@@ -89,46 +88,6 @@ function RankCell({ rank, move }: { rank: number | null; move?: number | null })
 }
 
 const breadthClass = (label: string | null | undefined) => `wk-chip wk-breadth-${(label ?? "na").toLowerCase()}`;
-
-/** What changed since last week, in plain lines (nothing shown for a report made before 2026-11-22). */
-function ChangesCard({ report }: { report: WeeklyReport }) {
-  const ch = report.changes;
-  if (!ch) return null;
-  const moves = (xs: { label: string; from: number | null; to: number | null }[]) =>
-    xs.length ? xs.map((x) => `${x.label} #${x.from} → #${x.to}`).join(", ") : "none";
-  const narrow = report.sectors.filter((s) => s.verdict === "STRONG" && s.breadth?.label === "Narrow").map((s) => s.label);
-  return (
-    <div className="card">
-      <h2 style={{ marginTop: 0 }}>What changed since last week</h2>
-      <p className="muted small" style={{ marginTop: 0 }}>Compared with the close of {niceDate(ch.prev_date)}.</p>
-      <ul className="wk-changes">
-        <li>
-          <b>New STRONG:</b>{" "}
-          {ch.new_strong.length ? ch.new_strong.map((l) => <span key={l} className="wk-chip wk-ver-strong">{l}</span>) : <span className="muted">none</span>}
-        </li>
-        <li>
-          <b>No longer STRONG:</b>{" "}
-          {ch.dropped_strong.length ? ch.dropped_strong.map((l) => <span key={l} className="wk-chip wk-ver-weak">{l}</span>) : <span className="muted">none</span>}
-        </li>
-        <li>
-          <b>Moved up (1W rank):</b> <span className="wk-up">{moves(ch.risers)}</span>
-        </li>
-        <li>
-          <b>Moved down (1W rank):</b> <span className="wk-down">{moves(ch.fallers)}</span>
-        </li>
-        <li>
-          <b>Rotation:</b>{" "}
-          {ch.quadrant_moves.length ? ch.quadrant_moves.map((m) => `${m.label}: ${m.from} → ${m.to}`).join(" · ") : <span className="muted">no sector changed quadrant</span>}
-        </li>
-        {narrow.length > 0 && (
-          <li>
-            <b>STRONG but narrow:</b> {narrow.join(", ")} <span className="muted">(fewer than 40% of its stocks are above the 50-day average)</span>
-          </li>
-        )}
-      </ul>
-    </div>
-  );
-}
 
 /** How many of each sector's stocks are in good shape (not just the index). */
 function BreadthCard({ sectors, onPick }: { sectors: SectorRow[]; onPick: (key: string) => void }) {
@@ -402,23 +361,6 @@ export function WeeklySectorsPage() {
             </ol>
           </div>
 
-          <ChangesCard report={report} />
-
-          <div className="card">
-            <h2 style={{ marginTop: 0 }}>Sector rotation</h2>
-            <p className="muted small" style={{ marginTop: 0 }}>
-              Each sector against the Nifty 50: top right is ahead on both the week and the month (Leading), top left is
-              catching up (Improving), bottom right is slowing down (Weakening), bottom left is behind on both (Lagging).
-            </p>
-            <RotationMap
-              sectors={report.sectors}
-              onPick={(key) => {
-                setSelected(key);
-                detailRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-              }}
-            />
-          </div>
-
           <div className="wk-rank-grid">
             <RankPanel title="1-week ranking" sectors={report.sectors} field="r1w" />
             <RankPanel title="1-month ranking" sectors={report.sectors} field="r1m" />
@@ -531,12 +473,6 @@ export function WeeklySectorsPage() {
                   {sector.rsi.d === null ? "n/a" : `${sector.rsi.d.toFixed(0)} / ${sector.rsi.w?.toFixed(0)} / ${sector.rsi.m?.toFixed(0)}`} ·
                   Leader {sector.counts["Leader"] ?? 0} · Turning up {sector.counts["Turning up"] ?? 0} · Fading {sector.counts["Fading"] ?? 0} ·
                   Laggard {sector.counts["Laggard"] ?? 0}
-                  {sector.quadrant && (
-                    <>
-                      {" "}· {sector.quadrant}
-                      {sector.prev?.quadrant && sector.prev.quadrant !== sector.quadrant ? ` (last week ${sector.prev.quadrant})` : ""}
-                    </>
-                  )}
                   {sector.breadth?.label && ` · Breadth ${sector.breadth.label} (${sector.breadth.above_50dma}% above the 50-day average)`}
                 </p>
                 <StockTable rows={sector.stocks} sectorLabel={sector.label} endDate={report.end_date} />
