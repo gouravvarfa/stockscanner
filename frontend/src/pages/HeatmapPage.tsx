@@ -15,16 +15,19 @@ import stockLogos from "../data/stockLogos.json";
 // Company logos (TradingView's public logo images, ids looked up once for every stock in the sector lists).
 const LOGOS = stockLogos as Record<string, string>;
 function StockLogo({ symbol }: { symbol: string }) {
-  const [failed, setFailed] = useState(false);
+  // hidden until it has loaded (no empty white circle on a slow network); the slot keeps its place either way
+  const [state, setState] = useState<"loading" | "ok" | "failed">("loading");
   const id = LOGOS[symbol];
-  if (!id || failed) return null;
+  if (!id || state === "failed") return null;
   return (
     <img
-      className="hm-logo"
+      className={state === "ok" ? "hm-logo hm-logo-ok" : "hm-logo"}
       src={`https://s3-symbol-logo.tradingview.com/${id}.svg`}
       alt=""
       loading="lazy"
-      onError={() => setFailed(true)}
+      decoding="async"
+      onLoad={() => setState("ok")}
+      onError={() => setState("failed")}
     />
   );
 }
@@ -347,13 +350,13 @@ export function HeatmapPage() {
                             onClick={() => showChart(st, s.label)}
                             title={`${st.name ?? st.symbol}\n1D ${pct(st.r1d)} · 1W ${pct(st.r1w)} · 1M ${pct(st.r1m)}`}
                           >
-                            <span className="hm-sym">
+                            {focusSet.has(st.symbol) && (
+                              <span className="hm-star" aria-label="focus">★</span>
+                            )}
+                            <span className="hm-logo-slot">
                               <StockLogo symbol={st.symbol} />
-                              {focusSet.has(st.symbol) && (
-                                <span aria-label="focus">★ </span>
-                              )}
-                              {st.symbol}
                             </span>
+                            <span className="hm-sym">{st.symbol}</span>
                             <span className="hm-val">{pct(st[period])}</span>
                           </button>
                         ))}
