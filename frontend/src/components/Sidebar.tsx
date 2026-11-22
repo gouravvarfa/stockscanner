@@ -10,6 +10,7 @@ import {
   SettingsIcon,
   TargetIcon,
   HeatmapIcon,
+  StarIcon,
   TrendIcon,
   ValueTagIcon,
 } from "./icons";
@@ -28,6 +29,7 @@ export const NAV_ITEMS: NavItem[] = [
   { to: "/cup-breakout", label: "Cup Breakout", icon: SectorIcon, tone: "#7c3aed" },
   { to: "/breakout-15", label: "15-Min Breakout", icon: TrendIcon, tone: "#0284c7" },
   { to: "/value-buy", label: "Value Buy", icon: ValueTagIcon, tone: "#0d9488" },
+  { to: "/astro-watch", label: "Astro Watch", icon: StarIcon, tone: "#d97706" },
   { to: "/strategies", label: "Strategies", icon: TargetIcon, tone: "#9333ea" },
   { to: "/stocks", label: "Stock Scanner", icon: ListIcon, tone: "#16a34a" },
   { to: "/history", label: "Scan History", icon: HistoryIcon, tone: "#059669" },

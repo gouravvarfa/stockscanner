@@ -19,6 +19,7 @@ import { RangeAnalysisPage } from "./pages/RangeAnalysisPage";
 import { WeeklySectorsPage } from "./pages/WeeklySectorsPage";
 import { ValueBuyPage } from "./pages/ValueBuyPage";
 import { HeatmapPage } from "./pages/HeatmapPage";
+import { AstroWatchPage } from "./pages/AstroWatchPage";
 import { ScanHistoryPage } from "./pages/ScanHistoryPage";
 import { Settings } from "./pages/Settings";
 import { TopBottomBacktest } from "./pages/TopBottomBacktest";
@@ -82,6 +83,7 @@ export default function App() {
             <Route path="/weekly-sectors" element={<WeeklySectorsPage />} />
             <Route path="/value-buy" element={<ValueBuyPage />} />
             <Route path="/heatmap" element={<HeatmapPage />} />
+            <Route path="/astro-watch" element={<AstroWatchPage />} />
             <Route path="/history" element={<ScanHistoryPage />} />
             <Route
               path="/top-bottom"

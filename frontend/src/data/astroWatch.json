@@ -1,0 +1,210 @@
+{
+ "generated": "2026-11-22",
+ "data_to": "2026-11-20",
+ "events": [
+  {
+   "date": "2000-06-22",
+   "rashi": "Mithuna"
+  },
+  {
+   "date": "2002-05-11",
+   "rashi": "Vrishabha",
+   "gold": 0.94,
+   "silver": 0.52,
+   "crude": 0.93
+  },
+  {
+   "date": "2004-12-06",
+   "rashi": "Tula",
+   "gold": 1.43,
+   "silver": 2.53,
+   "crude": 1.24
+  },
+  {
+   "date": "2006-10-26",
+   "rashi": "Tula",
+   "gold": 1.22,
+   "silver": 0.85,
+   "crude": 0.74
+  },
+  {
+   "date": "2008-09-12",
+   "rashi": "Kanya",
+   "gold": 5.37,
+   "silver": 4.18,
+   "crude": 2.67
+  },
+  {
+   "date": "2009-04-22",
+   "rashi": "Meena",
+   "gold": 1.38,
+   "silver": 1.75,
+   "crude": 1.18
+  },
+  {
+   "date": "2009-06-22",
+   "rashi": "Mesha",
+   "gold": 0.55,
+   "silver": 0.6,
+   "crude": 1.25
+  },
+  {
+   "date": "2010-08-21",
+   "rashi": "Kanya",
+   "gold": 0.37,
+   "silver": 0.87,
+   "crude": 0.83
+  },
+  {
+   "date": "2010-10-04",
+   "rashi": "Tula",
+   "gold": 1.18,
+   "silver": 1.39,
+   "crude": 0.64
+  },
+  {
+   "date": "2011-05-24",
+   "rashi": "Mesha",
+   "gold": 0.45,
+   "silver": 1.29,
+   "crude": 0.84
+  },
+  {
+   "date": "2013-04-08",
+   "rashi": "Meena",
+   "gold": 4.26,
+   "silver": 2.92,
+   "crude": 0.86
+  },
+  {
+   "date": "2015-02-23",
+   "rashi": "Meena",
+   "gold": 0.5,
+   "silver": 0.55,
+   "crude": 1.44
+  },
+  {
+   "date": "2015-09-02",
+   "rashi": "Karka",
+   "gold": 0.85,
+   "silver": 0.63,
+   "crude": 1.18
+  },
+  {
+   "date": "2015-11-03",
+   "rashi": "Simha",
+   "gold": 0.62,
+   "silver": 0.85,
+   "crude": 1.06
+  },
+  {
+   "date": "2017-10-06",
+   "rashi": "Simha",
+   "gold": 0.77,
+   "silver": 0.64,
+   "crude": 0.78
+  },
+  {
+   "date": "2019-08-25",
+   "rashi": "Simha",
+   "gold": 1.04,
+   "silver": 1.33,
+   "crude": 1.17
+  },
+  {
+   "date": "2021-07-14",
+   "rashi": "Karka",
+   "gold": 0.47,
+   "silver": 0.99,
+   "crude": 1.74
+  },
+  {
+   "date": "2022-02-17",
+   "rashi": "Dhanu",
+   "gold": 0.89,
+   "silver": 0.87,
+   "crude": 0.5
+  },
+  {
+   "date": "2022-03-07",
+   "rashi": "Makara",
+   "gold": 1.93,
+   "silver": 2.01,
+   "crude": 3.09
+  },
+  {
+   "date": "2024-02-23",
+   "rashi": "Makara",
+   "gold": 0.85,
+   "silver": 0.81,
+   "crude": 0.66
+  },
+  {
+   "date": "2026-01-08",
+   "rashi": "Dhanu",
+   "gold": 1.2,
+   "silver": 2.92,
+   "crude": 1.3
+  },
+  {
+   "date": "2027-11-25",
+   "rashi": "Dhanu"
+  },
+  {
+   "date": "2028-06-15",
+   "rashi": "Vrishabha"
+  },
+  {
+   "date": "2028-09-08",
+   "rashi": "Karka"
+  },
+  {
+   "date": "2029-11-15",
+   "rashi": "Dhanu"
+  },
+  {
+   "date": "2029-11-24",
+   "rashi": "Dhanu"
+  },
+  {
+   "date": "2030-08-06",
+   "rashi": "Mithuna"
+  },
+  {
+   "date": "2032-06-23",
+   "rashi": "Mithuna"
+  },
+  {
+   "date": "2034-05-13",
+   "rashi": "Vrishabha"
+  },
+  {
+   "date": "2034-11-12",
+   "rashi": "Kanya"
+  },
+  {
+   "date": "2034-12-31",
+   "rashi": "Tula"
+  }
+ ],
+ "summary": {
+  "gold": {
+   "avg_ratio": 1.31,
+   "bigger_than_normal_pct": 45.0,
+   "n": 20,
+   "normal_5d_move_pct": 3.99
+  },
+  "silver": {
+   "avg_ratio": 1.43,
+   "bigger_than_normal_pct": 45.0,
+   "n": 20,
+   "normal_5d_move_pct": 7.08
+  },
+  "crude": {
+   "avg_ratio": 1.2,
+   "bigger_than_normal_pct": 55.0,
+   "n": 20,
+   "normal_5d_move_pct": 9.06
+  }
+ }
+}

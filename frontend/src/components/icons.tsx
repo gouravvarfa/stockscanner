@@ -18,6 +18,9 @@ export const MenuIcon = (p: SVGProps<SVGSVGElement>) => (
 export const HeatmapIcon = (p: SVGProps<SVGSVGElement>) => (
   <Base {...p}><rect x="3" y="3" width="7" height="7" rx="1.2" /><rect x="14" y="3" width="7" height="4" rx="1.2" /><rect x="14" y="10" width="7" height="11" rx="1.2" /><rect x="3" y="13" width="7" height="8" rx="1.2" /></Base>
 );
+export const StarIcon = (p: SVGProps<SVGSVGElement>) => (
+  <Base {...p}><path d="M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6 6.6 19.5l1.2-6L3.3 9.3l6.1-.7z" /></Base>
+);
 export const ValueTagIcon = (p: SVGProps<SVGSVGElement>) => (
   <Base {...p}><path d="M3 12.2V4.5A1.5 1.5 0 0 1 4.5 3h7.7l8.3 8.3a1.5 1.5 0 0 1 0 2.1l-7.1 7.1a1.5 1.5 0 0 1-2.1 0z" /><circle cx="8" cy="8" r="1.5" /></Base>
 );

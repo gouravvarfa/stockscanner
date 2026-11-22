@@ -1417,3 +1417,14 @@ h1, .page-header h1, .app-content > h1, .app-content > div > h1:first-child { fo
   .dash-tools select { flex: 1; }
 }
 .dash-fresh { display: inline-flex; align-items: center; gap: 6px; }
+
+/* Astro Watch (2026-11-22) */
+.aw-next-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; }
+.aw-date { font-size: 24px; font-weight: 600; letter-spacing: -0.02em; color: var(--text-primary); }
+.aw-use { display: flex; flex-direction: column; gap: 2px; max-width: 520px; padding: 10px 14px; border-radius: 10px;
+  background: var(--warning-soft); color: var(--text-secondary); font-size: 13px; }
+.aw-use b { color: var(--warning); font-weight: 600; }
+.aw-later { margin: 12px 0 0; }
+.aw-unit { font-size: 12px; font-weight: 500; color: var(--text-muted); }
+.aw-honest { margin: 12px 0 0; }
+.aw-big { color: var(--warning) !important; font-weight: 600; }
