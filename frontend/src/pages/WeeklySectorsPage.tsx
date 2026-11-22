@@ -1,3 +1,4 @@
+import type React from "react";
 import { useEffect, useRef, useState } from "react";
 import { useChart } from "../chart/ChartContext";
 import { TrendIcon } from "../components/icons";
@@ -115,50 +116,70 @@ function ActionCard({ report, onStock, onSector }: {
       (s.prev?.verdict === "STRONG" && s.verdict !== "STRONG") ||
       (b.r1w !== null && b.r1m !== null && s.r1w !== null && s.r1m !== null && s.r1w < b.r1w && s.r1m < b.r1m && s.rsi.d !== null && s.rsi.d < 50),
   );
-  const none = <span className="muted small">none this week</span>;
-  const sec = (s: SectorRow, extra?: string) => (
-    <button key={s.key} type="button" className="act-chip" onClick={() => onSector(s.key)}>
-      <b>{s.label}</b>
-      {extra && <span className="muted">{extra}</span>}
-    </button>
+  // each stock once, with every STRONG sector it leads
+  const watchMap = new Map<string, { st: SectorStock; sectors: string[] }>();
+  for (const { s, leaders } of watch)
+    for (const st of leaders) {
+      const cur = watchMap.get(st.symbol);
+      if (cur) cur.sectors.push(s.label);
+      else watchMap.set(st.symbol, { st, sectors: [s.label] });
+    }
+  const watchList = [...watchMap.values()].sort((x, y) => y.st.combined - x.st.combined);
+  const vsNifty = (s: SectorRow) =>
+    b.r1w !== null && b.r1m !== null && s.r1w !== null && s.r1m !== null ? `${pp(s.r1w - b.r1w)} / ${pp(s.r1m - b.r1m)}` : "";
+  const Box = ({ tone, title, note, count, children }: { tone: string; title: string; note: string; count: number; children: React.ReactNode }) => (
+    <div className={`act-box act-${tone}`}>
+      <div className="act-head">
+        <span className="act-name">{title}</span>
+        <span className="act-count">{count}</span>
+      </div>
+      <p className="act-note">{note}</p>
+      {count === 0 ? <p className="act-empty">None this week</p> : <ul className="act-items">{children}</ul>}
+    </div>
   );
   return (
     <div className="card">
-      <h2 style={{ marginTop: 0 }}>This week&apos;s action list</h2>
-      <div className="act-row">
-        <span className="act-title wk-up">Watch</span>
-        <div className="act-list">
-          {watch.every((w) => w.leaders.length === 0)
-            ? none
-            : watch.map(({ s, leaders }) =>
-                leaders.map((st) => (
-                  <button key={`${s.key}-${st.symbol}`} type="button" className="act-chip" onClick={() => onStock(st, s.label)}>
-                    <b>{st.symbol}</b>
-                    <span className="muted">{s.label}</span>
-                  </button>
-                )),
-              )}
-        </div>
-        <span className="act-note">Leaders of the STRONG sectors: beat their sector on 1W and 1M, above the 50-day average</span>
+      <div className="act-top">
+        <h2 style={{ margin: 0 }}>This week&apos;s action list</h2>
+        <span className="muted small">Week ending {niceDate(report.end_date)} · vs Nifty 50 {pct(b.r1w)} 1W, {pct(b.r1m)} 1M</span>
       </div>
-      <div className="act-row">
-        <span className="act-title">Near STRONG</span>
-        <div className="act-list">{near.length ? near.map((s) => sec(s, `RSI ${s.rsi.d?.toFixed(0)}/${s.rsi.w?.toFixed(0)}/${s.rsi.m?.toFixed(0)}`)) : none}</div>
-        <span className="act-note">Daily, weekly and monthly RSI all 55 or more, not yet all above 60</span>
-      </div>
-      <div className="act-row">
-        <span className="act-title wk-up">Outperforming</span>
-        <div className="act-list">
-          {outperf.length ? outperf.map((s) => sec(s, weeksAhead(s) ? `${weeksAhead(s)} of 5 weeks` : undefined)) : none}
-        </div>
-        <span className="act-note">Ahead of the Nifty 50 on both the week and the month (weeks = how often in the last 5)</span>
-      </div>
-      <div className="act-row">
-        <span className="act-title wk-down">Weakening</span>
-        <div className="act-list">
-          {weak.length ? weak.map((s) => sec(s, s.prev?.verdict === "STRONG" && s.verdict !== "STRONG" ? "no longer STRONG" : undefined)) : none}
-        </div>
-        <span className="act-note">Stopped being STRONG, or behind the Nifty 50 on both with daily RSI below 50</span>
+      <div className="act-grid">
+        <Box tone="watch" title="Watch" count={watchList.length} note="Leaders of the STRONG sectors, above their 50-day average">
+          {watchList.map(({ st, sectors }) => (
+            <li key={st.symbol} onClick={() => onStock(st, sectors[0])} title="Open chart">
+              <span className="act-main">{st.symbol}</span>
+              <span className="act-sub">{sectors.join(", ")}</span>
+              <span className="act-val wk-up">{pct(st.r1w)}</span>
+            </li>
+          ))}
+        </Box>
+        <Box tone="near" title="Near STRONG" count={near.length} note="All three RSI at 55 or more, not yet all above 60">
+          {near.map((s) => (
+            <li key={s.key} onClick={() => onSector(s.key)}>
+              <span className="act-main">{s.label}</span>
+              <span className="act-sub">RSI D/W/M</span>
+              <span className="act-val">{s.rsi.d?.toFixed(0)}/{s.rsi.w?.toFixed(0)}/{s.rsi.m?.toFixed(0)}</span>
+            </li>
+          ))}
+        </Box>
+        <Box tone="out" title="Outperforming" count={outperf.length} note="Ahead of the Nifty 50 on the week and the month (pp)">
+          {outperf.map((s) => (
+            <li key={s.key} onClick={() => onSector(s.key)}>
+              <span className="act-main">{s.label}</span>
+              <span className="act-sub">{weeksAhead(s) ? `${weeksAhead(s)} of last 5 weeks` : ""}</span>
+              <span className="act-val wk-up">{vsNifty(s)}</span>
+            </li>
+          ))}
+        </Box>
+        <Box tone="weak" title="Weakening" count={weak.length} note="No longer STRONG, or behind the Nifty 50 with daily RSI below 50">
+          {weak.map((s) => (
+            <li key={s.key} onClick={() => onSector(s.key)}>
+              <span className="act-main">{s.label}</span>
+              <span className="act-sub">{s.prev?.verdict === "STRONG" && s.verdict !== "STRONG" ? "no longer STRONG" : `RSI D ${s.rsi.d?.toFixed(0)}`}</span>
+              <span className="act-val wk-down">{vsNifty(s)}</span>
+            </li>
+          ))}
+        </Box>
       </div>
     </div>
   );
