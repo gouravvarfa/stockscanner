@@ -52,7 +52,9 @@ function statusChipClass(status: HistorySnapshotMeta["status"]): string {
 }
 
 function scanTypeLabel(scanType: string): string {
-  if (scanType === "a_group") return "A Group Scanner";
+  if (scanType === "a_group") return "Strong-sector scan";
+  if (scanType === "value_buy") return "Value Buy";
+  if (scanType === "cup_breakout") return "Cup Breakout";
   return scanType;
 }
 

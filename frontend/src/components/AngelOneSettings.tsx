@@ -6,7 +6,7 @@ import { LockIcon } from "./icons";
 
 /**
  * The ONE centralized place credentials are entered/updated/cleared.
- * Scanner, Chart, Expiry Level 1, and Expiry Level 5 all share this same
+ * Scanner, Chart, Top Bottom and every other page share this same
  * backend-side credential store and Angel One provider instance — none of
  * them has (or should have) its own separate connect form. Saved values
  * are never echoed back from the backend, so this always shows a static
@@ -121,7 +121,7 @@ export function AngelOneSettings() {
     <div className="card angelone-settings">
       <h3>Angel One Settings</h3>
       <p className="muted small">
-        One shared connection used by the A Group Scanner, Chart, Expiry Level 1, and Expiry Level 5 — there is no
+        One shared connection used by the scanner, charts and backtests — there is no
         separate configuration for any of them. Credentials are verified with a real login before being saved, then
         stored on the server (never in this browser unless you check &quot;Remember on this device&quot; below, never
         committed to git, never shown back to you once saved).

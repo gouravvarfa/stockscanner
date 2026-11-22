@@ -7,6 +7,9 @@ import { getResultsForSnapshot, listSnapshots, type HistoryResultRow } from "../
 import type { PartialResult } from "../services/scanJobsApi";
 
 const SCAN_TYPE = "a_group";
+// The Dashboard scans only the stocks of today's STRONG sectors (2026-11-22); a saved result without
+// `strong_sectors` is an old whole-A-Group one and is not shown.
+const isStrongSectorResult = (r: ScanResult) => Array.isArray(r?.strong_sectors);
 
 interface ScanContextValue {
   latest: ScanResult | null;
@@ -54,7 +57,7 @@ const ScanContext = createContext<ScanContextValue | undefined>(undefined);
 
 export function ScanProvider({ children }: { children: ReactNode }) {
   const { result, partial, progressLog, job, running, error, issueKind, cache, run, runFresh, cancel } =
-    useScanJob<ScanResult>(SCAN_TYPE);
+    useScanJob<ScanResult>(SCAN_TYPE, { accept: isStrongSectorResult });
 
   // Permanent, device-local Scan History (IndexedDB) — writes progressively
   // as results arrive, independent of Render's own storage. See

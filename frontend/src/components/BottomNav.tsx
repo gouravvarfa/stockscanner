@@ -3,7 +3,7 @@ import { navigateSmoothly } from "../services/pageTransition";
 import { DashboardIcon, HistoryIcon, SettingsIcon, TargetIcon } from "./icons";
 
 // Exactly the 4 primary destinations, per the mobile design spec — every
-// other page (Expiry Level 1/5, TradingView Signals, Top Bottom
+// other page (TradingView Signals, Top Bottom
 // Backtesting, the raw A Group Scanner list) stays reachable through the
 // hamburger menu / sidebar, not crowded into the bottom bar.
 const BOTTOM_NAV_ITEMS = [

@@ -3,7 +3,6 @@ import { NavLink, useNavigate } from "react-router-dom";
 import { navigateSmoothly } from "../services/pageTransition";
 import {
   BellIcon,
-  CalendarIcon,
   ChartBarIcon,
   DashboardIcon,
   HistoryIcon,
@@ -12,25 +11,26 @@ import {
   SettingsIcon,
   TargetIcon,
   TrendIcon,
+  ValueTagIcon,
 } from "./icons";
 
 type NavItem = { to: string; label: string; end?: boolean; icon: typeof DashboardIcon; tone: string };
 
-// The menu (one flat list, in the original order). `tone`: each item's own colour for its icon tile and its active
+// The menu (one flat list). Order set by the user (2026-11-22): Dashboard, Weekly Sectors, Top Bottom, Range
+// Analysis, Value Buy, then the rest, Settings last. `tone`: each item's own colour for its icon tile and its active
 // tint (see design.css).
 export const NAV_ITEMS: NavItem[] = [
   { to: "/", label: "Dashboard", end: true, icon: DashboardIcon, tone: "#2563eb" },
+  { to: "/weekly-sectors", label: "Weekly Sectors", icon: TrendIcon, tone: "#16a34a" },
+  { to: "/top-bottom", label: "Top Bottom Backtesting", icon: TrendIcon, tone: "#ea580c" },
+  { to: "/range-analysis", label: "Range Analysis", icon: ChartBarIcon, tone: "#0891b2" },
+  { to: "/value-buy", label: "Value Buy", icon: ValueTagIcon, tone: "#0d9488" },
   { to: "/strategies", label: "Strategies", icon: TargetIcon, tone: "#9333ea" },
-  { to: "/expiry-level-1", label: "Expiry Level 1", icon: CalendarIcon, tone: "#0284c7" },
-  { to: "/expiry-level-5", label: "Expiry Level 5", icon: CalendarIcon, tone: "#0d9488" },
   { to: "/stocks", label: "A Group Scanner", icon: ListIcon, tone: "#16a34a" },
   { to: "/tradingview", label: "TradingView Signals", icon: BellIcon, tone: "#db2777" },
-  { to: "/top-bottom", label: "Top Bottom Backtesting", icon: TrendIcon, tone: "#ea580c" },
   { to: "/cup-breakout", label: "Cup Breakout", icon: SectorIcon, tone: "#7c3aed" },
   { to: "/history", label: "Scan History", icon: HistoryIcon, tone: "#059669" },
   { to: "/breakout-15", label: "15-Min Breakout", icon: TrendIcon, tone: "#0284c7" },
-  { to: "/range-analysis", label: "Range Analysis", icon: ChartBarIcon, tone: "#0891b2" },
-  { to: "/weekly-sectors", label: "Weekly Sectors", icon: TrendIcon, tone: "#16a34a" },
   { to: "/settings", label: "Settings", icon: SettingsIcon, tone: "#475b8a" },
 ];
 

@@ -19,11 +19,11 @@ def client(monkeypatch, tmp_path):
 
 @pytest.fixture(autouse=True)
 def clean_state():
-    for t in ("a_group", "expiry_level_1", "expiry_level_5", "cup_breakout"):
+    for t in ("a_group", "cup_breakout", "value_buy"):
         clear_cached_result(t)
     job_manager._jobs.clear()
     yield
-    for t in ("a_group", "expiry_level_1", "expiry_level_5", "cup_breakout"):
+    for t in ("a_group", "cup_breakout", "value_buy"):
         clear_cached_result(t)
     job_manager._jobs.clear()
 
@@ -40,37 +40,28 @@ def _wait_for_completion(client, job_id, timeout=5.0):
     raise TimeoutError(f"job {job_id} did not finish in time")
 
 
-def _fake_expiry_l1_outcome():
-    from backend.services.expiry_scan_service import ExpiryLevel1Outcome
+def _fake_cup_outcome():
+    from backend.services.cup_scan_service import CupScanOutcome
 
     now = dt.datetime.utcnow()
-    return ExpiryLevel1Outcome(
-        started_at=now, finished_at=now, execution_seconds=0.1, angelone_configured=True,
-        index_signals=[], stock_signals=[], symbols_scanned=0, symbols_failed=0, failed_symbols=[],
+    return CupScanOutcome(
+        started_at=now, finished_at=now, execution_seconds=0.1,
+        stocks_scanned=0, stocks_failed=0, failed_symbols=[], results=[],
     )
 
-
-def _fake_expiry_l5_outcome():
-    from backend.services.expiry_level_5_scan_service import ExpiryLevel5Outcome
-
-    now = dt.datetime.utcnow()
-    return ExpiryLevel5Outcome(
-        started_at=now, finished_at=now, execution_seconds=0.1, angelone_configured=True,
-        signals=[], symbols_scanned=0, symbols_failed=0, failed_symbols=[],
-    )
 
 
 def test_start_with_no_cache_starts_a_background_job(client, monkeypatch):
     async def fake_l1(*a, **kw):
-        return _fake_expiry_l1_outcome()
+        return _fake_cup_outcome()
 
-    monkeypatch.setattr(scan_jobs_module, "run_expiry_level_1_scan", fake_l1)
+    monkeypatch.setattr(scan_jobs_module, "run_cup_scan", fake_l1)
 
-    resp = client.post("/api/scan/start", json={"scan_type": "expiry_level_1"})
+    resp = client.post("/api/scan/start", json={"scan_type": "cup_breakout"})
     assert resp.status_code == 200
     body = resp.json()
     assert body["status"] == "started"
-    assert body["job"]["scan_type"] == "expiry_level_1"
+    assert body["job"]["scan_type"] == "cup_breakout"
     assert body["job"]["status"] == "running"
 
     final = _wait_for_completion(client, body["job"]["job_id"])
@@ -106,14 +97,14 @@ def test_cup_breakout_scan_type_starts_a_background_job_and_completes(client, mo
 def test_start_serves_valid_cache_without_starting_a_job(client, monkeypatch):
     from backend.services.scan_job_manager import set_cached_result
 
-    set_cached_result("expiry_level_5", {"symbols_scanned": 3})
+    set_cached_result("value_buy", {"symbols_scanned": 3})
 
     async def fail_if_called(*a, **kw):
         raise AssertionError("should not have started a real scan — a cache was available")
 
-    monkeypatch.setattr(scan_jobs_module, "run_expiry_level_5_scan", fail_if_called)
+    monkeypatch.setattr(scan_jobs_module, "run_cup_scan", fail_if_called)
 
-    resp = client.post("/api/scan/start", json={"scan_type": "expiry_level_5"})
+    resp = client.post("/api/scan/start", json={"scan_type": "value_buy"})
     assert resp.status_code == 200
     body = resp.json()
     assert body["status"] == "cached"
@@ -123,17 +114,17 @@ def test_start_serves_valid_cache_without_starting_a_job(client, monkeypatch):
 def test_fresh_scan_ignores_cache_and_starts_a_new_job(client, monkeypatch):
     from backend.services.scan_job_manager import set_cached_result
 
-    set_cached_result("expiry_level_1", {"stale": True})
+    set_cached_result("cup_breakout", {"stale": True})
 
     called = {"n": 0}
 
     async def fake_l1(*a, **kw):
         called["n"] += 1
-        return _fake_expiry_l1_outcome()
+        return _fake_cup_outcome()
 
-    monkeypatch.setattr(scan_jobs_module, "run_expiry_level_1_scan", fake_l1)
+    monkeypatch.setattr(scan_jobs_module, "run_cup_scan", fake_l1)
 
-    resp = client.post("/api/scan/fresh", json={"scan_type": "expiry_level_1"})
+    resp = client.post("/api/scan/fresh", json={"scan_type": "cup_breakout"})
     body = resp.json()
     assert body["status"] == "started"
     _wait_for_completion(client, body["job"]["job_id"])
@@ -143,38 +134,38 @@ def test_fresh_scan_ignores_cache_and_starts_a_new_job(client, monkeypatch):
 def test_fresh_scan_replaces_cache_only_on_success(client, monkeypatch):
     from backend.services.scan_job_manager import get_cached_result, set_cached_result
 
-    set_cached_result("expiry_level_1", {"old": True})
+    set_cached_result("cup_breakout", {"old": True})
 
     async def fake_fail(*a, **kw):
         raise RuntimeError("simulated Angel One outage")
 
-    monkeypatch.setattr(scan_jobs_module, "run_expiry_level_1_scan", fake_fail)
+    monkeypatch.setattr(scan_jobs_module, "run_cup_scan", fake_fail)
 
-    resp = client.post("/api/scan/fresh", json={"scan_type": "expiry_level_1"})
+    resp = client.post("/api/scan/fresh", json={"scan_type": "cup_breakout"})
     job_id = resp.json()["job"]["job_id"]
     final = _wait_for_completion(client, job_id)
     assert final["status"] == "failed"
 
     # The old cache must survive an unsuccessful fresh scan.
-    assert get_cached_result("expiry_level_1")["result"] == {"old": True}
+    assert get_cached_result("cup_breakout")["result"] == {"old": True}
 
 
 def test_fresh_scan_for_one_type_does_not_touch_another_types_cache(client, monkeypatch):
     from backend.services.scan_job_manager import get_cached_result, set_cached_result
 
-    set_cached_result("expiry_level_1", {"l1": True})
-    set_cached_result("expiry_level_5", {"l5": True})
+    set_cached_result("value_buy", {"l1": True})
+    set_cached_result("cup_breakout", {"l5": True})
 
     async def fake_l5(*a, **kw):
-        return _fake_expiry_l5_outcome()
+        return _fake_cup_outcome()
 
-    monkeypatch.setattr(scan_jobs_module, "run_expiry_level_5_scan", fake_l5)
+    monkeypatch.setattr(scan_jobs_module, "run_cup_scan", fake_l5)
 
-    resp = client.post("/api/scan/fresh", json={"scan_type": "expiry_level_5"})
+    resp = client.post("/api/scan/fresh", json={"scan_type": "cup_breakout"})
     _wait_for_completion(client, resp.json()["job"]["job_id"])
 
-    assert get_cached_result("expiry_level_1")["result"] == {"l1": True}
-    assert get_cached_result("expiry_level_5")["result"] != {"l5": True}  # replaced by the real (fake) scan
+    assert get_cached_result("value_buy")["result"] == {"l1": True}
+    assert get_cached_result("cup_breakout")["result"] != {"l5": True}  # replaced by the real (fake) scan
 
 
 def test_starting_the_same_scan_type_twice_concurrently_is_rejected(client, monkeypatch):
@@ -184,11 +175,11 @@ def test_starting_the_same_scan_type_twice_concurrently_is_rejected(client, monk
     async def slow_l1(*a, **kw):
         started.set()
         await release.wait()
-        return _fake_expiry_l1_outcome()
+        return _fake_cup_outcome()
 
-    monkeypatch.setattr(scan_jobs_module, "run_expiry_level_1_scan", slow_l1)
+    monkeypatch.setattr(scan_jobs_module, "run_cup_scan", slow_l1)
 
-    first = client.post("/api/scan/fresh", json={"scan_type": "expiry_level_1"})
+    first = client.post("/api/scan/fresh", json={"scan_type": "cup_breakout"})
     assert first.status_code == 200
     job_id = first.json()["job"]["job_id"]
 
@@ -200,7 +191,7 @@ def test_starting_the_same_scan_type_twice_concurrently_is_rejected(client, monk
         if job_manager.get(job_id).status != "running":
             break
 
-    second = client.post("/api/scan/fresh", json={"scan_type": "expiry_level_1"})
+    second = client.post("/api/scan/fresh", json={"scan_type": "cup_breakout"})
     assert second.status_code == 409
 
     # unblock and let it finish so it doesn't leak into other tests
@@ -215,11 +206,11 @@ def test_jobs_list_and_cancel_endpoints(client, monkeypatch):
 
     async def slow_l5(*a, **kw):
         await release.wait()
-        return _fake_expiry_l5_outcome()
+        return _fake_cup_outcome()
 
-    monkeypatch.setattr(scan_jobs_module, "run_expiry_level_5_scan", slow_l5)
+    monkeypatch.setattr(scan_jobs_module, "run_cup_scan", slow_l5)
 
-    resp = client.post("/api/scan/fresh", json={"scan_type": "expiry_level_5"})
+    resp = client.post("/api/scan/fresh", json={"scan_type": "cup_breakout"})
     job_id = resp.json()["job"]["job_id"]
 
     listed = client.get("/api/scan/jobs").json()
@@ -241,23 +232,23 @@ def test_unknown_job_id_returns_404(client):
 def test_cache_endpoints(client):
     from backend.services.scan_job_manager import set_cached_result
 
-    assert client.get("/api/scan/cache/expiry_level_1").status_code == 404
+    assert client.get("/api/scan/cache/value_buy").status_code == 404
 
-    set_cached_result("expiry_level_1", {"x": 1})
-    resp = client.get("/api/scan/cache/expiry_level_1")
+    set_cached_result("value_buy", {"x": 1})
+    resp = client.get("/api/scan/cache/value_buy")
     assert resp.status_code == 200
     assert resp.json()["result"] == {"x": 1}
 
-    assert client.delete("/api/scan/cache/expiry_level_1").status_code == 200
-    assert client.get("/api/scan/cache/expiry_level_1").status_code == 404
+    assert client.delete("/api/scan/cache/value_buy").status_code == 200
+    assert client.get("/api/scan/cache/value_buy").status_code == 404
 
 
 def test_progress_endpoint_returns_every_processed_stock(client, monkeypatch):
     async def fake_l1(*a, **kw):
-        return _fake_expiry_l1_outcome()
+        return _fake_cup_outcome()
 
-    monkeypatch.setattr(scan_jobs_module, "run_expiry_level_1_scan", fake_l1)
-    resp = client.post("/api/scan/start", json={"scan_type": "expiry_level_1"})
+    monkeypatch.setattr(scan_jobs_module, "run_cup_scan", fake_l1)
+    resp = client.post("/api/scan/start", json={"scan_type": "cup_breakout"})
     job_id = resp.json()["job"]["job_id"]
     _wait_for_completion(client, job_id)
 

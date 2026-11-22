@@ -1128,3 +1128,17 @@ html { scrollbar-gutter: stable; }
 @media (max-width: 960px) {
   .wk-rank-grid, .wk-buckets { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* Dashboard: today's strong sectors (2026-11-22) */
+.dash-strong { margin-bottom: 14px; }
+.dash-strong-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; }
+.dash-strong-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.dash-strong-chip {
+  display: inline-flex; align-items: center; gap: 4px; padding: 5px 12px; border-radius: 999px; font-size: 12.5px;
+  background: var(--success-soft); color: var(--success); border: 1px solid color-mix(in srgb, var(--success) 22%, transparent);
+}
+.dash-strong-chip b { font-weight: 700; }
+
+/* Value Buy page (2026-11-22) */
+.vb-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.vb-search { min-width: 220px; max-width: 100%; }

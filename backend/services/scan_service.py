@@ -95,6 +95,15 @@ class ScanOutcome:
 # A slow/hung stock must be isolated, not stall the whole scan: bounds one
 # stock's whole Angel One fetch (resolve + candle call incl. its own retries).
 PER_STOCK_FETCH_TIMEOUT_SECONDS = 75.0
+# 2026-11-22: a live strong-sector scan still lost 6 of 56 stocks (KOTAKBANK among them) to Angel One's rate limit
+# (HTTP 403) after the client's own 3 quick attempts. A stock refused that way is tried up to 3 more times, 2 / 4 / 8 s
+# apart (the Weekly Sectors fetch does the same and misses none). Any other failure is still final at once.
+RATE_LIMIT_RETRIES = 3
+RATE_LIMIT_RETRY_BASE_S = 2.0
+
+
+def _rate_limited(exc: Exception) -> bool:
+    return "HTTP 403" in str(exc)
 # Angel One's candle endpoint throttles bursts (HTTP 403 non-JSON) — 4 in
 # flight was the tested-safe level for a SINGLE job. CPU analysis runs
 # OUTSIDE this limit.
@@ -136,15 +145,20 @@ async def _fetch_and_analyze(
     stock_history_days: int,
 ) -> tuple[StockAnalysisResult | None, pd.DataFrame | None, str | None]:
     """Returns (analysis_result_or_None, daily_ohlcv, error_reason_or_None)."""
-    try:
-        ohlcv = await asyncio.wait_for(
-            fetch_daily_ohlcv(angelone_provider, symbol, stock_history_days),
-            timeout=PER_STOCK_FETCH_TIMEOUT_SECONDS,
-        )
-    except asyncio.TimeoutError:
-        return None, None, f"Timed out after {PER_STOCK_FETCH_TIMEOUT_SECONDS:.0f}s fetching market data"
-    except Exception as exc:  # noqa: BLE001 — one bad symbol must never crash the whole scan
-        return None, None, str(exc)
+    for attempt in range(RATE_LIMIT_RETRIES + 1):
+        try:
+            ohlcv = await asyncio.wait_for(
+                fetch_daily_ohlcv(angelone_provider, symbol, stock_history_days),
+                timeout=PER_STOCK_FETCH_TIMEOUT_SECONDS,
+            )
+            break
+        except asyncio.TimeoutError:
+            return None, None, f"Timed out after {PER_STOCK_FETCH_TIMEOUT_SECONDS:.0f}s fetching market data"
+        except Exception as exc:  # noqa: BLE001 — one bad symbol must never crash the whole scan
+            if attempt < RATE_LIMIT_RETRIES and _rate_limited(exc):
+                await asyncio.sleep(RATE_LIMIT_RETRY_BASE_S * 2 ** attempt)
+                continue
+            return None, None, str(exc)
 
     # CPU-bound (indicators + divergence detection): run in a worker thread
     # so the event loop keeps serving API polls and other stocks' fetches.
@@ -205,6 +219,8 @@ async def run_full_scan(
     multi_strategy_config: MultiStrategyConfig | None = None,
     on_progress: Callable[[str, bool, str | None], None] | None = None,
     on_result: Callable[[str, list[tuple[str, StrategySignal]]], None] | None = None,
+    symbols: list[str] | None = None,
+    value_buy_symbols: list[str] | None = None,
 ) -> ScanOutcome:
     """
     `on_progress(symbol, success, error)` — optional, called once per symbol
@@ -218,6 +234,11 @@ async def run_full_scan(
     stock finishes (all six strategies already evaluated from its single
     fetch), so callers can surface results progressively instead of waiting
     for the whole universe.
+
+    `symbols` (2026-11-22): the stocks every strategy runs on; None = the A Group universe. The Dashboard passes the
+    stocks of today's STRONG sectors. `value_buy_symbols`: the stocks Value Buy runs on; None = the same as
+    `symbols`, [] = no Value Buy at all (the Dashboard), and with `symbols=[]` a Value Buy-only scan (the Value Buy
+    page), where each stock is fetched once and only Value Buy is evaluated.
     """
     multi_strategy_config = multi_strategy_config or DEFAULT_MULTI_STRATEGY_CONFIG
     started_at = dt.datetime.utcnow()
@@ -230,9 +251,9 @@ async def run_full_scan(
     # its own pass) so the two can diverge again without reshaping the scan,
     # but today they are the same list, so Value Buy is evaluated inline in
     # process_nifty200 for every symbol and this second pass does no work.
-    nifty200_symbols = universe_loader.load_a_group_universe()
-    nifty500_symbols = nifty200_symbols
-    logger.info("A Group universe: %d symbols (all strategies)", len(nifty200_symbols))
+    nifty200_symbols = list(symbols) if symbols is not None else universe_loader.load_a_group_universe()
+    nifty500_symbols = list(value_buy_symbols) if value_buy_symbols is not None else nifty200_symbols
+    logger.info("Scan universe: %d symbols (all strategies), %d for Value Buy", len(nifty200_symbols), len(nifty500_symbols))
 
     universe_by_symbol: dict[str, UniverseStockEntry] = {s: UniverseStockEntry(symbol=s) for s in nifty200_symbols}
     nifty200_set = set(nifty200_symbols)
@@ -296,10 +317,13 @@ async def run_full_scan(
         if symbol in value_buy_done or symbol in nifty200_set:
             return
         async with semaphore:
+            await memory_guard(f"Value Buy scan before {symbol}")
             result, ohlcv, error_reason = await _fetch_and_analyze(angelone_provider, symbol, config, stock_history_days)
         if result is None or ohlcv is None:
             failed_symbols.append(symbol)
             errors.append(f"{symbol}: {error_reason}")
+            if on_progress is not None:
+                on_progress(symbol, False, error_reason)
             return
         data_source_summary["ANGEL_ONE"] = data_source_summary.get("ANGEL_ONE", 0) + 1
         signal = await loop.run_in_executor(cpu_pool, evaluate_value_buy, result, ohlcv, multi_strategy_config.value_buy)
@@ -309,6 +333,8 @@ async def run_full_scan(
             strategy_signals["Value Buy"].append(signal)
             if on_result is not None:
                 on_result(symbol, [("Value Buy", signal)])
+        if on_progress is not None:
+            on_progress(symbol, True, None)
 
     # cpu_pool is the SHARED pool (other concurrently running jobs may still
     # be using it) — never shut it down here, only this job's own work waits.

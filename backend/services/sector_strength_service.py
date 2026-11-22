@@ -30,7 +30,7 @@ import pandas as pd
 from backend.core.runtime import memory_guard, trim_now_and_then
 from backend.providers import angelone_scrip_master as scrip_master
 from backend.providers.angelone_provider import AngelOneProvider
-from backend.strategies.sector_strength import build_report
+from backend.strategies.sector_strength import build_report, rsi_levels, verdict
 
 logger = logging.getLogger("scanner.sector_strength")
 IST = ZoneInfo("Asia/Kolkata")
@@ -192,6 +192,51 @@ async def _run(job: SectorJob, provider: AngelOneProvider, as_of: dt.date) -> No
     report["constituents_source"] = source
     job.result = report
     _results[job.as_of] = (dt.datetime.now(), report)
+
+
+_universe_cache: dict[str, tuple[dt.datetime, dict]] = {}
+
+
+async def strong_sector_universe(provider: AngelOneProvider, as_of: dt.date | None = None) -> dict:
+    """Today's STRONG sectors (sector index daily, weekly and monthly RSI all above 60, the Weekly Sectors rule) and
+    their NSE constituents: the stocks the Dashboard scan runs on (2026-11-22). A Weekly Sectors report already made for
+    the same date is reused; otherwise only the 12 sector indices are fetched (~10 s). Kept for 30 minutes."""
+    as_of = as_of or dt.datetime.now(IST).date()
+    key = as_of.isoformat()
+    hit = _universe_cache.get(key)
+    if hit and dt.datetime.now() - hit[0] < RESULT_TTL:
+        return hit[1]
+    constituents, source = await load_constituents()
+    levels: dict[str, dict] = {}
+    report = _results.get(key)
+    if report and dt.datetime.now() - report[0] < RESULT_TTL:
+        levels = {s["key"]: s.get("rsi") or {} for s in report[1].get("sectors", []) if not s.get("equal_weight")}
+    else:
+        end = dt.datetime.combine(as_of, dt.time(23, 59))
+        sem = asyncio.Semaphore(CONCURRENCY)
+
+        async def one(sec: dict) -> None:
+            async with sem:
+                try:
+                    m = await scrip_master.resolve_index(sec["index"])
+                    if m is not None:
+                        df = await _history(provider, m, end - dt.timedelta(days=INDEX_HISTORY_DAYS), end)
+                        levels[sec["key"]] = rsi_levels(df, pd.Timestamp(as_of))
+                except Exception as exc:  # noqa: BLE001 - a sector without data is simply not STRONG
+                    logger.warning("strong-sector check: %s failed: %s", sec["index"], exc)
+
+        await asyncio.gather(*(one(s) for s in SECTORS if s["index"]))
+    sectors = []
+    for s in SECTORS:
+        lv = levels.get(s["key"])
+        if s["index"] and lv and verdict(lv) == "STRONG":
+            members = [m["symbol"] for m in constituents.get(s["key"], [])]
+            sectors.append({"key": s["key"], "label": s["label"], "index": s["index"],
+                            "rsi": {k: lv.get(k) for k in ("d", "w", "m")}, "members": members})
+    out = {"as_of": key, "sectors": sectors, "symbols": sorted({m for sec in sectors for m in sec["members"]}),
+           "constituents_source": source}
+    _universe_cache[key] = (dt.datetime.now(), out)
+    return out
 
 
 def start_job(provider: AngelOneProvider, as_of: dt.date | None) -> SectorJob:

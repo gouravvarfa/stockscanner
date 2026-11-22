@@ -112,7 +112,16 @@ interface UseScanJobResult<T> {
  * finished job's result is read back from GET /api/scan/jobs/{id}/results
  * or the 24h cache — never re-run client-side.
  */
-export function useScanJob<T = unknown>(scanType: ScanType): UseScanJobResult<T> {
+export interface UseScanJobOptions<T> {
+  /** Saved results (device cache, server cache, an earlier job) are shown only when this returns true - e.g. the
+   *  Dashboard refuses the old whole-A-Group results now that it scans only the STRONG sectors (2026-11-22). */
+  accept?: (result: T) => boolean;
+}
+
+export function useScanJob<T = unknown>(scanType: ScanType, options: UseScanJobOptions<T> = {}): UseScanJobResult<T> {
+  const acceptRef = useRef(options.accept);
+  acceptRef.current = options.accept;
+  const usable = (r: T | null | undefined): r is T => r !== null && r !== undefined && (!acceptRef.current || acceptRef.current(r));
   const [result, setResult] = useState<T | null>(null);
   const [job, setJob] = useState<ScanJobOut | null>(null);
   const [running, setRunning] = useState(false);
@@ -279,13 +288,14 @@ export function useScanJob<T = unknown>(scanType: ScanType): UseScanJobResult<T>
     // Normal Scan: a valid (<24h) result already on THIS device is used
     // directly — no network call, works even while Render is restarting.
     const local = await getLocalScanCache<T>(scanType);
-    if (local) {
+    if (local && usable(local.result)) {
       setResult(local.result);
       setCache(local as CacheEnvelope<T>);
       setJob(null);
       setRunning(false);
       return;
     }
+    if (local) await deleteLocalScanCache(scanType); // an older kind of result: not shown, not kept
     try {
       const res = await withColdStartRetry(() => scanJobsApi.start<T>(scanType));
       if (res.status === "cached") {
@@ -371,8 +381,9 @@ export function useScanJob<T = unknown>(scanType: ScanType): UseScanJobResult<T>
       // 1) This device's own cache first: shown immediately, before (and
       //    regardless of) any backend round-trip — survives refreshes and
       //    Render restarts/cold starts.
-      const local = await getLocalScanCache<T>(scanType);
+      const found = await getLocalScanCache<T>(scanType);
       if (cancelled) return;
+      const local = found && usable(found.result) ? found : null;
       if (local) {
         setResult(local.result);
         setCache(local as CacheEnvelope<T>);
@@ -394,7 +405,7 @@ export function useScanJob<T = unknown>(scanType: ScanType): UseScanJobResult<T>
         if (mostRecent) {
           try {
             const r = await scanJobsApi.getJobResults<T>(mostRecent.job_id);
-            if (!cancelled) {
+            if (!cancelled && usable(r)) {
               setResult(r);
               setJob(mostRecent);
               saveLocal(scanType, r, mostRecent.completion_time);
@@ -405,7 +416,7 @@ export function useScanJob<T = unknown>(scanType: ScanType): UseScanJobResult<T>
           }
         }
         const cached = await scanJobsApi.getCache<T>(scanType).catch(() => null);
-        if (!cancelled && cached) {
+        if (!cancelled && cached && usable(cached.result)) {
           setResult(cached.result);
           setCache(cached);
           saveLocal(scanType, cached.result, cached.completed_at, cached.provider);

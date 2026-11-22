@@ -243,7 +243,7 @@ export function mapPartialSignalsToRows(localId: string, partial: PartialResult)
  *  final failed-stock rows. Never recalculated — only reformatted. */
 export function mapScanResultToHistoryRows(localId: string, result: ScanResult | Record<string, unknown>): HistoryResultRow[] {
   // Only the A Group scan's result has this shape (nifty200_universe +
-  // strategies). Other scan types (Cup Breakout, Expiry Level 1/5) stream
+  // strategies). Other scan types (Cup Breakout, Value Buy) stream
   // everything they need through mapPartialSignalsToRows/mapProgressItemToRow
   // already — this final-result backfill is A-Group-specific and must be a
   // no-op (not a crash) for anything else.

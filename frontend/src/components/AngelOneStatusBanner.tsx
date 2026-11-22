@@ -4,7 +4,7 @@ import { ensureAngelOneConnected, getConnectionState, onConnectionChange } from 
 
 /**
  * Read-only status display for pages that NEED Angel One connected
- * (Expiry Level 1/5) but don't own the credential form themselves -
+ * (scans and backtests) but don't own the credential form themselves -
  * credentials are configured in exactly one place: Settings. This shows the
  * app-wide connection (angeloneAutoConnect.ts), which wakes the server and
  * reconnects with this device's saved credentials on its own.

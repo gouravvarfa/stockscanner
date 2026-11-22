@@ -1,6 +1,6 @@
 """
-Background scan job API. Every scan the app can run (A Group, Expiry Level
-1, Expiry Level 5) is submitted to the shared JobManager (scan_job_manager.py)
+Background scan job API. Every scan the app can run (the Dashboard's strong-sector scan "a_group", Cup Breakout,
+Value Buy) is submitted to the shared JobManager (scan_job_manager.py)
 and executes via asyncio.create_task — independent of whichever frontend
 page triggered it or is currently open. The frontend only starts jobs,
 polls their progress, and reads results; it owns none of the execution.
@@ -35,19 +35,10 @@ import logging
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-# Reuse the existing per-endpoint OUT-schema serializers rather than
-# duplicating them — these are the exact functions backend/api/expiry.py and
-# backend/api/expiry_level_5.py already use to shape their responses.
-from backend.api.expiry import _signal_out as _expiry_l1_signal_out
-from backend.api.expiry_level_5 import _signal_out as _expiry_l5_signal_out
-from backend.schemas.expiry import ExpiryLevel1ResultOut
-from backend.schemas.expiry_level_5 import ExpiryLevel5ResultOut
 from backend.config.cup_config import DEFAULT_CUP_CONFIG
-from backend.services import config_store, serializers
+from backend.services import config_store, sector_strength_service, serializers
 from backend.services.cup_scan_service import run_cup_scan
-from backend.services.expiry_level_5_scan_service import run_expiry_level_5_scan
-from backend.services.expiry_scan_service import run_expiry_level_1_scan
-from backend.services.provider_factory import get_angelone_provider, get_market_data_router
+from backend.services.provider_factory import get_angelone_provider
 from backend.services.excel_sync.scan_sync import start_scan_sync
 from backend.core.runtime import STATELESS_SERVER
 from backend.services.scan_job_manager import (
@@ -85,25 +76,48 @@ def _estimate_total(scan_type: ScanType) -> int:
         universe_size = len(load_a_group_universe())
     except Exception:  # noqa: BLE001
         return 0
-    if scan_type in ("a_group", "cup_breakout"):
-        return universe_size
-    # Expiry Level 1/5 both cap at max_stocks=40 by default, plus (for
-    # Level 1) the 2 index symbols.
-    return min(universe_size, 40) + (2 if scan_type == "expiry_level_1" else 0)
+    if scan_type == "a_group":
+        return 0  # the stocks of today's STRONG sectors: known once the sector check is done (the job sets it)
+    return universe_size  # Cup Breakout and Value Buy run over the whole A Group
 
 
 async def _run_a_group_job(job: ScanJob) -> dict:
+    """The Dashboard scan (2026-11-22): only the stocks of today's STRONG sectors (sector index daily, weekly and
+    monthly RSI all above 60), every setup except Value Buy, which has its own page and scan over the whole A Group."""
+    universe = await sector_strength_service.strong_sector_universe(get_angelone_provider())
+    job.total = len(universe["symbols"])
     config = config_store.get_current_config()
     multi_strategy_config = config_store.get_current_multi_strategy_config()
     outcome = await run_full_scan(
         get_angelone_provider(), config, multi_strategy_config=multi_strategy_config,
         on_progress=lambda symbol, success, error: job.record_progress(symbol, success, error),
         on_result=job.record_result,
+        symbols=universe["symbols"], value_buy_symbols=[],
     )
     # Serialization + SQLite persistence are synchronous/CPU+IO work: run
     # them off the event loop so the last stock's results and every API
     # poll stay responsive while the final aggregate is written.
-    return await asyncio.to_thread(_finalize_a_group, outcome)
+    return await asyncio.to_thread(_finalize_a_group, outcome, universe)
+
+
+async def _run_value_buy_job(job: ScanJob) -> dict:
+    """The Value Buy page: Value Buy alone over the whole A Group universe (each stock fetched once)."""
+    symbols = load_a_group_universe()
+    job.total = len(symbols)
+    outcome = await run_full_scan(
+        get_angelone_provider(), config_store.get_current_config(),
+        multi_strategy_config=config_store.get_current_multi_strategy_config(),
+        on_progress=lambda symbol, success, error: job.record_progress(symbol, success, error),
+        on_result=job.record_result,
+        symbols=[], value_buy_symbols=symbols,
+    )
+
+    def finalize() -> dict:
+        payload = serializers.scan_outcome_out(outcome).model_dump(mode="json")
+        set_cached_result("value_buy", payload)
+        return payload
+
+    return await asyncio.to_thread(finalize)
 
 
 async def _run_cup_breakout_job(job: ScanJob) -> dict:
@@ -130,7 +144,7 @@ async def _run_cup_breakout_job(job: ScanJob) -> dict:
     return payload
 
 
-def _finalize_a_group(outcome) -> dict:
+def _finalize_a_group(outcome, universe: dict | None = None) -> dict:
     # 2026-09-25: no longer persisted to the server database. Every A Group
     # run used to insert a ScanRun + its result rows (full signal detail
     # JSON) into scanner.db on Render and nothing ever deleted them, so
@@ -142,85 +156,23 @@ def _finalize_a_group(outcome) -> dict:
     # every reader already treats it as optional.
     result = serializers.scan_outcome_out(outcome)
     payload = result.model_dump(mode="json")
+    if universe is not None:
+        # which sectors the scanned stocks came from (the Dashboard shows them; a result without this key is from
+        # the old whole-A-Group scan and is never served from the cache again)
+        payload["strong_sectors"] = [{k: sec[k] for k in ("key", "label", "index", "rsi")} | {"stocks": len(sec["members"])}
+                                     for sec in universe["sectors"]]
+        payload["strong_as_of"] = universe["as_of"]
     set_cached_result("a_group", payload)
     return payload
-
-
-async def _run_expiry_level_1_job(job: ScanJob, max_stocks: int) -> dict:
-    market_data_router = get_market_data_router()
-    config = config_store.get_current_expiry_level_1_config()
-    outcome = await run_expiry_level_1_scan(
-        market_data_router, config, max_stocks=max_stocks,
-        on_progress=lambda symbol, success, error: job.record_progress(symbol, success, error),
-    )
-    result = ExpiryLevel1ResultOut(
-        started_at=outcome.started_at,
-        finished_at=outcome.finished_at,
-        execution_seconds=outcome.execution_seconds,
-        angelone_configured=outcome.angelone_configured,
-        symbols_scanned=outcome.symbols_scanned,
-        symbols_failed=outcome.symbols_failed,
-        failed_symbols=outcome.failed_symbols,
-        index_signals=[_expiry_l1_signal_out(s) for s in outcome.index_signals],
-        stock_signals=[_expiry_l1_signal_out(s) for s in outcome.stock_signals],
-        data_source_summary=outcome.data_source_summary,
-        errors=outcome.errors,
-    )
-    payload = result.model_dump(mode="json")
-    set_cached_result("expiry_level_1", payload)
-    return payload
-
-
-async def _run_expiry_level_5_job(job: ScanJob, max_stocks: int) -> dict:
-    market_data_router = get_market_data_router()
-    config = config_store.get_current_expiry_level_5_config()
-    outcome = await run_expiry_level_5_scan(
-        market_data_router, config, max_stocks=max_stocks,
-        on_progress=lambda symbol, success, error: job.record_progress(symbol, success, error),
-    )
-    result = ExpiryLevel5ResultOut(
-        started_at=outcome.started_at,
-        finished_at=outcome.finished_at,
-        execution_seconds=outcome.execution_seconds,
-        angelone_configured=outcome.angelone_configured,
-        symbols_scanned=outcome.symbols_scanned,
-        symbols_failed=outcome.symbols_failed,
-        failed_symbols=outcome.failed_symbols,
-        signals=[_expiry_l5_signal_out(s) for s in outcome.signals],
-        data_source_summary=outcome.data_source_summary,
-        errors=outcome.errors,
-    )
-    payload = result.model_dump(mode="json")
-    set_cached_result("expiry_level_5", payload)
-    return payload
-
-
-def _add_signal_rows(sync, job: ScanJob, payload) -> None:
-    """Expiry Level 1/5 report their signals only at the end (no per-stock
-    callback carries them), so their signal rows are added from the final
-    payload. A Group rows were already streamed per stock."""
-    if job.scan_type in ("a_group", "cup_breakout") or not isinstance(payload, dict):
-        return
-    from backend.services.excel_sync.rows import status_row
-
-    signals = list(payload.get("signals", [])) + list(payload.get("stock_signals", [])) + list(payload.get("index_signals", []))
-    rows = []
-    for s in signals:
-        key, row = status_row(sync.ctx, s.get("symbol", ""), "QUALIFIED", str(s.get("explanation") or s.get("signal") or ""))
-        row[6], row[11] = job.scan_type, s.get("signal", "QUALIFIED")
-        rows.append(((s.get("symbol", ""), job.scan_type, "", "QUALIFIED", str(s.get("signal_date", ""))), row))
-    sync.add_rows(rows)
 
 
 async def _start_job(scan_type: ScanType, device_id: str | None = None) -> ScanJob:
     if scan_type == "a_group":
         runner = _run_a_group_job
-    elif scan_type == "expiry_level_1":
-        runner = lambda job: _run_expiry_level_1_job(job, max_stocks=40)  # noqa: E731
-    elif scan_type == "expiry_level_5":
-        runner = lambda job: _run_expiry_level_5_job(job, max_stocks=40)  # noqa: E731
     elif scan_type == "cup_breakout":
         runner = _run_cup_breakout_job
+    elif scan_type == "value_buy":
+        runner = _run_value_buy_job
     else:
         raise HTTPException(status_code=400, detail=f"Unknown scan_type '{scan_type}'.")
 
@@ -234,10 +186,7 @@ async def _start_job(scan_type: ScanType, device_id: str | None = None) -> ScanJ
         except Exception:  # noqa: BLE001 — Excel trouble must never stop a scan
             logger.exception("Excel sync setup failed; scan continues without it")
         try:
-            result = await inner(job)
-            if sync is not None:
-                _add_signal_rows(sync, job, result)
-            return result
+            return await inner(job)
         finally:
             if sync is not None:  # final flush in the background: the job completes without waiting for Excel
                 asyncio.get_running_loop().create_task(sync.finish())
@@ -254,11 +203,20 @@ async def _start_job(scan_type: ScanType, device_id: str | None = None) -> ScanJ
     return job
 
 
+def _usable_cache(scan_type: ScanType) -> dict | None:
+    """The cached result, unless it is an old whole-A-Group Dashboard result (from before 2026-11-22, no
+    "strong_sectors"): the Dashboard now scans only the stocks of the STRONG sectors, so that one is never served."""
+    cached = get_cached_result(scan_type)
+    if cached is not None and scan_type == "a_group" and "strong_sectors" not in (cached.get("result") or {}):
+        return None
+    return cached
+
+
 @router.post("/start")
 async def start_scan(request: StartScanRequest) -> dict:
     """Normal Scan (Part 9): a valid 24h cache is served immediately with no
     new Angel One work at all; otherwise a background job starts."""
-    cached = get_cached_result(request.scan_type)
+    cached = _usable_cache(request.scan_type)
     if cached is not None:
         return {"status": "cached", "cache": cached}
 
@@ -336,7 +294,7 @@ async def cancel_job(job_id: str, device_id: str | None = None) -> dict:
 
 @router.get("/cache/{scan_type}")
 async def get_cache(scan_type: ScanType) -> dict:
-    cached = get_cached_result(scan_type)
+    cached = _usable_cache(scan_type)
     if cached is None:
         raise HTTPException(status_code=404, detail=f"No cached result for '{scan_type}'.")
     return cached

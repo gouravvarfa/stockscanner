@@ -40,7 +40,7 @@ export class ScanApiError extends Error {
   }
 }
 
-export type ScanType = "a_group" | "expiry_level_1" | "expiry_level_5" | "cup_breakout";
+export type ScanType = "a_group" | "cup_breakout" | "value_buy";
 export type JobStatus = "running" | "completed" | "failed" | "cancelled";
 
 export interface FailedSymbolOut {
@@ -177,12 +177,10 @@ export function fmtDuration(seconds: number | null | undefined): string {
 export function scanTypeLabel(scanType: ScanType): string {
   switch (scanType) {
     case "a_group":
-      return "A Group Scanner";
-    case "expiry_level_1":
-      return "Expiry Level 1";
-    case "expiry_level_5":
-      return "Expiry Level 5";
+      return "Strong-sector scan";
     case "cup_breakout":
       return "Cup Breakout";
+    case "value_buy":
+      return "Value Buy";
   }
 }

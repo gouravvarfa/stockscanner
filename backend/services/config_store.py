@@ -3,8 +3,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from backend.config.expiry_level_1_config import DEFAULT_EXPIRY_LEVEL_1_CONFIG, ExpiryLevel1Config
-from backend.config.expiry_level_5_config import DEFAULT_EXPIRY_LEVEL_5_CONFIG, ExpiryLevel5Config
 from backend.config.multi_strategy_config import DEFAULT_MULTI_STRATEGY_CONFIG, MultiStrategyConfig
 from backend.config.strategy_config import DEFAULT_STRATEGY_CONFIG, StrategyConfig
 
@@ -14,11 +12,6 @@ _current: StrategyConfig | None = None
 _MULTI_OVERRIDE_PATH = Path("multi_strategy_config_overrides.json")
 _current_multi: MultiStrategyConfig | None = None
 
-_EXPIRY_OVERRIDE_PATH = Path("expiry_level_1_config_overrides.json")
-_current_expiry: ExpiryLevel1Config | None = None
-
-_EXPIRY5_OVERRIDE_PATH = Path("expiry_level_5_config_overrides.json")
-_current_expiry5: ExpiryLevel5Config | None = None
 
 
 def get_current_config() -> StrategyConfig:
@@ -70,52 +63,3 @@ def reset_multi_strategy_config() -> MultiStrategyConfig:
         _MULTI_OVERRIDE_PATH.unlink()
     return _current_multi
 
-
-def get_current_expiry_level_1_config() -> ExpiryLevel1Config:
-    global _current_expiry
-    if _current_expiry is None:
-        if _EXPIRY_OVERRIDE_PATH.exists():
-            _current_expiry = ExpiryLevel1Config.model_validate(json.loads(_EXPIRY_OVERRIDE_PATH.read_text()))
-        else:
-            _current_expiry = DEFAULT_EXPIRY_LEVEL_1_CONFIG.model_copy(deep=True)
-    return _current_expiry
-
-
-def update_expiry_level_1_config(new_config: ExpiryLevel1Config) -> ExpiryLevel1Config:
-    global _current_expiry
-    _current_expiry = new_config
-    _EXPIRY_OVERRIDE_PATH.write_text(json.dumps(new_config.model_dump(), indent=2))
-    return _current_expiry
-
-
-def reset_expiry_level_1_config() -> ExpiryLevel1Config:
-    global _current_expiry
-    _current_expiry = DEFAULT_EXPIRY_LEVEL_1_CONFIG.model_copy(deep=True)
-    if _EXPIRY_OVERRIDE_PATH.exists():
-        _EXPIRY_OVERRIDE_PATH.unlink()
-    return _current_expiry
-
-
-def get_current_expiry_level_5_config() -> ExpiryLevel5Config:
-    global _current_expiry5
-    if _current_expiry5 is None:
-        if _EXPIRY5_OVERRIDE_PATH.exists():
-            _current_expiry5 = ExpiryLevel5Config.model_validate(json.loads(_EXPIRY5_OVERRIDE_PATH.read_text()))
-        else:
-            _current_expiry5 = DEFAULT_EXPIRY_LEVEL_5_CONFIG.model_copy(deep=True)
-    return _current_expiry5
-
-
-def update_expiry_level_5_config(new_config: ExpiryLevel5Config) -> ExpiryLevel5Config:
-    global _current_expiry5
-    _current_expiry5 = new_config
-    _EXPIRY5_OVERRIDE_PATH.write_text(json.dumps(new_config.model_dump(), indent=2))
-    return _current_expiry5
-
-
-def reset_expiry_level_5_config() -> ExpiryLevel5Config:
-    global _current_expiry5
-    _current_expiry5 = DEFAULT_EXPIRY_LEVEL_5_CONFIG.model_copy(deep=True)
-    if _EXPIRY5_OVERRIDE_PATH.exists():
-        _EXPIRY5_OVERRIDE_PATH.unlink()
-    return _current_expiry5

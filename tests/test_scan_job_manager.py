@@ -14,10 +14,10 @@ from backend.services.scan_job_manager import (
 
 @pytest.fixture(autouse=True)
 def clean_cache():
-    for t in ("a_group", "expiry_level_1", "expiry_level_5"):
+    for t in ("a_group", "cup_breakout", "value_buy"):
         clear_cached_result(t)
     yield
-    for t in ("a_group", "expiry_level_1", "expiry_level_5"):
+    for t in ("a_group", "cup_breakout", "value_buy"):
         clear_cached_result(t)
 
 
@@ -80,13 +80,13 @@ async def test_two_different_scan_types_run_concurrently_independently():
         return "done"
 
     job1 = manager.start_job("a_group", slow_runner)
-    job2 = manager.start_job("expiry_level_1", slow_runner)
+    job2 = manager.start_job("value_buy", slow_runner)
     assert job1.status == "running"
     assert job2.status == "running"
     await asyncio.gather(job1._task, job2._task)
     assert job1.status == "completed"
     assert job2.status == "completed"
-    assert set(started) == {"a_group", "expiry_level_1"}
+    assert set(started) == {"a_group", "value_buy"}
 
 
 async def test_starting_the_same_scan_type_twice_is_rejected_by_default():
@@ -147,7 +147,7 @@ async def test_list_jobs_returns_newest_first():
 
     j1 = manager.start_job("a_group", runner)
     await j1._task
-    j2 = manager.start_job("expiry_level_1", runner)
+    j2 = manager.start_job("value_buy", runner)
     await j2._task
 
     listed = manager.list_jobs()
@@ -165,15 +165,15 @@ def test_cached_result_round_trips_and_respects_scan_type_isolation():
     assert "data_timestamp" in cached and "completed_at" in cached
 
     # A different scan type's cache is completely independent.
-    assert get_cached_result("expiry_level_1") is None
+    assert get_cached_result("value_buy") is None
 
 
 def test_clearing_one_scan_types_cache_does_not_touch_another():
     set_cached_result("a_group", {"a": 1})
-    set_cached_result("expiry_level_1", {"b": 2})
+    set_cached_result("value_buy", {"b": 2})
     clear_cached_result("a_group")
     assert get_cached_result("a_group") is None
-    assert get_cached_result("expiry_level_1") is not None
+    assert get_cached_result("value_buy") is not None
 
 
 # ---- device-local persistence feed: progress log + full partial detail ----

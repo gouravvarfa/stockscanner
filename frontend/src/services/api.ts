@@ -152,6 +152,17 @@ export interface ScanResult {
   nifty200_universe: NiftyUniverseStock[];
   strategies: Record<string, StrategySignal[]>;
   errors: string[];
+  /** Dashboard scan (2026-11-22): the STRONG sectors whose stocks were scanned. Absent on old whole-A-Group results. */
+  strong_sectors?: StrongSector[];
+  strong_as_of?: string;
+}
+
+export interface StrongSector {
+  key: string;
+  label: string;
+  index: string;
+  rsi: { d: number | null; w: number | null; m: number | null };
+  stocks: number;
 }
 
 export interface ScanRunSummary {
@@ -203,42 +214,6 @@ export interface StrategyConfig {
   classification: { strong_setup_min: number; good_setup_min: number; moderate_setup_min: number };
 }
 
-export interface ExpiryLevel1Signal {
-  symbol: string;
-  fno_type?: "FUTURE" | "EQUITY";
-  instrument_type: "INDEX" | "STOCK";
-  name: string;
-  sector: string | null;
-  signal_date: string;
-  rsi_15m: number;
-  rsi_15m_prev: number;
-  rsi_1h: number;
-  cross_status: string;
-  status: string;
-  strategy: string;
-  explanation: string;
-}
-
-export interface ExpiryLevel1Result {
-  started_at: string;
-  finished_at: string;
-  execution_seconds: number;
-  angelone_configured: boolean;
-  symbols_scanned: number;
-  symbols_failed: number;
-  failed_symbols: string[];
-  index_signals: ExpiryLevel1Signal[];
-  stock_signals: ExpiryLevel1Signal[];
-  errors: string[];
-}
-
-export interface ExpiryLevel1Config {
-  rsi_15m_threshold: number;
-  rsi_1h_threshold: number;
-  rsi_period: number;
-  intraday_lookback_days: number;
-}
-
 export interface AngelOneStatus {
   configured: boolean;
   client_code: string | null;
@@ -256,45 +231,6 @@ export interface AngelOneConnectRequest {
 export interface AngelOneTestResult {
   success: boolean;
   message: string;
-}
-
-export interface ExpiryLevel5Candle {
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-}
-
-export interface ExpiryLevel5Signal {
-  strategy: string;
-  signal: string;
-  symbol: string;
-  fno_type?: "FUTURE" | "EQUITY";
-  instrument_type: string;
-  signal_date: string;
-  swing_high: number;
-  swing_low: number;
-  fib_38_2: number | null;
-  fib_50: number | null;
-  fib_61_8: number;
-  support_price: number;
-  support_confirmed: boolean;
-  confirmation_candle: ExpiryLevel5Candle;
-  previous_candle_high: number;
-  confirmation_close_above_previous_high: boolean;
-  reason: string;
-}
-
-export interface ExpiryLevel5Result {
-  started_at: string;
-  finished_at: string;
-  execution_seconds: number;
-  angelone_configured: boolean;
-  symbols_scanned: number;
-  symbols_failed: number;
-  failed_symbols: string[];
-  signals: ExpiryLevel5Signal[];
-  errors: string[];
 }
 
 export interface ChartCandle {
@@ -357,18 +293,12 @@ export const api = {
     request<StrategyConfig>("/api/config", { method: "PUT", body: JSON.stringify(config) }),
   resetConfig: () => request<StrategyConfig>("/api/config/reset", { method: "POST" }),
   listStrategies: () => request<StrategyDescriptor[]>("/api/scanner/strategies"),
-  runExpiryScan: (maxStocks = 40) =>
-    request<ExpiryLevel1Result>(`/api/expiry/scan?max_stocks=${maxStocks}`, { method: "POST" }),
-  getExpiryConfig: () => request<ExpiryLevel1Config>("/api/expiry/config"),
   getAngelOneStatus: () => request<AngelOneStatus>("/api/expiry/angelone/status"),
   connectAngelOne: (body: AngelOneConnectRequest) =>
     request<AngelOneStatus>("/api/expiry/angelone/connect", { method: "POST", body: JSON.stringify(body) }),
   disconnectAngelOne: () => request<AngelOneStatus>("/api/expiry/angelone/disconnect", { method: "POST" }),
   testAngelOneConnection: (body: AngelOneConnectRequest) =>
     request<AngelOneTestResult>("/api/expiry/angelone/test-connection", { method: "POST", body: JSON.stringify(body) }),
-  runExpiryLevel5Scan: (maxStocks = 40) =>
-    request<ExpiryLevel5Result>(`/api/expiry-level-5/scan?max_stocks=${maxStocks}`, { method: "POST" }),
-  getExpiryLevel5Config: () => request<Record<string, unknown>>("/api/expiry-level-5/config"),
   getTradingViewStatus: () => request<TradingViewStatus>("/api/tradingview/status"),
   listTradingViewSignals: (limit = 200) => request<TradingViewSignal[]>(`/api/tradingview/signals?limit=${limit}`),
   getLogs: (sinceId = 0, limit = 200) => request<LogEntry[]>(`/api/logs?since_id=${sinceId}&limit=${limit}`),

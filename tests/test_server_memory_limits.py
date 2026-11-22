@@ -181,7 +181,8 @@ async def test_render_runs_only_one_big_scan_at_a_time(monkeypatch):
     mgr.start_job("cup_breakout", runner, device_id="phone")
     with pytest.raises(sjm.TooManyConcurrentScansError, match="one big scan runs at a time"):
         mgr.start_job("a_group", runner, device_id="laptop")
-    mgr.start_job("expiry_level_1", runner, device_id="laptop")  # small scans are not blocked
+    with pytest.raises(sjm.TooManyConcurrentScansError):
+        mgr.start_job("value_buy", runner, device_id="laptop")  # Value Buy covers the whole A Group: also one at a time
     gate.set()
     await asyncio.sleep(0.05)
     mgr.start_job("a_group", runner, device_id="laptop")  # the big one finished: the next may start

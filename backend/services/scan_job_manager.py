@@ -40,7 +40,7 @@ from backend.core.runtime import keep, rss_mb, trim_now_and_then
 
 logger = logging.getLogger("scanner.scan_job_manager")
 
-ScanType = Literal["a_group", "expiry_level_1", "expiry_level_5", "cup_breakout"]
+ScanType = Literal["a_group", "cup_breakout", "value_buy"]
 JobStatus = Literal["running", "completed", "failed", "cancelled"]
 
 # One 24-hour cached result per scan type — Part 8/9: a "Normal Scan" reads
@@ -269,7 +269,7 @@ MAX_CONCURRENT_JOBS_PER_SCAN_TYPE = keep(3, 1)
 # candles per stock in 5 rate-limited chunks, no disk cache there), so it overlapped other scans and the
 # instance went over 512 MB. On Render only ONE heavy scan (A Group or Cup Breakout) may run at a time,
 # from any device; locally there is no such limit (0 = unlimited).
-HEAVY_SCAN_TYPES = ("a_group", "cup_breakout")
+HEAVY_SCAN_TYPES = ("a_group", "cup_breakout", "value_buy")
 MAX_RUNNING_HEAVY_SCANS = keep(0, 1)
 
 # 2026-09-24, Render OOM: completed/failed/cancelled ScanJob objects were

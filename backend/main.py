@@ -26,8 +26,6 @@ from backend.providers import angelone_client
 from backend.api import breakout15 as breakout15_api
 from backend.api import chart as chart_api
 from backend.api import config as config_api
-from backend.api import expiry as expiry_api
-from backend.api import expiry_level_5 as expiry_level_5_api
 from backend.api import history as history_api
 from backend.api import live as live_api
 from backend.api import logs as logs_api
@@ -89,8 +87,6 @@ app.include_router(ranking_api.router)
 app.include_router(history_api.router)
 app.include_router(config_api.router)
 app.include_router(scanner_api.router)
-app.include_router(expiry_api.router)
-app.include_router(expiry_level_5_api.router)
 app.include_router(angelone_api.router)
 app.include_router(tradingview_api.router)
 app.include_router(logs_api.router)

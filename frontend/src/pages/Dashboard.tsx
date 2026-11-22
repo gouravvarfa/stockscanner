@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { STRATEGY_NAMES, strategyDisplayName, type StockResult, type StrategyName, type StrategySignal } from "../services/api";
 import { TopRankedCandidates } from "../components/TopRankedCandidates";
 import { useChart } from "../chart/ChartContext";
@@ -15,9 +16,11 @@ import { ChartBarIcon } from "../components/icons";
 // but are deliberately NOT among the six strategies in STRATEGY_NAMES, so
 // summary cards / totals stay exactly as before.
 type TabName = StrategyName | "PRD Forming" | "NRD Forming";
+// Value Buy is not on the Dashboard any more: it has its own page over the whole A Group (2026-11-22).
 const TAB_NAMES: TabName[] = [
-  "Strategy One", "GFS", "Advanced GFS", "50 GFS", "PRD", "PRD Forming", "NRD", "NRD Forming", "Value Buy",
+  "Strategy One", "GFS", "Advanced GFS", "50 GFS", "PRD", "PRD Forming", "NRD", "NRD Forming",
 ];
+const DASHBOARD_STRATEGIES = STRATEGY_NAMES.filter((name) => name !== "Value Buy");
 
 type SortKey = "symbol" | "daily_rsi" | "weekly_rsi" | "monthly_rsi" | "score" | "price";
 
@@ -210,7 +213,7 @@ export function Dashboard() {
 
   const totalSignals = useMemo(() => {
     if (!latest) return 0;
-    return STRATEGY_NAMES.reduce((sum, name) => sum + (latest.strategies?.[name]?.length ?? 0), 0);
+    return DASHBOARD_STRATEGIES.reduce((sum, name) => sum + (latest.strategies?.[name]?.length ?? 0), 0);
   }, [latest]);
 
   const prdSignals = useMemo(() => latest?.strategies?.["PRD"] ?? [], [latest]);
@@ -290,11 +293,13 @@ export function Dashboard() {
       <div className="page-header">
         <div>
           <h1>Dashboard</h1>
-          <p className="page-subtitle">Quick overview of all active signals and market insights</p>
+          <p className="page-subtitle">
+            Setups in the stocks of today&apos;s STRONG sectors only (sector index daily, weekly and monthly RSI above 60)
+          </p>
         </div>
         <div style={{ display: "flex", gap: 10 }}>
           <button className="primary-button" onClick={runScan} disabled={scanning}>
-            {scanning ? "Scanning A Group…" : "Run Scan"}
+            {scanning ? "Scanning strong sectors…" : "Run Scan"}
           </button>
           {!scanning && (
             <button className="secondary-button" onClick={runFreshScan} title="Ignore cache, fetch fresh Angel One data">
@@ -314,7 +319,9 @@ export function Dashboard() {
           <div style={{ width: "100%" }}>
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 6 }}>
               <span>
-                Scanning{progress.currentSymbol ? `: ${progress.currentSymbol}` : "…"}
+                {progress.total === 0 && progress.processed === 0
+                  ? "Finding today's STRONG sectors…"
+                  : `Scanning${progress.currentSymbol ? `: ${progress.currentSymbol}` : "…"}`}
               </span>
               <span>
                 {progress.processed} / {progress.total || "?"} ({progress.percentage.toFixed(1)}%)
@@ -397,7 +404,7 @@ export function Dashboard() {
             Data as of <strong>{new Date(latest.finished_at).toLocaleString()}</strong>
           </div>
           <div>
-            A Group universe: {latest.universe_returned}/{latest.universe_requested} (all strategies)
+            Strong sectors: {latest.strong_sectors?.length ?? 0} · {latest.universe_requested} stocks scanned
           </div>
           <div>Stocks scanned: {latest.stocks_scanned} · failed: {latest.stocks_failed}</div>
           <div>Execution time: {latest.execution_seconds.toFixed(1)}s</div>
@@ -408,7 +415,36 @@ export function Dashboard() {
         <div className="card state-block">
           <div className="state-icon"><ChartBarIcon width={28} height={28} /></div>
           <div className="state-title">No signals found</div>
-          <div className="state-subtitle">Run a scan to populate the dashboard with live A Group signals.</div>
+          <div className="state-subtitle">
+            Run a scan: it finds today&apos;s STRONG sectors and checks every setup on their stocks.
+          </div>
+        </div>
+      )}
+
+      {latest && (
+        <div className="card dash-strong">
+          <div className="dash-strong-head">
+            <strong>Today&apos;s strong sectors</strong>
+            <span className="muted small">
+              Daily, weekly and monthly RSI of the sector index all above 60 · from the Weekly Sectors rule
+            </span>
+          </div>
+          {(latest.strong_sectors ?? []).length === 0 ? (
+            <p className="muted small" style={{ margin: "6px 0 0" }}>
+              No sector is STRONG right now, so there were no stocks to scan. See <Link to="/weekly-sectors">Weekly Sectors</Link>.
+            </p>
+          ) : (
+            <div className="dash-strong-list">
+              {(latest.strong_sectors ?? []).map((s) => (
+                <span key={s.key} className="dash-strong-chip" title={s.index}>
+                  <b>{s.label}</b> · {s.stocks} stocks · RSI {[s.rsi.d, s.rsi.w, s.rsi.m].map((v) => (v === null ? "n/a" : v.toFixed(0))).join("/")}
+                </span>
+              ))}
+            </div>
+          )}
+          <p className="muted small" style={{ margin: "8px 0 0" }}>
+            Value Buy runs over the whole A Group on its own page: <Link to="/value-buy">open Value Buy</Link>.
+          </p>
         </div>
       )}
 
@@ -428,7 +464,7 @@ export function Dashboard() {
               GFS had no summary card even though the data was already
               present in the API response. */}
           <div className="summary-grid strategy-summary-grid">
-            {STRATEGY_NAMES.map((name) => {
+            {DASHBOARD_STRATEGIES.map((name) => {
               const count = latest.strategies?.[name]?.length ?? 0;
               const breakdown =
                 name === "PRD" ? prdBreakdown : name === "NRD" ? nrdBreakdown : null;
