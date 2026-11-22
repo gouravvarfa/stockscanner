@@ -40,3 +40,12 @@ def test_evaluate_row_and_search():
     row = evaluate("TEST", _wave())
     assert row.ret_1m is not None and row.clusters
     assert search_nse("divis")[0]["symbol"] == "DIVISLAB"
+
+
+def test_commodities_are_searchable_and_named():
+    from backend.services.gann_time_service import company_name, is_commodity
+
+    assert search_nse("gold")[0]["symbol"] == "GOLD"
+    assert search_nse("crude")[0]["symbol"] == "CRUDEOIL"
+    assert is_commodity("naturalgas") and not is_commodity("RELIANCE")
+    assert company_name("CRUDEOIL") == "Crude Oil (MCX futures)"

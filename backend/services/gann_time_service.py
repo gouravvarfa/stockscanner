@@ -46,6 +46,17 @@ MIN_STRONG_SECTORS = 3  # the top N sectors are always treated as strong
 _NSE_LIST = Path(__file__).resolve().parent.parent / "data" / "nse_equity_list.csv"
 
 
+# MCX commodities (2026-11-22): front-month futures, stitched contract to contract.
+COMMODITIES: dict[str, str] = {
+    "GOLD": "Gold", "SILVER": "Silver", "CRUDEOIL": "Crude Oil", "NATURALGAS": "Natural Gas",
+    "COPPER": "Copper", "ZINC": "Zinc", "ALUMINIUM": "Aluminium", "LEAD": "Lead",
+}
+
+
+def is_commodity(symbol: str) -> bool:
+    return symbol.strip().upper() in COMMODITIES
+
+
 # ---------------------------------------------------------------- NSE search
 @lru_cache(maxsize=1)
 def _nse_names() -> dict[str, str]:
@@ -59,6 +70,8 @@ def _nse_names() -> dict[str, str]:
 
 
 def company_name(symbol: str) -> str:
+    if is_commodity(symbol):
+        return f"{COMMODITIES[symbol.strip().upper()]} (MCX futures)"
     return _nse_names().get(symbol) or universe_loader.company_name_for(symbol) or symbol
 
 
@@ -67,8 +80,9 @@ def _norm(text: str) -> str:
 
 
 def search_nse(query: str, limit: int = 20) -> list[dict]:
-    """Any NSE equity, by symbol or company name, with typo tolerance."""
-    names = dict(_nse_names())
+    """Any NSE equity (and the MCX commodities), by symbol or name, with typo tolerance."""
+    names = {s: f"{n} (MCX futures)" for s, n in COMMODITIES.items()}
+    names.update(_nse_names())
     for s in universe_loader.load_a_group_universe():
         names.setdefault(s, universe_loader.company_name_for(s) or s)
     nq = _norm(query.strip())
@@ -96,7 +110,35 @@ def search_nse(query: str, limit: int = 20) -> list[dict]:
 
 
 # ---------------------------------------------------------------- data
+async def _commodity_daily(provider: AngelOneProvider, name: str) -> pd.DataFrame:
+    """One continuous daily series from MCX's live contracts: each day comes from the nearest contract that had
+    not yet expired that day (the front month). Angel One serves only live contracts, so history is as long as
+    the oldest live contract (about a year for most commodities)."""
+    contracts = await scrip_master.mcx_commodity_contracts(name)
+    if not contracts:
+        raise DataUnavailableError(f"No live MCX {name} futures contract found.")
+    frames = []
+    for token, expiry in contracts[:4]:
+        try:
+            df = await provider.get_intraday_ohlc("MCX", token, "ONE_DAY", HISTORY_DAYS)
+        except Exception:  # noqa: BLE001 - one contract without data must not stop the rest
+            continue
+        if df is not None and not df.empty:
+            frames.append((expiry, df.sort_index()))
+    if not frames:
+        raise DataUnavailableError(f"Angel One returned no daily candles for MCX {name}.")
+    # each day from the nearest contract that had not expired yet (frames are nearest-expiry first)
+    rows: dict[pd.Timestamp, pd.Series] = {}
+    for expiry, df in frames:
+        live = df[df.index.normalize() <= pd.Timestamp(expiry).normalize()]
+        for ts, row in live.iterrows():
+            rows.setdefault(ts, row)
+    return pd.DataFrame.from_dict(rows, orient="index").sort_index()
+
+
 async def _daily(provider: AngelOneProvider, symbol: str) -> pd.DataFrame:
+    if is_commodity(symbol):
+        return await _commodity_daily(provider, symbol.strip().upper())
     match = await provider.resolve_equity(symbol)
     if match is None:
         raise DataUnavailableError(f"'{symbol}' has no NSE equity listing.")
@@ -274,7 +316,7 @@ async def analyse_symbol(provider: AngelOneProvider, symbol: str) -> dict:
 
     horizon_end = n - 1 + gann_time.HORIZON_BARS
     return {
-        "symbol": symbol, "company_name": company_name(symbol), "sector": sector_for(symbol),
+        "symbol": symbol, "company_name": company_name(symbol), "sector": "Commodity" if is_commodity(symbol) else sector_for(symbol),
         "last_date": res.last_date, "last_close": res.last_close, "new_swing_forming": res.new_swing_forming,
         "candles": [{"time": int(ts.timestamp()), "open": float(r.open), "high": float(r.high),
                      "low": float(r.low), "close": float(r.close)} for ts, r in tail.iterrows()],

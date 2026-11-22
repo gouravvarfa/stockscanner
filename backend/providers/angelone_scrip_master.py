@@ -15,7 +15,7 @@ import httpx
 from backend.core.cache import cache
 
 SCRIP_MASTER_URL = "https://margincalculator.angelone.in/OpenAPI_File/files/OpenAPIScripMaster.json"
-CACHE_KEY = "angelone:scrip_master:v5"  # v5: adds BSE SENSEX index futures (BFO) for Top-Bottom Backtesting
+CACHE_KEY = "angelone:scrip_master:v6"  # v6: + MCX crude/natural gas/base metals for Gann (v5: BSE SENSEX futures)
 CACHE_TTL_SECONDS = 24 * 3600
 
 # NSE: equities ("") + indices ("AMXIDX"). NFO: stock futures ("FUTSTK") and
@@ -33,6 +33,8 @@ RELEVANT_BFO_INDEX_FUTURES = {"SENSEX"}
 #   GOLD 1 kg (quote /10 g) -> 100 | GOLDM 100 g (quote /10 g) -> 10 | GOLDGUINEA 8 g (quote /8 g) -> 1
 #   GOLDPETAL 1 g (quote /1 g) -> 1 | SILVER 30 kg (quote /kg) -> 30 | SILVERM 5 kg -> 5 | SILVERMIC 1 kg -> 1
 RELEVANT_MCX_TYPES = {"FUTCOM"}
+# Gann Time Dates (2026-11-22) also reads these MCX futures; Top-Bottom's search stays on COMMODITY_POINT_VALUE only.
+GANN_MCX_COMMODITIES = {"GOLD", "SILVER", "CRUDEOIL", "NATURALGAS", "COPPER", "ZINC", "ALUMINIUM", "LEAD"}
 COMMODITY_POINT_VALUE: dict[str, int] = {
     "GOLD": 100, "GOLDM": 10, "GOLDGUINEA": 1, "GOLDPETAL": 1,
     "SILVER": 30, "SILVERM": 5, "SILVERMIC": 1,
@@ -66,7 +68,7 @@ def _is_relevant(row: dict) -> bool:
         or (row.get("exch_seg") == "NFO" and row.get("instrumenttype") in RELEVANT_NFO_TYPES)
         or _is_bse_index_future(row)
         or (row.get("exch_seg") == "MCX" and row.get("instrumenttype") in RELEVANT_MCX_TYPES
-            and row.get("name") in COMMODITY_POINT_VALUE)
+            and (row.get("name") in COMMODITY_POINT_VALUE or row.get("name") in GANN_MCX_COMMODITIES))
     )
 
 
@@ -233,6 +235,14 @@ async def search_futures(query: str, limit: int = 25) -> list[FutureContract]:
         )
         for row in matches[:limit]
     ]
+
+
+async def mcx_commodity_contracts(name: str) -> list[tuple[str, "dt.datetime"]]:
+    """(token, expiry) of every live MCX futures contract of one commodity (GOLD, CRUDEOIL...), nearest first."""
+    rows = await _fetch_scrip_master()
+    out = [(r["token"], _parse_expiry(r.get("expiry", ""))) for r in rows
+           if r.get("exch_seg") == "MCX" and r.get("instrumenttype") in RELEVANT_MCX_TYPES and r.get("name") == name]
+    return sorted(out, key=lambda x: x[1])
 
 
 async def get_future_contracts(underlying: str) -> list[FutureContract]:

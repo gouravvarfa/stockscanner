@@ -106,7 +106,7 @@ def test_scrip_master_drops_irrelevant_rows_while_parsing():
         {"exch_seg": "NFO", "instrumenttype": "FUTSTK", "name": "TCS", "symbol": "TCS29DEC26FUT", "token": "3"},
         {"exch_seg": "NFO", "instrumenttype": "OPTSTK", "name": "TCS", "symbol": "TCS29DEC26CE", "token": "4"},
         {"exch_seg": "MCX", "instrumenttype": "FUTCOM", "name": "GOLDM", "symbol": "GOLDM04DEC26FUT", "token": "5"},
-        {"exch_seg": "MCX", "instrumenttype": "FUTCOM", "name": "CRUDEOIL", "symbol": "CRUDEOIL19NOV26FUT", "token": "6"},
+        {"exch_seg": "MCX", "instrumenttype": "FUTCOM", "name": "MENTHAOIL", "symbol": "MENTHAOIL19NOV26FUT", "token": "6"},
         {"exch_seg": "BSE", "instrumenttype": "", "name": "TCS", "symbol": "TCS", "token": "7"},
     ]
     parsed = json.loads(json.dumps(rows), object_hook=sm._keep_relevant)
