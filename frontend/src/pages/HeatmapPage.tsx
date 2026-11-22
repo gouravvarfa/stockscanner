@@ -147,6 +147,7 @@ export function HeatmapPage() {
               aria-selected={period === p.key}
               className={period === p.key ? "active" : ""}
               disabled={p.key === "r1d" && !!report && !hasDay}
+              title={p.key === "r1d" && !!report && !hasDay ? "This report was made before 1 Day was added - press Refresh" : undefined}
               onClick={() => setPeriod(p.key)}
             >
               {p.label}
@@ -167,6 +168,13 @@ export function HeatmapPage() {
               : "Uses the Weekly Sectors report: press Run Report (a few minutes)."}
         </span>
       </div>
+
+      {report && !hasDay && !running && (
+        <div className="notice-banner">
+          This report was made before the update, so <b>1 Day</b> and the <b>52-week highs</b> are not in it yet. Press <b>Refresh</b>
+          once (a few minutes) and they appear.
+        </div>
+      )}
 
       {error && <div className="error-banner">{error}</div>}
 
