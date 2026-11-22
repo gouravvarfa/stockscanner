@@ -89,55 +89,6 @@ function RankCell({ rank, move }: { rank: number | null; move?: number | null })
 
 const breadthClass = (label: string | null | undefined) => `wk-chip wk-breadth-${(label ?? "na").toLowerCase()}`;
 
-/** How many of each sector's stocks are in good shape (not just the index). */
-function BreadthCard({ sectors, onPick }: { sectors: SectorRow[]; onPick: (key: string) => void }) {
-  if (!sectors.some((s) => s.breadth)) return null;
-  const bar = (v: number | null | undefined) =>
-    v === null || v === undefined ? (
-      <span className="muted">n/a</span>
-    ) : (
-      <span className="wk-mini">
-        <span className="wk-mini-track"><span className="wk-mini-fill" style={{ width: `${v}%` }} /></span>
-        {v}%
-      </span>
-    );
-  return (
-    <div className="card">
-      <h2 style={{ marginTop: 0 }}>Breadth: how many stocks are strong</h2>
-      <p className="muted small" style={{ marginTop: 0 }}>
-        An index can be lifted by two or three big stocks. Broad = 70%+ of the sector&apos;s stocks are above their 50-day average,
-        Moderate = 40–70%, Narrow = below 40%.
-      </p>
-      <div className="table-wrap">
-        <table className="wk-table">
-          <thead>
-            <tr>
-              <th>Sector</th>
-              <th>Above 50 DMA</th>
-              <th>Above 200 DMA</th>
-              <th>RSI above 60</th>
-              <th>New 52-week high</th>
-              <th>Breadth</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sectors.map((s) => (
-              <tr key={s.key} className="wk-click" onClick={() => onPick(s.key)}>
-                <td className="wk-sym">{s.label}</td>
-                <td>{bar(s.breadth?.above_50dma)}</td>
-                <td>{bar(s.breadth?.above_200dma)}</td>
-                <td>{bar(s.breadth?.rsi_above_60)}</td>
-                <td>{s.breadth ? `${s.breadth.new_52w_highs} of ${s.breadth.stocks}` : "—"}</td>
-                <td>{s.breadth?.label ? <span className={breadthClass(s.breadth.label)}>{s.breadth.label}</span> : <span className="muted">n/a</span>}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
 function RankPanel({ title, sectors, field }: { title: string; sectors: SectorRow[]; field: "r1w" | "r1m" }) {
   const rows = sectors.filter((s) => s[field] !== null).sort((a, b) => (b[field] ?? 0) - (a[field] ?? 0));
   const max = Math.max(...rows.map((s) => Math.abs(s[field] ?? 0)), 1);
@@ -445,14 +396,6 @@ export function WeeklySectorsPage() {
               ▲/▼ = places moved since last week. Click a sector to see its stocks.
             </p>
           </div>
-
-          <BreadthCard
-            sectors={report.sectors}
-            onPick={(key) => {
-                setSelected(key);
-                detailRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-              }}
-          />
 
           <div className="card" ref={detailRef}>
             <div className="wk-sector-chips">
