@@ -398,19 +398,6 @@ export function Dashboard() {
         </p>
       )}
 
-      {latest && (
-        <div className="scan-meta card">
-          <div>
-            Data as of <strong>{new Date(latest.finished_at).toLocaleString()}</strong>
-          </div>
-          <div>
-            Strong sectors: {latest.strong_sectors?.length ?? 0} · {latest.universe_requested} stocks scanned
-          </div>
-          <div>Stocks scanned: {latest.stocks_scanned} · failed: {latest.stocks_failed}</div>
-          <div>Execution time: {latest.execution_seconds.toFixed(1)}s</div>
-        </div>
-      )}
-
       {!latest && !scanning && !scanError && (
         <div className="card state-block">
           <div className="state-icon"><ChartBarIcon width={28} height={28} /></div>
@@ -442,48 +429,44 @@ export function Dashboard() {
               ))}
             </div>
           )}
-          <p className="muted small" style={{ margin: "8px 0 0" }}>
-            Value Buy runs over the whole A Group on its own page: <Link to="/value-buy">open Value Buy</Link>.
+          <p className="muted small" style={{ margin: "10px 0 0" }}>
+            Data as of <b>{new Date(latest.finished_at).toLocaleString("en-IN")}</b> · {latest.stocks_scanned} stocks scanned
+            {latest.stocks_failed ? ` · ${latest.stocks_failed} failed` : ""} · {latest.execution_seconds.toFixed(0)}s · Value Buy has its
+            own page: <Link to="/value-buy">open Value Buy</Link>
           </p>
         </div>
       )}
 
       {latest && (
         <>
-          <div className="summary-card summary-card-total">
-            <div className="summary-card-top">
-              <span className="summary-icon summary-icon-accent">Σ</span>
-              <span className="summary-label">Total Signals</span>
+          {/* Every setup's count from latest.strategies (real backend counts); a tile opens its tab below. */}
+          <div className="card">
+            <div className="dash-tiles">
+              <div className="tb-summary-tile dash-tile-total">
+                <div className="tb-summary-label">TOTAL SIGNALS</div>
+                <div className="tb-summary-value">{totalSignals}</div>
+                <div className="tb-config-hint" style={{ margin: 0 }}>in the strong sectors</div>
+              </div>
+              {DASHBOARD_STRATEGIES.map((name) => {
+                const count = latest.strategies?.[name]?.length ?? 0;
+                const breakdown = name === "PRD" ? prdBreakdown : name === "NRD" ? nrdBreakdown : null;
+                return (
+                  <button
+                    type="button"
+                    key={name}
+                    className={`tb-summary-tile dash-tile${activeStrategy === name ? " active" : ""}`}
+                    onClick={() => setActiveStrategy(name)}
+                    title={`Show the ${strategyDisplayName(name)} signals`}
+                  >
+                    <div className="tb-summary-label">{strategyDisplayName(name).toUpperCase()}</div>
+                    <div className={`tb-summary-value${count ? " wk-up" : ""}`}>{count}</div>
+                    <div className="tb-config-hint" style={{ margin: 0 }}>
+                      {breakdown ? `D ${breakdown.daily} · W ${breakdown.weekly} · M ${breakdown.monthly}` : count === 1 ? "stock" : "stocks"}
+                    </div>
+                  </button>
+                );
+              })}
             </div>
-            <span className="summary-value">{totalSignals}</span>
-          </div>
-
-          {/* All 6 active strategies, driven entirely from latest.strategies
-              (real backend counts) — no hardcoded values. Previously this
-              grid only surfaced PRD/NRD/Value Buy; System One/GFS/Advanced
-              GFS had no summary card even though the data was already
-              present in the API response. */}
-          <div className="summary-grid strategy-summary-grid">
-            {DASHBOARD_STRATEGIES.map((name) => {
-              const count = latest.strategies?.[name]?.length ?? 0;
-              const breakdown =
-                name === "PRD" ? prdBreakdown : name === "NRD" ? nrdBreakdown : null;
-              return (
-                <div className="summary-card" key={name}>
-                  <div className="summary-card-top">
-                    <span className="summary-label">{strategyDisplayName(name)}</span>
-                  </div>
-                  <span className="summary-value">{count}</span>
-                  {breakdown && (
-                    <span className="summary-breakdown">
-                      <span>Daily <b>{breakdown.daily}</b></span>
-                      <span>Weekly <b>{breakdown.weekly}</b></span>
-                      <span>Monthly <b>{breakdown.monthly}</b></span>
-                    </span>
-                  )}
-                </div>
-              );
-            })}
           </div>
 
           <TopRankedCandidates refreshKey={latest.finished_at} />

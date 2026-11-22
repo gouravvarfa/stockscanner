@@ -18,9 +18,9 @@ import { Breakout15Page } from "./pages/Breakout15Page";
 import { RangeAnalysisPage } from "./pages/RangeAnalysisPage";
 import { WeeklySectorsPage } from "./pages/WeeklySectorsPage";
 import { ValueBuyPage } from "./pages/ValueBuyPage";
+import { HeatmapPage } from "./pages/HeatmapPage";
 import { ScanHistoryPage } from "./pages/ScanHistoryPage";
 import { Settings } from "./pages/Settings";
-import { TradingViewSignals } from "./pages/TradingViewSignals";
 import { TopBottomBacktest } from "./pages/TopBottomBacktest";
 import { TopBottomErrorBoundary } from "./pages/topBottom/TopBottomErrorBoundary";
 import { startAutoConnect } from "./services/angeloneAutoConnect";
@@ -59,8 +59,8 @@ export default function App() {
             <Route path="/range-analysis" element={<RangeAnalysisPage />} />
             <Route path="/weekly-sectors" element={<WeeklySectorsPage />} />
             <Route path="/value-buy" element={<ValueBuyPage />} />
+            <Route path="/heatmap" element={<HeatmapPage />} />
             <Route path="/history" element={<ScanHistoryPage />} />
-            <Route path="/tradingview" element={<TradingViewSignals />} />
             <Route
               path="/top-bottom"
               element={

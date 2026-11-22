@@ -1,18 +1,21 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
+import { useChart } from "../chart/ChartContext";
 import { rankingApi, type LatestRankingOut, type RankedCandidateOut } from "../services/rankingApi";
 import { strategyDisplayName } from "../services/api";
 import { InstrumentBadge } from "./InstrumentBadge";
+import { TrendIcon } from "./icons";
 
 /**
  * Reads the ranking the backend already computed from the last completed
  * scan (backend/ranking/engine.py, via GET /api/ranking/latest) — never
  * triggers a scan itself. Re-fetches whenever `refreshKey` changes (the
  * Dashboard bumps this after a scan finishes) so it stays in sync without
- * polling on its own.
+ * polling on its own. Shown as a compact table (2026-11-22): click a row for the score breakdown.
  */
 export function TopRankedCandidates({ refreshKey }: { refreshKey: unknown }) {
   const [data, setData] = useState<LatestRankingOut | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const { openChart } = useChart();
 
   useEffect(() => {
     let cancelled = false;
@@ -29,79 +32,93 @@ export function TopRankedCandidates({ refreshKey }: { refreshKey: unknown }) {
     };
   }, [refreshKey]);
 
-  if (!data || data.top_candidates.length === 0) {
-    return (
-      <div className="card">
-        <h2 style={{ marginTop: 0 }}>Top Ranked Candidates</h2>
-        <p className="muted">None</p>
-      </div>
-    );
-  }
+  const chart = (c: RankedCandidateOut) =>
+    openChart(c.symbol, {
+      strategy: c.strategies.map(strategyDisplayName).join(" + "),
+      daily_rsi: null,
+      weekly_rsi: null,
+      monthly_rsi: null,
+      signal_date: null,
+      explanation: `Ranked by setup strength: ${c.score.toFixed(1)}.`,
+      indicators: { rsi: true, volume: true, bollinger: true },
+    });
 
   return (
-    <div className="card ranked-panel">
-      <div className="panel-head">
-        <h2>Top Ranked Candidates</h2>
-      </div>
-      <p className="panel-sub">
-        Ranked by setup strength, not a buy recommendation. Only stocks that actually qualified for at least
-        one strategy appear here.
+    <div className="card">
+      <h2 style={{ marginTop: 0 }}>Top ranked candidates</h2>
+      <p className="muted small" style={{ marginTop: 0 }}>
+        Ranked by setup strength, not a buy recommendation. Only stocks that qualified for at least one setup. Click a row for
+        the score breakdown.
       </p>
-      <div className="ranked-list">
-        {data.top_candidates.map((c, i) => (
-          <RankedRow
-            key={c.symbol}
-            rank={i + 1}
-            candidate={c}
-            expanded={expanded === c.symbol}
-            onToggle={() => setExpanded((cur) => (cur === c.symbol ? null : c.symbol))}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function RankedRow({
-  rank,
-  candidate,
-  expanded,
-  onToggle,
-}: {
-  rank: number;
-  candidate: RankedCandidateOut;
-  expanded: boolean;
-  onToggle: () => void;
-}) {
-  return (
-    <div className="ranked-row" onClick={onToggle}>
-      <div className="ranked-row-top">
-        <span className="ranked-rank">#{rank}</span>
-        <span className="ranked-symbol">{candidate.symbol}<InstrumentBadge type={candidate.instrument_type} /></span>
-        <span className="ranked-score">{candidate.score.toFixed(1)}</span>
-      </div>
-      <div className="ranked-strategies">
-        {candidate.strategies.map((s) => (
-          <span key={s} className="chip chip-pass" style={{ marginRight: 4 }}>
-            {strategyDisplayName(s)}
-          </span>
-        ))}
-      </div>
-      {expanded && (
-        <div className="ranked-explanation">
-          {Object.entries(candidate.strategy_breakdown).map(([strategy, breakdown]) => (
-            <div key={strategy} style={{ marginBottom: 8 }}>
-              <strong>{strategyDisplayName(strategy)}</strong>
-              {breakdown.strength !== null && <span> — {breakdown.strength.toFixed(1)}</span>}
-              <div className="ranked-components">
-                {Object.entries(breakdown.components).map(([comp, val]) => (
-                  <span key={comp} className="ranked-component">
-                    {comp.replace(/_/g, " ")}: <b>{val === null ? "N/A" : val.toFixed(1)}</b>
-                  </span>
-                ))}
-              </div>
-            </div>
-          ))}
+      {!data || data.top_candidates.length === 0 ? (
+        <p className="muted" style={{ marginBottom: 0 }}>None</p>
+      ) : (
+        <div className="table-wrap">
+          <table className="wk-table dash-rank-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Stock</th>
+                <th>Setups</th>
+                <th>Score</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {data.top_candidates.map((c, i) => (
+                <Fragment key={c.symbol}>
+                  <tr className="wk-click" onClick={() => setExpanded((cur) => (cur === c.symbol ? null : c.symbol))}>
+                    <td className="muted">{i + 1}</td>
+                    <td className="wk-sym">
+                      {c.symbol} <InstrumentBadge type={c.instrument_type} />
+                    </td>
+                    <td>
+                      <div className="dash-setups">
+                        {c.strategies.map((s) => (
+                          <span key={s} className="chip chip-pass">{strategyDisplayName(s)}</span>
+                        ))}
+                      </div>
+                    </td>
+                    <td className="dash-score">{c.score.toFixed(1)}</td>
+                    <td>
+                      <button
+                        type="button"
+                        className="wk-chart-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          chart(c);
+                        }}
+                        aria-label={`Open the ${c.symbol} chart`}
+                      >
+                        <TrendIcon width={13} height={13} aria-hidden="true" />
+                        Chart
+                      </button>
+                    </td>
+                  </tr>
+                  {expanded === c.symbol && (
+                    <tr className="dash-rank-detail">
+                      <td />
+                      <td colSpan={4}>
+                        {Object.entries(c.strategy_breakdown).map(([strategy, breakdown]) => (
+                          <div key={strategy} style={{ marginBottom: 6 }}>
+                            <strong>{strategyDisplayName(strategy)}</strong>
+                            {breakdown.strength !== null && <span> — {breakdown.strength.toFixed(1)}</span>}
+                            <div className="ranked-components">
+                              {Object.entries(breakdown.components).map(([comp, val]) => (
+                                <span key={comp} className="ranked-component">
+                                  {comp.replace(/_/g, " ")}: <b>{val === null ? "N/A" : val.toFixed(1)}</b>
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>

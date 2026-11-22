@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useChart } from "../chart/ChartContext";
 import { TrendIcon } from "../components/icons";
+import { RotationMap } from "./weekly/RotationMap";
 import {
   downloadWeeklyPdf,
   downloadWeeklyXlsx,
@@ -79,6 +80,107 @@ function insights(r: WeeklyReport): string[] {
   if (a) out.push(`${a.symbol} beats ${a.sector} by ${pp(a.vs1w)}pp (1W) and ${pp(a.vs1m)}pp (1M)${b ? `; ${b.symbol} beats ${b.sector} by ${pp(b.vs1w)}pp and ${pp(b.vs1m)}pp` : ""}.`);
   out.push(`${r.summary.leaders} of ${r.summary.rows} stock rows beat their sector on both 1W and 1M; ${r.summary.laggards} trail it on both.`);
   return out;
+}
+
+/** A rank and how many places it moved since last week, e.g. "#3" with a small green "+2". */
+function RankCell({ rank, move }: { rank: number | null; move?: number | null }) {
+  return (
+    <>
+      {rank === null ? "—" : `#${rank}`}
+      {move ? <span className={`wk-move ${move > 0 ? "wk-up" : "wk-down"}`}>{move > 0 ? `▲${move}` : `▼${-move}`}</span> : null}
+    </>
+  );
+}
+
+const breadthClass = (label: string | null | undefined) => `wk-chip wk-breadth-${(label ?? "na").toLowerCase()}`;
+
+/** What changed since last week, in plain lines (nothing shown for a report made before 2026-11-22). */
+function ChangesCard({ report }: { report: WeeklyReport }) {
+  const ch = report.changes;
+  if (!ch) return null;
+  const moves = (xs: { label: string; from: number | null; to: number | null }[]) =>
+    xs.length ? xs.map((x) => `${x.label} #${x.from} → #${x.to}`).join(", ") : "none";
+  const narrow = report.sectors.filter((s) => s.verdict === "STRONG" && s.breadth?.label === "Narrow").map((s) => s.label);
+  return (
+    <div className="card">
+      <h2 style={{ marginTop: 0 }}>What changed since last week</h2>
+      <p className="muted small" style={{ marginTop: 0 }}>Compared with the close of {niceDate(ch.prev_date)}.</p>
+      <ul className="wk-changes">
+        <li>
+          <b>New STRONG:</b>{" "}
+          {ch.new_strong.length ? ch.new_strong.map((l) => <span key={l} className="wk-chip wk-ver-strong">{l}</span>) : <span className="muted">none</span>}
+        </li>
+        <li>
+          <b>No longer STRONG:</b>{" "}
+          {ch.dropped_strong.length ? ch.dropped_strong.map((l) => <span key={l} className="wk-chip wk-ver-weak">{l}</span>) : <span className="muted">none</span>}
+        </li>
+        <li>
+          <b>Moved up (1W rank):</b> <span className="wk-up">{moves(ch.risers)}</span>
+        </li>
+        <li>
+          <b>Moved down (1W rank):</b> <span className="wk-down">{moves(ch.fallers)}</span>
+        </li>
+        <li>
+          <b>Rotation:</b>{" "}
+          {ch.quadrant_moves.length ? ch.quadrant_moves.map((m) => `${m.label}: ${m.from} → ${m.to}`).join(" · ") : <span className="muted">no sector changed quadrant</span>}
+        </li>
+        {narrow.length > 0 && (
+          <li>
+            <b>STRONG but narrow:</b> {narrow.join(", ")} <span className="muted">(fewer than 40% of its stocks are above the 50-day average)</span>
+          </li>
+        )}
+      </ul>
+    </div>
+  );
+}
+
+/** How many of each sector's stocks are in good shape (not just the index). */
+function BreadthCard({ sectors, onPick }: { sectors: SectorRow[]; onPick: (key: string) => void }) {
+  if (!sectors.some((s) => s.breadth)) return null;
+  const bar = (v: number | null | undefined) =>
+    v === null || v === undefined ? (
+      <span className="muted">n/a</span>
+    ) : (
+      <span className="wk-mini">
+        <span className="wk-mini-track"><span className="wk-mini-fill" style={{ width: `${v}%` }} /></span>
+        {v}%
+      </span>
+    );
+  return (
+    <div className="card">
+      <h2 style={{ marginTop: 0 }}>Breadth: how many stocks are strong</h2>
+      <p className="muted small" style={{ marginTop: 0 }}>
+        An index can be lifted by two or three big stocks. Broad = 70%+ of the sector&apos;s stocks are above their 50-day average,
+        Moderate = 40–70%, Narrow = below 40%.
+      </p>
+      <div className="table-wrap">
+        <table className="wk-table">
+          <thead>
+            <tr>
+              <th>Sector</th>
+              <th>Above 50 DMA</th>
+              <th>Above 200 DMA</th>
+              <th>RSI above 60</th>
+              <th>New 52-week high</th>
+              <th>Breadth</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sectors.map((s) => (
+              <tr key={s.key} className="wk-click" onClick={() => onPick(s.key)}>
+                <td className="wk-sym">{s.label}</td>
+                <td>{bar(s.breadth?.above_50dma)}</td>
+                <td>{bar(s.breadth?.above_200dma)}</td>
+                <td>{bar(s.breadth?.rsi_above_60)}</td>
+                <td>{s.breadth ? `${s.breadth.new_52w_highs} of ${s.breadth.stocks}` : "—"}</td>
+                <td>{s.breadth?.label ? <span className={breadthClass(s.breadth.label)}>{s.breadth.label}</span> : <span className="muted">n/a</span>}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
 }
 
 function RankPanel({ title, sectors, field }: { title: string; sectors: SectorRow[]; field: "r1w" | "r1m" }) {
@@ -337,6 +439,23 @@ export function WeeklySectorsPage() {
             </ol>
           </div>
 
+          <ChangesCard report={report} />
+
+          <div className="card">
+            <h2 style={{ marginTop: 0 }}>Sector rotation</h2>
+            <p className="muted small" style={{ marginTop: 0 }}>
+              Each sector against the Nifty 50: top right is ahead on both the week and the month (Leading), top left is
+              catching up (Improving), bottom right is slowing down (Weakening), bottom left is behind on both (Lagging).
+            </p>
+            <RotationMap
+              sectors={report.sectors}
+              onPick={(key) => {
+                setSelected(key);
+                detailRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+              }}
+            />
+          </div>
+
           <div className="wk-rank-grid">
             <RankPanel title="1-week ranking" sectors={report.sectors} field="r1w" />
             <RankPanel title="1-month ranking" sectors={report.sectors} field="r1m" />
@@ -357,6 +476,7 @@ export function WeeklySectorsPage() {
                     <th>RSI W</th>
                     <th>RSI M</th>
                     <th>Beat 1W | 1M</th>
+                    <th>Breadth</th>
                     <th>Verdict</th>
                   </tr>
                 </thead>
@@ -380,9 +500,9 @@ export function WeeklySectorsPage() {
                         </div>
                       </td>
                       <td className={tone(s.r1w)}>{pct(s.r1w)}</td>
-                      <td>#{s.rank_1w}</td>
+                      <td className="wk-nowrap"><RankCell rank={s.rank_1w} move={s.rank_change_1w} /></td>
                       <td className={tone(s.r1m)}>{pct(s.r1m)}</td>
-                      <td>#{s.rank_1m}</td>
+                      <td className="wk-nowrap"><RankCell rank={s.rank_1m} move={s.rank_change_1m} /></td>
                       {(["d", "w", "m"] as const).map((k) => {
                         const v = s.rsi[k];
                         return (
@@ -395,6 +515,15 @@ export function WeeklySectorsPage() {
                         {s.beat_1w}/{s.stocks.length} | {s.beat_1m}/{s.stocks.length}
                       </td>
                       <td>
+                        {s.breadth?.label ? (
+                          <span className={breadthClass(s.breadth.label)} title={`${s.breadth.above_50dma}% of its stocks are above the 50-day average`}>
+                            {s.breadth.label}
+                          </span>
+                        ) : (
+                          <span className="muted">—</span>
+                        )}
+                      </td>
+                      <td>
                         <span className={verdictClass(s.verdict)}>{s.verdict}</span>
                       </td>
                     </tr>
@@ -404,9 +533,17 @@ export function WeeklySectorsPage() {
             </div>
             <p className="muted small" style={{ marginBottom: 0 }}>
               STRONG = daily, weekly and monthly RSI(14) of the sector index all above 60; WEAK = all below 40; otherwise MIXED.
-              Click a sector to see its stocks.
+              ▲/▼ = places moved since last week. Click a sector to see its stocks.
             </p>
           </div>
+
+          <BreadthCard
+            sectors={report.sectors}
+            onPick={(key) => {
+                setSelected(key);
+                detailRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+              }}
+          />
 
           <div className="card" ref={detailRef}>
             <div className="wk-sector-chips">
@@ -431,6 +568,13 @@ export function WeeklySectorsPage() {
                   {sector.rsi.d === null ? "n/a" : `${sector.rsi.d.toFixed(0)} / ${sector.rsi.w?.toFixed(0)} / ${sector.rsi.m?.toFixed(0)}`} ·
                   Leader {sector.counts["Leader"] ?? 0} · Turning up {sector.counts["Turning up"] ?? 0} · Fading {sector.counts["Fading"] ?? 0} ·
                   Laggard {sector.counts["Laggard"] ?? 0}
+                  {sector.quadrant && (
+                    <>
+                      {" "}· {sector.quadrant}
+                      {sector.prev?.quadrant && sector.prev.quadrant !== sector.quadrant ? ` (last week ${sector.prev.quadrant})` : ""}
+                    </>
+                  )}
+                  {sector.breadth?.label && ` · Breadth ${sector.breadth.label} (${sector.breadth.above_50dma}% above the 50-day average)`}
                 </p>
                 <StockTable rows={sector.stocks} sectorLabel={sector.label} endDate={report.end_date} />
               </>

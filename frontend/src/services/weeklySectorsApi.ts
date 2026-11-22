@@ -17,6 +17,38 @@ export interface SectorStock {
   group: "Near-leader" | "Bounce-only" | null;
   combined: number;
   sector?: string;
+  // 2026-11-22 (absent on older saved reports)
+  r1d?: number | null;
+  above_50dma?: boolean | null;
+  above_200dma?: boolean | null;
+  rsi_d?: number | null;
+  high_52w?: boolean | null;
+}
+
+export type Quadrant = "Leading" | "Improving" | "Weakening" | "Lagging";
+
+export interface TrailPoint {
+  date: string;
+  r1w: number;
+  r1m: number;
+  rel_1w: number;
+  rel_1m: number;
+  quadrant: Quadrant | null;
+}
+
+export interface SectorBreadth {
+  above_50dma: number | null;
+  above_200dma: number | null;
+  rsi_above_60: number | null;
+  new_52w_highs: number;
+  stocks: number;
+  label: "Broad" | "Moderate" | "Narrow" | null;
+}
+
+export interface RankMove {
+  label: string;
+  from: number | null;
+  to: number | null;
 }
 
 export interface SectorRow {
@@ -36,12 +68,28 @@ export interface SectorRow {
   members: number;
   beat_1w: number;
   beat_1m: number;
+  // 2026-11-22 (absent on older saved reports)
+  r1d?: number | null;
+  breadth?: SectorBreadth;
+  trail?: TrailPoint[];
+  quadrant?: Quadrant | null;
+  prev?: { rank_1w: number | null; rank_1m: number | null; verdict: Verdict; quadrant: Quadrant | null; r1w: number | null; r1m: number | null };
+  rank_change_1w?: number | null;
+  rank_change_1m?: number | null;
 }
 
 export interface WeeklyReport {
   as_of: string;
   end_date: string | null;
-  benchmark: { label: string; r1w: number | null; r1m: number | null };
+  benchmark: { label: string; r1d?: number | null; r1w: number | null; r1m: number | null };
+  changes?: {
+    prev_date: string;
+    new_strong: string[];
+    dropped_strong: string[];
+    risers: RankMove[];
+    fallers: RankMove[];
+    quadrant_moves: { label: string; from: Quadrant; to: Quadrant }[];
+  };
   rules: { strong_rsi: number; weak_rsi: number; near_pp: number };
   sectors: SectorRow[];
   top_movers: SectorStock[];

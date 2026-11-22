@@ -101,7 +101,7 @@ export function StockScanner() {
       <div className="page">
         <div className="page-header">
           <div>
-            <h1>A Group Scanner</h1>
+            <h1>Stock Scanner</h1>
             <p className="page-subtitle">Full universe with price, RSI, and strategy signals</p>
           </div>
         </div>
@@ -117,7 +117,7 @@ export function StockScanner() {
     <div className="page">
       <div className="page-header">
         <div>
-          <h1>A Group Scanner</h1>
+          <h1>Stock Scanner</h1>
           <p className="page-subtitle">
             Showing {universe.length} of {latest.universe_requested} A Group stocks (from A_Group_Stock_List.xlsx)
           </p>

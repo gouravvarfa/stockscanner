@@ -54,10 +54,20 @@ SECTORS: list[dict[str, Any]] = [
     {"key": "fmcg", "label": "FMCG", "index": "NIFTY FMCG", "file": NSE_ARCHIVES + "ind_niftyfmcglist.csv"},
     {"key": "metal", "label": "Metal", "index": "NIFTY METAL", "file": NSE_ARCHIVES + "ind_niftymetallist.csv"},
     {"key": "energy", "label": "Energy", "index": "NIFTY ENERGY", "file": NSE_ARCHIVES + "ind_niftyenergylist.csv"},
+    # 2026-11-22: more sectors. Private Bank / PSE / CPSE have an index on Angel One; the others do not, so their line
+    # is the equal-weight average of their stocks (like Capital Market) and they get no RSI verdict.
+    {"key": "pvt_bank", "label": "Private Bank", "index": "NIFTY PVT BANK", "file": NSE_ARCHIVES + "ind_nifty_privatebanklist.csv"},
+    {"key": "pse", "label": "PSE", "index": "NIFTY PSE", "file": NSE_ARCHIVES + "ind_niftypselist.csv"},
+    {"key": "cpse", "label": "CPSE", "index": "NIFTY CPSE", "file": NSE_ARCHIVES + "ind_niftycpselist.csv"},
+    {"key": "healthcare", "label": "Healthcare", "index": None, "file": NSE_ARCHIVES + "ind_niftyhealthcarelist.csv"},
+    {"key": "oil_gas", "label": "Oil & Gas", "index": None, "file": NSE_ARCHIVES + "ind_niftyoilgaslist.csv"},
+    {"key": "consumer_durables", "label": "Consumer Durables", "index": None, "file": NSE_ARCHIVES + "ind_niftyconsumerdurableslist.csv"},
+    {"key": "defence", "label": "Defence", "index": None, "file": NSE_ARCHIVES + "ind_niftyindiadefence_list.csv"},
+    {"key": "chemicals", "label": "Chemicals", "index": None, "file": NIFTY_INDICES + "ind_niftychemicals_list.csv"},
 ]
 BENCHMARK_INDEX = "NIFTY"
 INDEX_HISTORY_DAYS = 1900   # ~5 years: enough for a monthly RSI(14), one Angel One request
-STOCK_HISTORY_DAYS = 60     # 1M return + holidays
+STOCK_HISTORY_DAYS = 400    # a year of sessions: 200-day average, 52-week high, and the 1M return 4 weeks back
 CONCURRENCY = 2
 REQUEST_PAUSE_S = 0.3
 RETRIES = 4

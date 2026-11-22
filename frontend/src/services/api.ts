@@ -257,31 +257,6 @@ export interface LogEntry {
   message: string;
 }
 
-export interface TradingViewSignal {
-  id: number;
-  source: string;
-  symbol: string;
-  exchange: string | null;
-  strategy: string;
-  signal_timeframe: string;
-  signal_date: string;
-  daily_rsi: number | null;
-  weekly_rsi: number | null;
-  monthly_rsi: number | null;
-  divergence_type: string | null;
-  divergence_timeframe: string | null;
-  trigger: string | null;
-  received_at: string;
-  status: string;
-}
-
-export interface TradingViewStatus {
-  enabled: boolean;
-  configured: boolean;
-  signal_count: number;
-  latest_signal_at: string | null;
-}
-
 export const api = {
   health: () => request<{ status: string }>("/api/health"),
   runScan: (scanType: string = "manual") =>
@@ -299,8 +274,6 @@ export const api = {
   disconnectAngelOne: () => request<AngelOneStatus>("/api/expiry/angelone/disconnect", { method: "POST" }),
   testAngelOneConnection: (body: AngelOneConnectRequest) =>
     request<AngelOneTestResult>("/api/expiry/angelone/test-connection", { method: "POST", body: JSON.stringify(body) }),
-  getTradingViewStatus: () => request<TradingViewStatus>("/api/tradingview/status"),
-  listTradingViewSignals: (limit = 200) => request<TradingViewSignal[]>(`/api/tradingview/signals?limit=${limit}`),
   getLogs: (sinceId = 0, limit = 200) => request<LogEntry[]>(`/api/logs?since_id=${sinceId}&limit=${limit}`),
   getChartCandles: (symbol: string, timeframe: string, signal?: AbortSignal, longHistory = false) =>
     // cache: "no-store" (2026-09-28) belt-and-braces alongside the backend's

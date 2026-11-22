@@ -1,6 +1,6 @@
 {
  "source": "NSE index constituent files (archives.nseindia.com / niftyindices.com)",
- "snapshot_date": "2026-11-21",
+ "snapshot_date": "2026-11-22",
  "sectors": {
   "psu_bank": [
    {
@@ -1166,6 +1166,682 @@
     "symbol": "TORNTPOWER",
     "name": "Torrent Power Ltd.",
     "industry": "Power"
+   }
+  ],
+  "pvt_bank": [
+   {
+    "symbol": "AXISBANK",
+    "name": "Axis Bank Ltd.",
+    "industry": "Financial Services"
+   },
+   {
+    "symbol": "BANDHANBNK",
+    "name": "Bandhan Bank Ltd.",
+    "industry": "Financial Services"
+   },
+   {
+    "symbol": "FEDERALBNK",
+    "name": "Federal Bank Ltd.",
+    "industry": "Financial Services"
+   },
+   {
+    "symbol": "HDFCBANK",
+    "name": "HDFC Bank Ltd.",
+    "industry": "Financial Services"
+   },
+   {
+    "symbol": "ICICIBANK",
+    "name": "ICICI Bank Ltd.",
+    "industry": "Financial Services"
+   },
+   {
+    "symbol": "IDFCFIRSTB",
+    "name": "IDFC First Bank Ltd.",
+    "industry": "Financial Services"
+   },
+   {
+    "symbol": "INDUSINDBK",
+    "name": "IndusInd Bank Ltd.",
+    "industry": "Financial Services"
+   },
+   {
+    "symbol": "KOTAKBANK",
+    "name": "Kotak Mahindra Bank Ltd.",
+    "industry": "Financial Services"
+   },
+   {
+    "symbol": "RBLBANK",
+    "name": "RBL Bank Ltd.",
+    "industry": "Financial Services"
+   },
+   {
+    "symbol": "YESBANK",
+    "name": "Yes Bank Ltd.",
+    "industry": "Financial Services"
+   }
+  ],
+  "pse": [
+   {
+    "symbol": "BEL",
+    "name": "Bharat Electronics Ltd.",
+    "industry": "Capital Goods"
+   },
+   {
+    "symbol": "BHEL",
+    "name": "Bharat Heavy Electricals Ltd.",
+    "industry": "Capital Goods"
+   },
+   {
+    "symbol": "BPCL",
+    "name": "Bharat Petroleum Corporation Ltd.",
+    "industry": "Oil Gas & Consumable Fuels"
+   },
+   {
+    "symbol": "COALINDIA",
+    "name": "Coal India Ltd.",
+    "industry": "Oil Gas & Consumable Fuels"
+   },
+   {
+    "symbol": "CONCOR",
+    "name": "Container Corporation of India Ltd.",
+    "industry": "Services"
+   },
+   {
+    "symbol": "GAIL",
+    "name": "GAIL (India) Ltd.",
+    "industry": "Oil Gas & Consumable Fuels"
+   },
+   {
+    "symbol": "HAL",
+    "name": "Hindustan Aeronautics Ltd.",
+    "industry": "Capital Goods"
+   },
+   {
+    "symbol": "HINDPETRO",
+    "name": "Hindustan Petroleum Corporation Ltd.",
+    "industry": "Oil Gas & Consumable Fuels"
+   },
+   {
+    "symbol": "IOC",
+    "name": "Indian Oil Corporation Ltd.",
+    "industry": "Oil Gas & Consumable Fuels"
+   },
+   {
+    "symbol": "IRFC",
+    "name": "Indian Railway Finance Corporation Ltd.",
+    "industry": "Financial Services"
+   },
+   {
+    "symbol": "NHPC",
+    "name": "NHPC Ltd.",
+    "industry": "Power"
+   },
+   {
+    "symbol": "NMDC",
+    "name": "NMDC Ltd.",
+    "industry": "Metals & Mining"
+   },
+   {
+    "symbol": "NTPC",
+    "name": "NTPC Ltd.",
+    "industry": "Power"
+   },
+   {
+    "symbol": "NATIONALUM",
+    "name": "National Aluminium Co. Ltd.",
+    "industry": "Metals & Mining"
+   },
+   {
+    "symbol": "ONGC",
+    "name": "Oil & Natural Gas Corporation Ltd.",
+    "industry": "Oil Gas & Consumable Fuels"
+   },
+   {
+    "symbol": "OIL",
+    "name": "Oil India Ltd.",
+    "industry": "Oil Gas & Consumable Fuels"
+   },
+   {
+    "symbol": "PFC",
+    "name": "Power Finance Corporation Ltd.",
+    "industry": "Financial Services"
+   },
+   {
+    "symbol": "POWERGRID",
+    "name": "Power Grid Corporation of India Ltd.",
+    "industry": "Power"
+   },
+   {
+    "symbol": "RECLTD",
+    "name": "REC Ltd.",
+    "industry": "Financial Services"
+   },
+   {
+    "symbol": "SAIL",
+    "name": "Steel Authority of India Ltd.",
+    "industry": "Metals & Mining"
+   }
+  ],
+  "cpse": [
+   {
+    "symbol": "BEL",
+    "name": "Bharat Electronics Ltd.",
+    "industry": "Capital Goods"
+   },
+   {
+    "symbol": "COALINDIA",
+    "name": "Coal India Ltd.",
+    "industry": "Oil Gas & Consumable Fuels"
+   },
+   {
+    "symbol": "COCHINSHIP",
+    "name": "Cochin Shipyard Ltd.",
+    "industry": "Capital Goods"
+   },
+   {
+    "symbol": "NBCC",
+    "name": "NBCC (India) Ltd.",
+    "industry": "Construction"
+   },
+   {
+    "symbol": "NHPC",
+    "name": "NHPC Ltd.",
+    "industry": "Power"
+   },
+   {
+    "symbol": "NLCINDIA",
+    "name": "NLC India Ltd.",
+    "industry": "Power"
+   },
+   {
+    "symbol": "NTPC",
+    "name": "NTPC Ltd.",
+    "industry": "Power"
+   },
+   {
+    "symbol": "ONGC",
+    "name": "Oil & Natural Gas Corporation Ltd.",
+    "industry": "Oil Gas & Consumable Fuels"
+   },
+   {
+    "symbol": "OIL",
+    "name": "Oil India Ltd.",
+    "industry": "Oil Gas & Consumable Fuels"
+   },
+   {
+    "symbol": "POWERGRID",
+    "name": "Power Grid Corporation of India Ltd.",
+    "industry": "Power"
+   },
+   {
+    "symbol": "SJVN",
+    "name": "SJVN Ltd.",
+    "industry": "Power"
+   }
+  ],
+  "healthcare": [
+   {
+    "symbol": "ABBOTINDIA",
+    "name": "Abbott India Ltd.",
+    "industry": "Healthcare"
+   },
+   {
+    "symbol": "ALKEM",
+    "name": "Alkem Laboratories Ltd.",
+    "industry": "Healthcare"
+   },
+   {
+    "symbol": "APOLLOHOSP",
+    "name": "Apollo Hospitals Enterprise Ltd.",
+    "industry": "Healthcare"
+   },
+   {
+    "symbol": "AUROPHARMA",
+    "name": "Aurobindo Pharma Ltd.",
+    "industry": "Healthcare"
+   },
+   {
+    "symbol": "BIOCON",
+    "name": "Biocon Ltd.",
+    "industry": "Healthcare"
+   },
+   {
+    "symbol": "CIPLA",
+    "name": "Cipla Ltd.",
+    "industry": "Healthcare"
+   },
+   {
+    "symbol": "DIVISLAB",
+    "name": "Divi's Laboratories Ltd.",
+    "industry": "Healthcare"
+   },
+   {
+    "symbol": "DRREDDY",
+    "name": "Dr. Reddy's Laboratories Ltd.",
+    "industry": "Healthcare"
+   },
+   {
+    "symbol": "FORTIS",
+    "name": "Fortis Healthcare Ltd.",
+    "industry": "Healthcare"
+   },
+   {
+    "symbol": "GLAND",
+    "name": "Gland Pharma Ltd.",
+    "industry": "Healthcare"
+   },
+   {
+    "symbol": "GLENMARK",
+    "name": "Glenmark Pharmaceuticals Ltd.",
+    "industry": "Healthcare"
+   },
+   {
+    "symbol": "IPCALAB",
+    "name": "Ipca Laboratories Ltd.",
+    "industry": "Healthcare"
+   },
+   {
+    "symbol": "KIMS",
+    "name": "Krishna Institute of Medical Sciences Ltd.",
+    "industry": "Healthcare"
+   },
+   {
+    "symbol": "LAURUSLABS",
+    "name": "Laurus Labs Ltd.",
+    "industry": "Healthcare"
+   },
+   {
+    "symbol": "LUPIN",
+    "name": "Lupin Ltd.",
+    "industry": "Healthcare"
+   },
+   {
+    "symbol": "MANKIND",
+    "name": "Mankind Pharma Ltd.",
+    "industry": "Healthcare"
+   },
+   {
+    "symbol": "MAXHEALTH",
+    "name": "Max Healthcare Institute Ltd.",
+    "industry": "Healthcare"
+   },
+   {
+    "symbol": "SUNPHARMA",
+    "name": "Sun Pharmaceutical Industries Ltd.",
+    "industry": "Healthcare"
+   },
+   {
+    "symbol": "TORNTPHARM",
+    "name": "Torrent Pharmaceuticals Ltd.",
+    "industry": "Healthcare"
+   },
+   {
+    "symbol": "ZYDUSLIFE",
+    "name": "Zydus Lifesciences Ltd.",
+    "industry": "Healthcare"
+   }
+  ],
+  "oil_gas": [
+   {
+    "symbol": "ATGL",
+    "name": "Adani Total Gas Ltd.",
+    "industry": "Oil Gas & Consumable Fuels"
+   },
+   {
+    "symbol": "AEGISLOG",
+    "name": "Aegis Logistics Ltd.",
+    "industry": "Oil Gas & Consumable Fuels"
+   },
+   {
+    "symbol": "AEGISVOPAK",
+    "name": "Aegis Vopak Terminals Ltd.",
+    "industry": "Oil Gas & Consumable Fuels"
+   },
+   {
+    "symbol": "BPCL",
+    "name": "Bharat Petroleum Corporation Ltd.",
+    "industry": "Oil Gas & Consumable Fuels"
+   },
+   {
+    "symbol": "CASTROLIND",
+    "name": "Castrol India Ltd.",
+    "industry": "Oil Gas & Consumable Fuels"
+   },
+   {
+    "symbol": "CHENNPETRO",
+    "name": "Chennai Petroleum Corporation Ltd.",
+    "industry": "Oil Gas & Consumable Fuels"
+   },
+   {
+    "symbol": "GAIL",
+    "name": "GAIL (India) Ltd.",
+    "industry": "Oil Gas & Consumable Fuels"
+   },
+   {
+    "symbol": "HINDPETRO",
+    "name": "Hindustan Petroleum Corporation Ltd.",
+    "industry": "Oil Gas & Consumable Fuels"
+   },
+   {
+    "symbol": "IOC",
+    "name": "Indian Oil Corporation Ltd.",
+    "industry": "Oil Gas & Consumable Fuels"
+   },
+   {
+    "symbol": "IGL",
+    "name": "Indraprastha Gas Ltd.",
+    "industry": "Oil Gas & Consumable Fuels"
+   },
+   {
+    "symbol": "MGL",
+    "name": "Mahanagar Gas Ltd.",
+    "industry": "Oil Gas & Consumable Fuels"
+   },
+   {
+    "symbol": "ONGC",
+    "name": "Oil & Natural Gas Corporation Ltd.",
+    "industry": "Oil Gas & Consumable Fuels"
+   },
+   {
+    "symbol": "OIL",
+    "name": "Oil India Ltd.",
+    "industry": "Oil Gas & Consumable Fuels"
+   },
+   {
+    "symbol": "PETRONET",
+    "name": "Petronet LNG Ltd.",
+    "industry": "Oil Gas & Consumable Fuels"
+   },
+   {
+    "symbol": "RELIANCE",
+    "name": "Reliance Industries Ltd.",
+    "industry": "Oil Gas & Consumable Fuels"
+   }
+  ],
+  "consumer_durables": [
+   {
+    "symbol": "AMBER",
+    "name": "Amber Enterprises India Ltd.",
+    "industry": "Consumer Durables"
+   },
+   {
+    "symbol": "BATAINDIA",
+    "name": "Bata India Ltd.",
+    "industry": "Consumer Durables"
+   },
+   {
+    "symbol": "BLUESTARCO",
+    "name": "Blue Star Ltd.",
+    "industry": "Consumer Durables"
+   },
+   {
+    "symbol": "CROMPTON",
+    "name": "Crompton Greaves Consumer Electricals Ltd.",
+    "industry": "Consumer Durables"
+   },
+   {
+    "symbol": "DIXON",
+    "name": "Dixon Technologies (India) Ltd.",
+    "industry": "Consumer Durables"
+   },
+   {
+    "symbol": "HAVELLS",
+    "name": "Havells India Ltd.",
+    "industry": "Consumer Durables"
+   },
+   {
+    "symbol": "KAJARIACER",
+    "name": "Kajaria Ceramics Ltd.",
+    "industry": "Consumer Durables"
+   },
+   {
+    "symbol": "KALYANKJIL",
+    "name": "Kalyan Jewellers India Ltd.",
+    "industry": "Consumer Durables"
+   },
+   {
+    "symbol": "LGEINDIA",
+    "name": "LG Electronics India Ltd.",
+    "industry": "Consumer Durables"
+   },
+   {
+    "symbol": "PGEL",
+    "name": "PG Electroplast Ltd.",
+    "industry": "Consumer Durables"
+   },
+   {
+    "symbol": "THANGAMAYL",
+    "name": "Thangamayil Jewellery Ltd.",
+    "industry": "Consumer Durables"
+   },
+   {
+    "symbol": "TITAN",
+    "name": "Titan Company Ltd.",
+    "industry": "Consumer Durables"
+   },
+   {
+    "symbol": "VOLTAS",
+    "name": "Voltas Ltd.",
+    "industry": "Consumer Durables"
+   },
+   {
+    "symbol": "WHIRLPOOL",
+    "name": "Whirlpool of India Ltd.",
+    "industry": "Consumer Durables"
+   }
+  ],
+  "defence": [
+   {
+    "symbol": "AXISCADES",
+    "name": "AXISCADES Technologies Ltd.",
+    "industry": "Capital Goods"
+   },
+   {
+    "symbol": "AEQUS",
+    "name": "Aequs Ltd.",
+    "industry": "Capital Goods"
+   },
+   {
+    "symbol": "APOLLO",
+    "name": "Apollo Micro Systems Ltd.",
+    "industry": "Capital Goods"
+   },
+   {
+    "symbol": "ASTRAMICRO",
+    "name": "Astra Microwave Products Ltd.",
+    "industry": "Capital Goods"
+   },
+   {
+    "symbol": "BEML",
+    "name": "BEML Ltd.",
+    "industry": "Capital Goods"
+   },
+   {
+    "symbol": "BDL",
+    "name": "Bharat Dynamics Ltd.",
+    "industry": "Capital Goods"
+   },
+   {
+    "symbol": "BEL",
+    "name": "Bharat Electronics Ltd.",
+    "industry": "Capital Goods"
+   },
+   {
+    "symbol": "BHARATFORG",
+    "name": "Bharat Forge Ltd.",
+    "industry": "Automobile and Auto Components"
+   },
+   {
+    "symbol": "CENTUM",
+    "name": "Centum Electronics Ltd.",
+    "industry": "Capital Goods"
+   },
+   {
+    "symbol": "COCHINSHIP",
+    "name": "Cochin Shipyard Ltd.",
+    "industry": "Capital Goods"
+   },
+   {
+    "symbol": "DATAPATTNS",
+    "name": "Data Patterns (India) Ltd.",
+    "industry": "Capital Goods"
+   },
+   {
+    "symbol": "DYNAMATECH",
+    "name": "Dynamatic Technologies Ltd.",
+    "industry": "Capital Goods"
+   },
+   {
+    "symbol": "GRSE",
+    "name": "Garden Reach Shipbuilders & Engineers Ltd.",
+    "industry": "Capital Goods"
+   },
+   {
+    "symbol": "HAL",
+    "name": "Hindustan Aeronautics Ltd.",
+    "industry": "Capital Goods"
+   },
+   {
+    "symbol": "MTARTECH",
+    "name": "MTAR Technologies Ltd.",
+    "industry": "Capital Goods"
+   },
+   {
+    "symbol": "MAZDOCK",
+    "name": "Mazagoan Dock Shipbuilders Ltd.",
+    "industry": "Capital Goods"
+   },
+   {
+    "symbol": "MIDHANI",
+    "name": "Mishra Dhatu Nigam Ltd.",
+    "industry": "Capital Goods"
+   },
+   {
+    "symbol": "PARAS",
+    "name": "Paras Defence and Space Technologies Ltd.",
+    "industry": "Capital Goods"
+   },
+   {
+    "symbol": "SIGMAADV",
+    "name": "SIGMA ADVANCED SYSTEMS LTD.",
+    "industry": "Capital Goods"
+   },
+   {
+    "symbol": "SOLARINDS",
+    "name": "Solar Industries India Ltd.",
+    "industry": "Chemicals"
+   },
+   {
+    "symbol": "UNIMECH",
+    "name": "Unimech Aerospace and Manufacturing Ltd.",
+    "industry": "Capital Goods"
+   },
+   {
+    "symbol": "ZENTEC",
+    "name": "Zen Technologies Ltd.",
+    "industry": "Capital Goods"
+   }
+  ],
+  "chemicals": [
+   {
+    "symbol": "AARTIIND",
+    "name": "Aarti Industries Ltd.",
+    "industry": "Chemicals"
+   },
+   {
+    "symbol": "ATUL",
+    "name": "Atul Ltd.",
+    "industry": "Chemicals"
+   },
+   {
+    "symbol": "CHAMBLFERT",
+    "name": "Chambal Fertilizers & Chemicals Ltd.",
+    "industry": "Chemicals"
+   },
+   {
+    "symbol": "COROMANDEL",
+    "name": "Coromandel International Ltd.",
+    "industry": "Chemicals"
+   },
+   {
+    "symbol": "DEEPAKFERT",
+    "name": "Deepak Fertilisers & Petrochemicals Corp. Ltd.",
+    "industry": "Chemicals"
+   },
+   {
+    "symbol": "DEEPAKNTR",
+    "name": "Deepak Nitrite Ltd.",
+    "industry": "Chemicals"
+   },
+   {
+    "symbol": "FLUOROCHEM",
+    "name": "Gujarat Fluorochemicals Ltd.",
+    "industry": "Chemicals"
+   },
+   {
+    "symbol": "HSCL",
+    "name": "Himadri Speciality Chemical Ltd.",
+    "industry": "Chemicals"
+   },
+   {
+    "symbol": "JUBLINGREA",
+    "name": "Jubilant Ingrevia Ltd.",
+    "industry": "Chemicals"
+   },
+   {
+    "symbol": "LINDEINDIA",
+    "name": "Linde India Ltd.",
+    "industry": "Chemicals"
+   },
+   {
+    "symbol": "NAVINFLUOR",
+    "name": "Navin Fluorine International Ltd.",
+    "industry": "Chemicals"
+   },
+   {
+    "symbol": "PCBL",
+    "name": "PCBL Chemical Ltd.",
+    "industry": "Chemicals"
+   },
+   {
+    "symbol": "PIIND",
+    "name": "PI Industries Ltd.",
+    "industry": "Chemicals"
+   },
+   {
+    "symbol": "PIDILITIND",
+    "name": "Pidilite Industries Ltd.",
+    "industry": "Chemicals"
+   },
+   {
+    "symbol": "SRF",
+    "name": "SRF Ltd.",
+    "industry": "Chemicals"
+   },
+   {
+    "symbol": "SOLARINDS",
+    "name": "Solar Industries India Ltd.",
+    "industry": "Chemicals"
+   },
+   {
+    "symbol": "SUMICHEM",
+    "name": "Sumitomo Chemical India Ltd.",
+    "industry": "Chemicals"
+   },
+   {
+    "symbol": "SWANCORP",
+    "name": "Swan Corp Ltd.",
+    "industry": "Chemicals"
+   },
+   {
+    "symbol": "TATACHEM",
+    "name": "Tata Chemicals Ltd.",
+    "industry": "Chemicals"
+   },
+   {
+    "symbol": "UPL",
+    "name": "UPL Ltd.",
+    "industry": "Chemicals"
    }
   ]
  }

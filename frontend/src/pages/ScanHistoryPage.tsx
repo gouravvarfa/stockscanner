@@ -82,7 +82,7 @@ export function ScanHistoryPage() {
   const [symbolSearch, setSymbolSearch] = useState("");
   const [strategyFilter, setStrategyFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all"); // row-level signal status (QUALIFIED, PRD_FORMING, …)
-  const [typeFilter, setTypeFilter] = useState("all"); // snapshot-level scan type (A Group Scanner, Value Buy, …)
+  const [typeFilter, setTypeFilter] = useState("all"); // snapshot-level scan type (Strong-sector scan, Value Buy, …)
   const [dateFilter, setDateFilter] = useState("");
 
   useEffect(() => {

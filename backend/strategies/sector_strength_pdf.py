@@ -53,6 +53,7 @@ BLU, BLU_BG = colors.HexColor("#1D4E89"), colors.HexColor("#EAF1FA")
 SIGNALS = ["Leader", "Turning up", "Fading", "Laggard"]
 SIGNAL = {"Leader": POS, "Turning up": BLU, "Fading": AMB, "Laggard": NEG, "N/A": FAINT}
 VERDICT = {"STRONG": (POS_BG, POS), "MIXED": (AMB_BG, AMB), "WEAK": (NEG_BG, NEG), "N/A": (TINT, MUTED)}
+BREADTH_STYLE = {"Broad": (POS_BG, POS), "Moderate": (AMB_BG, AMB), "Narrow": (NEG_BG, NEG)}
 
 # TradingView symbols of the sector indices (the Chart button beside each sector).
 TV_INDEX = {"NIFTY PSU BANK": "CNXPSUBANK", "BANKNIFTY": "BANKNIFTY", "FINNIFTY": "CNXFINANCE", "NIFTY REALTY": "CNXREALTY",
@@ -337,9 +338,21 @@ class MomentumMap(Flowable):
         self.width, self.height = width, height
         b1w, b1m = bench.get("r1w"), bench.get("r1m")
         self.relative = b1w is not None and b1m is not None
-        self.points = [(s["label"], s.get("key"), s["r1m"] - (b1m if self.relative else 0), s["r1w"] - (b1w if self.relative else 0),
-                        s.get("verdict") or "N/A")
-                       for s in sectors if s.get("r1w") is not None and s.get("r1m") is not None]
+        self.points, self.paths = [], {}
+        for s in sectors:
+            trail = [(t["rel_1m"], t["rel_1w"]) for t in s.get("trail") or [] if t.get("rel_1m") is not None and t.get("rel_1w") is not None]
+            if trail and (s.get("trail") or [])[-1].get("date") == s.get("end_date"):
+                x, y = trail[-1]  # this week's point is the end of its 4-week path
+            elif s.get("r1w") is not None and s.get("r1m") is not None:
+                x, y = s["r1m"] - (b1m if self.relative else 0), s["r1w"] - (b1w if self.relative else 0)
+                trail = []
+            else:
+                continue
+            self.points.append((s["label"], s.get("key"), x, y, s.get("verdict") or "N/A"))
+            # the path only for the STRONG sectors: 20 paths at once are unreadable (quadrant changes are listed in
+            # "At a glance" and on each sector's line)
+            if len(trail) > 1 and s.get("verdict") == "STRONG":
+                self.paths[s.get("key")] = (trail, s.get("verdict") or "N/A")
 
     def wrap(self, *_):
         return self.width, self.height
@@ -355,8 +368,8 @@ class MomentumMap(Flowable):
         c = self.canv
         left, right, bottom, top = 12 * mm, 3 * mm, 10 * mm, 4 * mm
         pw, ph = self.width - left - right, self.height - bottom - top
-        xs = [p[2] for p in self.points] or [1]
-        ys = [p[3] for p in self.points] or [1]
+        xs = [p[2] for p in self.points] + [x for path, _ in self.paths.values() for x, _ in path] or [1]
+        ys = [p[3] for p in self.points] + [y for path, _ in self.paths.values() for _, y in path] or [1]
         xmax = max(1.0, max(abs(v) for v in xs) * 1.18)
         ymax = max(1.0, max(abs(v) for v in ys) * 1.18)
 
@@ -423,7 +436,24 @@ class MomentumMap(Flowable):
         c.drawCentredString(0, 0, f"1-week return ({what})")
         c.restoreState()
 
-        # points first, then labels where they collide with nothing
+        # the paths (oldest week first, faint), then this week's points, then labels where they collide with nothing
+        for key, (path, verdict) in self.paths.items():
+            ink = VERDICT.get(verdict, VERDICT["N/A"])[1]
+            c.saveState()
+            c.setStrokeColor(ink)
+            c.setFillColor(ink)
+            c.setStrokeAlpha(0.38)
+            c.setFillAlpha(0.38)
+            c.setLineWidth(0.9)
+            pts = [(px(x), py(y)) for x, y in path]
+            line = c.beginPath()
+            line.moveTo(*pts[0])
+            for q in pts[1:]:
+                line.lineTo(*q)
+            c.drawPath(line, stroke=1, fill=0)
+            for q in pts[:-1]:
+                c.circle(q[0], q[1], 1.3, stroke=0, fill=1)
+            c.restoreState()
         placed = [(label, key, px(xv), py(yv), verdict) for label, key, xv, yv, verdict in self.points]
         boxes = list(label_boxes) + [(cx - 3.5, cy - 3.5, cx + 3.5, cy + 3.5) for _, _, cx, cy, _ in placed]
         for label, key, cx, cy, verdict in placed:
@@ -568,6 +598,23 @@ def insights(report: dict) -> list[tuple[str, str]]:
                     f"{', '.join(strong)}: daily, weekly and monthly RSI(14) all above 60."))
     else:
         out.append(("No sector is STRONG on RSI", "No sector index has its daily, weekly and monthly RSI all above 60 this week."))
+    ch = report.get("changes") or {}
+    if ch.get("new_strong") or ch.get("dropped_strong"):
+        parts = []
+        if ch.get("new_strong"):
+            parts.append(f"newly STRONG: {', '.join(ch['new_strong'])}")
+        if ch.get("dropped_strong"):
+            parts.append(f"no longer STRONG: {', '.join(ch['dropped_strong'])}")
+        text = "; ".join(parts)
+        out.append(("Changed since last week", text[0].upper() + text[1:] + "."))
+    if ch.get("risers") or ch.get("fallers"):
+        up = ", ".join(f"{x['label']} #{x['from']} to #{x['to']}" for x in ch.get("risers") or [])
+        down = ", ".join(f"{x['label']} #{x['from']} to #{x['to']}" for x in ch.get("fallers") or [])
+        out.append(("Rank moves on 1W", "; ".join(t for t in (f"up: {up}" if up else "", f"down: {down}" if down else "") if t) + "."))
+    narrow = [x for x in secs if x.get("verdict") == "STRONG" and (x.get("breadth") or {}).get("label") == "Narrow"]
+    if narrow:
+        out.append((f"STRONG but narrow: {', '.join(x['label'] for x in narrow)}",
+                    "Fewer than 40% of its stocks are above their 50-day average: the index is carried by a few heavyweights."))
     ranked = [x for x in secs if x.get("rank_1w") and x.get("rank_1m")]
     if ranked:
         top = min(ranked, key=lambda x: (x["rank_1w"] + x["rank_1m"]) / 2)
@@ -613,7 +660,7 @@ def _cover(canvas, doc, report: dict) -> None:
     c.setFillColor(NAVY)
     c.rect(0, 0, W, H, stroke=0, fill=1)
     x = M + 2
-    spaced(c, x, H - 30 * mm, "A GROUP SCANNER", size=8, color=GOLD, space=2.2)
+    spaced(c, x, H - 30 * mm, "SCANNER", size=8, color=GOLD, space=2.2)
     spaced(c, W - M, H - 30 * mm, "WEEKLY", size=8, color=colors.HexColor("#8EA3C4"), space=2.2, right=True)
 
     c.setFillColor(colors.white)
@@ -693,7 +740,7 @@ def _page(canvas, doc, report: dict) -> None:
     c.line(M, 13.5 * mm, W - M, 13.5 * mm)
     c.setFillColor(FAINT)
     c.setFont("Helvetica", 7)
-    c.drawString(M, 9.5 * mm, "A Group Scanner  ·  For education only, not investment advice")
+    c.drawString(M, 9.5 * mm, "Scanner  ·  For education only, not investment advice")
     c.setFillColor(INK)
     c.setFont("Helvetica-Bold", 7.5)
     c.drawRightString(W - M, 9.5 * mm, f"{doc.page:02d}")
@@ -718,7 +765,11 @@ def _sector_block(x: dict) -> list:
     meta = Paragraph(
         f"{line}  ·  1W {num(x.get('r1w'), '%', True)} <font color='{hexof(FAINT)}'>{rank(x.get('rank_1w'))}</font>"
         f"  ·  1M {num(x.get('r1m'), '%', True)} <font color='{hexof(FAINT)}'>{rank(x.get('rank_1m'))}</font>"
-        f"  ·  RSI D/W/M <b>{rsi_txt}</b>  ·  beat the sector: {x.get('beat_1w')}/{n} on 1W, {x.get('beat_1m')}/{n} on 1M",
+        f"  ·  RSI D/W/M <b>{rsi_txt}</b>  ·  beat the sector: {x.get('beat_1w')}/{n} on 1W, {x.get('beat_1m')}/{n} on 1M"
+        + (f"  ·  <b>{esc(x['quadrant'])}</b>" + (f" (last week {esc(x['prev']['quadrant'])})" if (x.get('prev') or {}).get('quadrant')
+                                                     and x['prev']['quadrant'] != x['quadrant'] else "") if x.get("quadrant") else "")
+        + (f"  ·  breadth <b>{esc((x.get('breadth') or {}).get('label'))}</b>, {(x.get('breadth') or {}).get('above_50dma')}% above the 50-day average"
+           if (x.get("breadth") or {}).get("label") else ""),
         _style("meta", 8.4, leading=12, color=MUTED))
     out: list = [CondPageBreak(55 * mm), Anchor(sec_key(x["key"]), x["label"], level=1), head, Spacer(1, 3), meta, Spacer(1, 7)]
     if n:
@@ -741,7 +792,7 @@ def _sector_block(x: dict) -> list:
 def build_pdf(report: dict) -> bytes:
     buf = io.BytesIO()
     doc = BaseDocTemplate(buf, pagesize=A4, leftMargin=M, rightMargin=M, topMargin=TOP, bottomMargin=BOTTOM,
-                          title="Weekly Sector Report", author="A Group Scanner",
+                          title="Weekly Sector Report", author="Scanner",
                           subject="Sector and stock relative strength (education only)")
     frame = Frame(M, BOTTOM, CONTENT_W, H - TOP - BOTTOM, id="f", leftPadding=0, rightPadding=0, topPadding=0, bottomPadding=0)
     doc.addPageTemplates([
@@ -807,7 +858,8 @@ def build_pdf(report: dict) -> bytes:
     story.append(PageBreak())
 
     # ---- rankings side by side, then breadth ----
-    story += section("Rankings", "Sector returns", "Every sector on the same dates; bars to scale within each column. Tap a sector to open it.",
+    story += section("Rankings", "Sector returns", "Every sector on the same dates; bars to scale within each column. The small green or red "
+                     "number is how many places the sector moved since last week. Tap a sector to open it.",
                      anchor="rankings", outline="Rankings")
     half = (CONTENT_W - 8 * mm) / 2
 
@@ -817,10 +869,13 @@ def build_pdf(report: dict) -> bytes:
         neg_share = max((abs(x[key]) for x in ordered if x[key] < 0), default=0) / max_abs
         zero_at = min(0.4, max(0.06, neg_share / (1 + neg_share)))
         rows = [["#", "Sector", "Return", ""]]
+        move_key = "rank_change_1w" if key == "r1w" else "rank_change_1m"
         for i, x in enumerate(ordered, start=1):
-            rows.append([Paragraph(f"<font color='{hexof(FAINT)}'>{i}</font>", S_CELL), Paragraph(sector_link(x["label"], x["key"]), S_CELL),
-                         Paragraph(num(x[key], "%"), S_NUM), Bar(x[key], max_abs, half - 66 * mm, zero_at)])
-        t = table(rows, [6 * mm, 34 * mm, 17 * mm, half - 57 * mm], [("LEFTPADDING", (3, 0), (3, -1), 9), ("RIGHTPADDING", (3, 0), (3, -1), 0)],
+            mv = x.get(move_key)
+            mv_txt = "" if not mv else f" <font size=6.6 color='{hexof(POS if mv > 0 else NEG)}'>{'+' if mv > 0 else ''}{mv}</font>"
+            rows.append([Paragraph(f"<font color='{hexof(FAINT)}'>{i}</font>{mv_txt}", S_CELL), Paragraph(sector_link(x["label"], x["key"]), S_CELL),
+                         Paragraph(num(x[key], "%"), S_NUM), Bar(x[key], max_abs, half - 68 * mm, zero_at)])
+        t = table(rows, [10 * mm, 32 * mm, 17 * mm, half - 59 * mm], [("LEFTPADDING", (3, 0), (3, -1), 9), ("RIGHTPADDING", (3, 0), (3, -1), 0)],
                   right_from=2, pad=3.2)
         return [Paragraph(title, _style("rt", 10.5, bold=True)), Spacer(1, 6), t]
 
@@ -830,16 +885,24 @@ def build_pdf(report: dict) -> bytes:
               Paragraph("Capital Market has no index on Angel One: its line is the equal-weight average of its stocks.", S_SMALL),
               Spacer(1, 12)]
 
-    breadth_rows = [["Sector", "", "Beat 1W / 1M"]]
+    breadth_rows = [["Sector", "Signals", "> 50 DMA", "> 200 DMA", "RSI > 60", "52w highs", Paragraph("<b>BREADTH</b>", _style("th", 6.8, leading=8.5, color=MUTED, align=TA_CENTER))]]
     for x in secs:
-        n = len(x.get("stocks", []))
-        breadth_rows.append([Paragraph(sector_link(x["label"], x["key"]), S_CELL), StackBar(x.get("counts", {}), CONTENT_W - 74 * mm),
-                             Paragraph(f"{x.get('beat_1w')}/{n}  ·  {x.get('beat_1m')}/{n}", S_NUM)])
+        br = x.get("breadth") or {}
+        pct_cell = lambda v: Paragraph("n/a" if v is None else f"{v}%", S_NUM)  # noqa: E731
+        lab = br.get("label")
+        breadth_rows.append([Paragraph(sector_link(x["label"], x["key"]), S_CELL), StackBar(x.get("counts", {}), CONTENT_W - 128 * mm),
+                             pct_cell(br.get("above_50dma")), pct_cell(br.get("above_200dma")), pct_cell(br.get("rsi_above_60")),
+                             Paragraph(str(br.get("new_52w_highs", 0)), S_NUM),
+                             pill(lab, *BREADTH_STYLE[lab], width=17 * mm) if lab else Paragraph("n/a", S_NUM)])
     story.append(KeepTogether([
         Paragraph("Breadth inside each sector", _style("bh", 12.5, leading=15, bold=True)), Spacer(1, 3),
-        Paragraph("How many of each sector's stocks lead, turn up, fade or lag against their own sector line.", S_SMALL), Spacer(1, 7),
+        Paragraph("Signals: how many stocks lead, turn up, fade or lag against their own sector line. Then the share of the "
+                  "sector's stocks above their 50- and 200-day average and with a daily RSI above 60, and the new 52-week highs "
+                  "made this week. Breadth: Broad when 70%+ are above the 50-day average, Moderate 40-70%, Narrow below 40% "
+                  "(the index is carried by a few stocks).", S_SMALL), Spacer(1, 7),
         Legend([(sig, SIGNAL[sig]) for sig in SIGNALS]), Spacer(1, 5),
-        table(breadth_rows, [38 * mm, CONTENT_W - 66 * mm, 28 * mm], [("LEFTPADDING", (1, 0), (1, -1), 4)], right_from=2, pad=2.7),
+        table(breadth_rows, [34 * mm, CONTENT_W - 124 * mm, 18 * mm, 19 * mm, 17 * mm, 16 * mm, 20 * mm],
+              [("LEFTPADDING", (1, 0), (1, -1), 4), ("ALIGN", (6, 0), (6, -1), "CENTER")], right_from=2, left_cols=(1,), pad=2.7),
     ]))
     story.append(PageBreak())
 
@@ -872,10 +935,11 @@ def build_pdf(report: dict) -> bytes:
     story.append(KeepTogether([
         Paragraph("Momentum map", _style("mh", 12.5, leading=15, bold=True)), Spacer(1, 3),
         Paragraph(("Each sector's 1-week and 1-month return minus the Nifty 50's. Top right leads the market on both; "
-                   "top left is improving; bottom right is weakening; bottom left lags. Tap a point to open the sector.")
+                   "top left is improving; bottom right is weakening; bottom left lags. The faint line is the path of each "
+                   "STRONG sector over the last 4 weeks; the dot is this week. Tap a point to open the sector.")
                   if rel else "Each sector's 1-week and 1-month return. Tap a point to open the sector.", S_SMALL), Spacer(1, 6),
         Legend([("STRONG", POS), ("MIXED", AMB), ("WEAK", NEG), ("no verdict", FAINT)]), Spacer(1, 4),
-        MomentumMap(secs, b, CONTENT_W),
+        MomentumMap(secs, b, CONTENT_W, height=118 * mm),
     ]))
     story.append(PageBreak())
 
@@ -937,6 +1001,13 @@ def build_pdf(report: dict) -> bytes:
                            "below 40; otherwise MIXED. Weekly and monthly RSI include the week and month in progress."),
         ("Momentum map", "Each sector's 1W and 1M return minus the Nifty 50's, in percentage points; the quadrant tells whether the sector "
                          "is ahead of the market on both horizons, only on one, or on neither."),
+        ("Last week and rotation", "Every figure is also worked out one week earlier (the close on or before 7 days before), so the "
+                                   "report shows the rank moves and the verdicts that changed. The quadrant compares the sector's 1W and 1M "
+                                   "return with the Nifty 50's: Leading (ahead on both), Improving (the week only), Weakening (the month "
+                                   "only), Lagging (neither); the map draws the last 4 weeks."),
+        ("Breadth", "Share of a sector's stocks above their 50-day and 200-day average and with a daily RSI(14) above 60, and how many "
+                    "made a new 52-week high this week (stocks with less than a year of history are left out of the last two). "
+                    "Broad: 70%+ above the 50-day average; Moderate: 40-70%; Narrow: below 40%."),
         ("Groups", "Near-leader: beats the sector on one horizon and is within 1.5pp on the other. Bounce-only: beats the sector "
                    "this week but trails it by more than 1.5pp on the month."),
         ("Coverage", "Sector members are NSE's current index constituents. Capital Market has no index on Angel One, so its sector line "
@@ -947,7 +1018,7 @@ def build_pdf(report: dict) -> bytes:
         story.append(KeepTogether([Paragraph(t, _style("nt", 10, bold=True)), Spacer(1, 2), Paragraph(txt, S_BODY), Spacer(1, 9)]))
     story += [Spacer(1, 8)] + section("Disclaimer", "Important information")
     for t, txt in (
-        ("Purpose.", "Generated by A Group Scanner for personal market learning and education only."),
+        ("Purpose.", "Generated by Scanner for personal market learning and education only."),
         ("Not a recommendation.", "Nothing here is a recommendation, offer or solicitation to buy, sell or hold any security, or investment, "
                                   "trading, tax or legal advice. Stocks and sectors are shown only as examples."),
         ("Not a SEBI research report.", "This is not a research report or investment advice under the SEBI (Research Analysts) or (Investment "

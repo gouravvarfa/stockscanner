@@ -82,7 +82,7 @@ export function Header({
           <MenuIcon width={18} height={18} />
         </button>
         <img src="/logo-mark.png" alt="" className="header-brand-logo" width={24} height={24} />
-        <span className="header-brand-mobile">A Group Scanner</span>
+        <span className="header-brand-mobile">Scanner</span>
         {trail.length > 0 && (
           <nav className="header-crumbs" aria-label="Breadcrumb">
             {trail.map((t, i) => (

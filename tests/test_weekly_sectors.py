@@ -103,7 +103,7 @@ def test_pdf_and_excel_are_built_and_escape_ampersands():
     assert pdf[:5] == b"%PDF-" and len(pdf) > 5000
     assert all("&M;" not in t + x for t, x in insights(r))  # "M&M" must not turn into "M&M;"
     wb = openpyxl.load_workbook(io.BytesIO(build_xlsx(r)))
-    assert wb.sheetnames[:4] == ["SUMMARY", "TOP MOVERS", "LAGGARDS", "STUDY BUCKETS"]
+    assert wb.sheetnames[:5] == ["SUMMARY", "ROTATION", "TOP MOVERS", "LAGGARDS", "STUDY BUCKETS"]
     assert "UP SECTOR" in wb.sheetnames
     ws = wb["SUMMARY"]
     assert [c.value for c in ws[8]][:10] == ["Sector", "Index", "1W %", "# 1W", "1M %", "# 1M", "RSI D", "RSI W", "RSI M", "Verdict"]
@@ -177,4 +177,62 @@ def test_api_run_status_and_downloads(monkeypatch):
     assert p.status_code == 200 and p.headers["content-type"] == "application/pdf" and p.content[:5] == b"%PDF-"
     x = c.post("/api/weekly-sectors/export", json=r)
     assert x.status_code == 200 and "weekly_sectors_" in x.headers["content-disposition"]
-    assert len(c.get("/api/weekly-sectors/sectors").json()) == 13
+    assert len(c.get("/api/weekly-sectors/sectors").json()) == 21
+
+
+# ---- last week, rotation and breadth (2026-11-22) ----
+
+def test_quadrant_against_the_nifty():
+    assert ss.quadrant(1, 2) == "Leading" and ss.quadrant(1, -2) == "Improving"
+    assert ss.quadrant(-1, 2) == "Weakening" and ss.quadrant(-1, -2) == "Lagging" and ss.quadrant(None, 1) is None
+
+
+def test_stock_breadth_and_sector_label():
+    up = trend("2025-01-01", 300, 100, 0.2)
+    down = trend("2025-01-01", 300, 100, -0.2)
+    a, b = ss.stock_breadth(up, up.index[-1]), ss.stock_breadth(down, down.index[-1])
+    assert a["above_50dma"] and a["above_200dma"] and a["high_52w"] and a["rsi_d"] > 60
+    assert not b["above_50dma"] and not b["above_200dma"] and not b["high_52w"]
+    young = ss.stock_breadth(trend("2025-01-01", 120, 100, 0.2), pd.Timestamp("2026-01-01"))
+    assert young["above_200dma"] is None and young["high_52w"] is None  # too little history: not counted
+    br = ss.sector_breadth([a, a, a, b])
+    assert br == {"above_50dma": 75, "above_200dma": 75, "rsi_above_60": 75, "new_52w_highs": 3, "stocks": 4, "label": "Broad"}
+    assert ss.sector_breadth([a, b, b])["label"] == "Narrow" and ss.sector_breadth([a, b])["label"] == "Moderate"
+
+
+def test_report_carries_last_week_rotation_and_breadth():
+    r = _report()
+    by = {s["key"]: s for s in r["sectors"]}
+    up = by["up"]
+    assert len(up["trail"]) == ss.WEEKS_BACK + 1 and up["trail"][-1]["date"] == up["end_date"]
+    assert up["quadrant"] == "Lagging"  # the benchmark here IS the up line: exactly level with it is not "ahead"
+    assert by["down"]["quadrant"] == "Lagging"  # falls while the benchmark (the up line) rises
+    assert up["prev"]["verdict"] == "STRONG" and up["rank_change_1w"] == up["prev"]["rank_1w"] - up["rank_1w"]
+    assert up["breadth"]["stocks"] == 2 and up["breadth"]["above_50dma"] == 100  # AAA and BBB both rise
+    assert by["ew"]["trail"] and by["ew"]["prev"]["verdict"] == "N/A"
+    assert set(r["changes"]) == {"prev_date", "new_strong", "dropped_strong", "risers", "fallers", "quadrant_moves"}
+    assert r["benchmark"]["r1d"] is not None and up["stocks"][0]["r1d"] is not None
+
+
+def test_changes_name_new_and_dropped_strong_sectors(monkeypatch):
+    up = trend("2021-01-01", 1300, 100, 0.12)
+    as_of = up.index[-1]
+    strong, mixed = {"d": 70.0, "w": 70.0, "m": 70.0}, {"d": 50.0, "w": 70.0, "m": 70.0}
+    monkeypatch.setattr(ss, "rsi_levels", lambda df, day: (strong if day == as_of else mixed) if df is up else (mixed if day == as_of else strong))
+    other = trend("2021-01-01", 1300, 200, 0.05)
+    sectors = [{"key": "a", "label": "A", "index_label": "IA", "equal_weight": False},
+               {"key": "b", "label": "B", "index_label": "IB", "equal_weight": False}]
+    r = ss.build_report(as_of, sectors, {"a": up, "b": other}, {}, {"a": [], "b": []}, benchmark=up)
+    assert r["changes"]["new_strong"] == ["A"] and r["changes"]["dropped_strong"] == ["B"]
+
+
+def test_rank_changes_follow_a_late_surge():
+    flat_then_jump = closes_frame("2026-01-01", [100.0] * 200 + [100, 103, 106, 109, 112])
+    steady = closes_frame("2026-01-01", [100 * 1.004 ** i for i in range(205)])
+    slow = closes_frame("2026-01-01", [100 * 1.001 ** i for i in range(205)])
+    as_of = flat_then_jump.index[-1]
+    sectors = [{"key": k, "label": k.upper(), "index_label": k, "equal_weight": False} for k in ("jump", "steady", "slow")]
+    r = ss.build_report(as_of, sectors, {"jump": flat_then_jump, "steady": steady, "slow": slow}, {}, {k: [] for k in ("jump", "steady", "slow")})
+    by = {s["key"]: s for s in r["sectors"]}
+    assert by["jump"]["rank_1w"] == 1 and by["jump"]["prev"]["rank_1w"] == 3 and by["jump"]["rank_change_1w"] == 2
+    assert r["changes"]["risers"] == [{"label": "JUMP", "from": 3, "to": 1}]
