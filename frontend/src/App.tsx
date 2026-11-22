@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Route, Routes } from "react-router-dom";
+import { Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { ChartDrawer } from "./chart/ChartDrawer";
 import { useChart } from "./chart/ChartContext";
 import { ActiveScansPanel } from "./components/ActiveScansPanel";
@@ -32,6 +32,28 @@ export default function App() {
 
   // Wake the backend and reconnect Angel One as soon as the app opens (see angeloneAutoConnect.ts).
   useEffect(() => startAutoConnect(), []);
+
+  // A link with ?chart=SYMBOL (the Weekly Sectors PDF's stock and sector links) opens that chart right here, in the
+  // app's own chart drawer, with RSI, volume and Bollinger Bands on; the parameter is then removed from the address.
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { openChart } = chart;
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const symbol = params.get("chart")?.trim();
+    if (!symbol) return;
+    openChart(symbol.toUpperCase(), {
+      strategy: "Weekly Sectors",
+      daily_rsi: null,
+      weekly_rsi: null,
+      monthly_rsi: null,
+      signal_date: null,
+      indicators: { rsi: true, volume: true, bollinger: true },
+    });
+    params.delete("chart");
+    const rest = params.toString();
+    navigate({ pathname: location.pathname, search: rest ? `?${rest}` : "" }, { replace: true });
+  }, [location.pathname, location.search, navigate, openChart]);
 
   return (
     <div className="app-shell">

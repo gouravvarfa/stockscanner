@@ -241,3 +241,11 @@ def test_rank_changes_follow_a_late_surge():
 def test_generated_at_carries_its_time_zone():
     gen = dt.datetime.fromisoformat(_report()["generated_at"])
     assert gen.tzinfo is not None and gen.utcoffset() == dt.timedelta(0)
+
+
+def test_pdf_chart_links_open_the_scanner_app():
+    from backend.strategies.sector_strength_pdf import build_pdf, chart_url
+
+    assert chart_url("M&M") == "https://a-group-scanner.vercel.app/weekly-sectors?chart=M%26M"
+    pdf = build_pdf(_report())
+    assert b"weekly-sectors?chart=AAA" in pdf and b"tradingview" not in pdf.lower()
