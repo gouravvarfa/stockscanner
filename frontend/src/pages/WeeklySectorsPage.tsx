@@ -89,6 +89,81 @@ function RankCell({ rank, move }: { rank: number | null; move?: number | null })
 
 const breadthClass = (label: string | null | undefined) => `wk-chip wk-breadth-${(label ?? "na").toLowerCase()}`;
 
+/** The week in four plain lines (2026-11-22): what to watch, what is about to turn STRONG, who beats the market,
+ *  who is getting weaker. Everything comes from the report already on screen. */
+function ActionCard({ report, onStock, onSector }: {
+  report: WeeklyReport;
+  onStock: (st: SectorStock, sector: string) => void;
+  onSector: (key: string) => void;
+}) {
+  const b = report.benchmark;
+  const rsiMin = (s: SectorRow) => Math.min(s.rsi.d ?? 0, s.rsi.w ?? 0, s.rsi.m ?? 0);
+  const ahead = (s: SectorRow) =>
+    b.r1w !== null && b.r1m !== null && s.r1w !== null && s.r1m !== null && s.r1w > b.r1w && s.r1m > b.r1m;
+  const weeksAhead = (s: SectorRow) => (s.trail ?? []).filter((t) => t.rel_1w > 0 && t.rel_1m > 0).length;
+  const strong = report.sectors.filter((s) => s.verdict === "STRONG");
+  const watch = strong.map((s) => ({
+    s,
+    leaders: s.stocks.filter((st) => st.signal === "Leader" && st.above_50dma !== false).sort((x, y) => y.combined - x.combined).slice(0, 3),
+  }));
+  const near = report.sectors.filter((s) => s.verdict !== "STRONG" && !s.equal_weight && s.rsi.d !== null && rsiMin(s) >= 55);
+  const outperf = report.sectors
+    .filter(ahead)
+    .sort((x, y) => (y.r1w! - b.r1w! + y.r1m! - b.r1m!) - (x.r1w! - b.r1w! + x.r1m! - b.r1m!));
+  const weak = report.sectors.filter(
+    (s) =>
+      (s.prev?.verdict === "STRONG" && s.verdict !== "STRONG") ||
+      (b.r1w !== null && b.r1m !== null && s.r1w !== null && s.r1m !== null && s.r1w < b.r1w && s.r1m < b.r1m && s.rsi.d !== null && s.rsi.d < 50),
+  );
+  const none = <span className="muted small">none this week</span>;
+  const sec = (s: SectorRow, extra?: string) => (
+    <button key={s.key} type="button" className="act-chip" onClick={() => onSector(s.key)}>
+      <b>{s.label}</b>
+      {extra && <span className="muted">{extra}</span>}
+    </button>
+  );
+  return (
+    <div className="card">
+      <h2 style={{ marginTop: 0 }}>This week&apos;s action list</h2>
+      <div className="act-row">
+        <span className="act-title wk-up">Watch</span>
+        <div className="act-list">
+          {watch.every((w) => w.leaders.length === 0)
+            ? none
+            : watch.map(({ s, leaders }) =>
+                leaders.map((st) => (
+                  <button key={`${s.key}-${st.symbol}`} type="button" className="act-chip" onClick={() => onStock(st, s.label)}>
+                    <b>{st.symbol}</b>
+                    <span className="muted">{s.label}</span>
+                  </button>
+                )),
+              )}
+        </div>
+        <span className="act-note">Leaders of the STRONG sectors: beat their sector on 1W and 1M, above the 50-day average</span>
+      </div>
+      <div className="act-row">
+        <span className="act-title">Near STRONG</span>
+        <div className="act-list">{near.length ? near.map((s) => sec(s, `RSI ${s.rsi.d?.toFixed(0)}/${s.rsi.w?.toFixed(0)}/${s.rsi.m?.toFixed(0)}`)) : none}</div>
+        <span className="act-note">Daily, weekly and monthly RSI all 55 or more, not yet all above 60</span>
+      </div>
+      <div className="act-row">
+        <span className="act-title wk-up">Outperforming</span>
+        <div className="act-list">
+          {outperf.length ? outperf.map((s) => sec(s, weeksAhead(s) ? `${weeksAhead(s)} of 5 weeks` : undefined)) : none}
+        </div>
+        <span className="act-note">Ahead of the Nifty 50 on both the week and the month (weeks = how often in the last 5)</span>
+      </div>
+      <div className="act-row">
+        <span className="act-title wk-down">Weakening</span>
+        <div className="act-list">
+          {weak.length ? weak.map((s) => sec(s, s.prev?.verdict === "STRONG" && s.verdict !== "STRONG" ? "no longer STRONG" : undefined)) : none}
+        </div>
+        <span className="act-note">Stopped being STRONG, or behind the Nifty 50 on both with daily RSI below 50</span>
+      </div>
+    </div>
+  );
+}
+
 function RankPanel({ title, sectors, field }: { title: string; sectors: SectorRow[]; field: "r1w" | "r1m" }) {
   const rows = sectors.filter((s) => s[field] !== null).sort((a, b) => (b[field] ?? 0) - (a[field] ?? 0));
   const max = Math.max(...rows.map((s) => Math.abs(s[field] ?? 0)), 1);
@@ -315,6 +390,25 @@ export function WeeklySectorsPage() {
               ))}
             </ol>
           </div>
+
+          <ActionCard
+            report={report}
+            onStock={(st, label) =>
+              openChart(st.symbol, {
+                strategy: `Weekly Sectors · ${label}`,
+                daily_rsi: st.rsi_d ?? null,
+                weekly_rsi: null,
+                monthly_rsi: null,
+                signal_date: report.end_date,
+                explanation: `${st.symbol}: ${pct(st.r1w)} 1W, ${pct(st.r1m)} 1M; leader of ${label}.`,
+                indicators: ALL_INDICATORS,
+              })
+            }
+            onSector={(key) => {
+              setSelected(key);
+              detailRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+            }}
+          />
 
           <div className="wk-rank-grid">
             <RankPanel title="1-week ranking" sectors={report.sectors} field="r1w" />
