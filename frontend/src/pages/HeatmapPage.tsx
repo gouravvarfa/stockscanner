@@ -4,12 +4,30 @@ import { useChart } from "../chart/ChartContext";
 import { HeatmapIcon } from "../components/icons";
 import { useWeeklyReport } from "../context/WeeklyReportContext";
 import { type SectorStock } from "../services/weeklySectorsApi";
+import stockLogos from "../data/stockLogos.json";
 
 /**
  * Heatmap (2026-11-22): every sector and its stocks in one coloured grid - green up, red down - for one day, one week
  * or one month. It is drawn from the Weekly Sectors report (the same run, shared through this device's saved report),
  * so nothing extra is fetched.
  */
+
+// Company logos (TradingView's public logo images, ids looked up once for every stock in the sector lists).
+const LOGOS = stockLogos as Record<string, string>;
+function StockLogo({ symbol }: { symbol: string }) {
+  const [failed, setFailed] = useState(false);
+  const id = LOGOS[symbol];
+  if (!id || failed) return null;
+  return (
+    <img
+      className="hm-logo"
+      src={`https://s3-symbol-logo.tradingview.com/${id}.svg`}
+      alt=""
+      loading="lazy"
+      onError={() => setFailed(true)}
+    />
+  );
+}
 
 type Period = "r1d" | "r1w" | "r1m";
 const PERIODS: { key: Period; label: string; steps: number[] }[] = [
@@ -330,6 +348,7 @@ export function HeatmapPage() {
                             title={`${st.name ?? st.symbol}\n1D ${pct(st.r1d)} · 1W ${pct(st.r1w)} · 1M ${pct(st.r1m)}`}
                           >
                             <span className="hm-sym">
+                              <StockLogo symbol={st.symbol} />
                               {focusSet.has(st.symbol) && (
                                 <span aria-label="focus">★ </span>
                               )}
