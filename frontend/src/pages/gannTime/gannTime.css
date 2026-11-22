@@ -1,0 +1,54 @@
+.gt-tabs { display: flex; gap: 4px; margin-bottom: 14px; border-bottom: 1px solid var(--border); }
+.gt-tabs button {
+  background: none; border: none; padding: 9px 14px; font: inherit; font-weight: 500; color: var(--text-secondary);
+  border-bottom: 2px solid transparent; margin-bottom: -1px; cursor: pointer;
+}
+.gt-tabs button.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+.gt-name { font-weight: 550; }
+.gt-h2 { margin: 0; font-size: 18px; font-weight: 600; }
+.gt-h3 { margin: 0 0 10px; font-size: 14px; font-weight: 600; }
+.gt-stars { color: var(--warning); letter-spacing: 1px; white-space: nowrap; }
+.gt-when { font-size: 12px; color: var(--text-muted); }
+.gt-when-now { color: var(--danger); font-weight: 500; }
+.gt-warn { font-size: 12px; color: var(--warning); background: var(--warning-soft); padding: 3px 8px; border-radius: var(--radius-sm); white-space: nowrap; }
+.gt-pos { color: var(--success); font-weight: 500; }
+.gt-neg { color: var(--danger); font-weight: 500; }
+.gt-empty { text-align: center; padding: 16px; color: var(--text-muted); }
+
+.gt-progress-wrap { margin-top: 12px; }
+.gt-progress { height: 6px; border-radius: 3px; background: var(--bg-hover); overflow: hidden; margin-top: 8px; }
+.gt-progress > div { height: 100%; background: var(--accent); transition: width 0.4s ease; }
+
+.gt-search { position: relative; }
+.gt-search input { width: 100%; box-sizing: border-box; }
+.gt-hits {
+  position: absolute; z-index: 20; left: 0; right: 0; top: calc(100% + 4px); max-height: 320px; overflow: auto;
+  background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-md); box-shadow: var(--shadow-md);
+}
+.gt-hits button {
+  display: block; width: 100%; text-align: left; background: none; border: none; padding: 8px 12px; font: inherit;
+  color: var(--text-primary); cursor: pointer;
+}
+.gt-hits button:hover { background: var(--bg-hover); }
+
+.gt-stock-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+.gt-legend { margin-top: 8px; }
+.gt-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.gt-grid > .card { margin: 0; }
+@media (max-width: 800px) { .gt-grid { grid-template-columns: 1fr; } }
+.gt-proj-list { max-height: 260px; overflow: auto; }
+.gt-proj { display: flex; justify-content: space-between; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--border); }
+
+/* action-list box: coloured top line, title, count, short note, rows */
+/* bottom lists use the shared action-list box (.act-* in design.css) */
+.gt-act-card { margin-top: 16px; }
+.gt-act-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 800px) { .gt-act-grid { grid-template-columns: 1fr; } }
+.gt-act-card .act-items li { cursor: default; }
+
+.gt-search input {
+  height: 40px; padding: 0 12px; border-radius: 9px; border: 1px solid var(--border); background: var(--bg-page);
+  color: var(--text-primary); font: inherit; font-size: 0.9rem; outline: none;
+}
+.gt-search input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); }
