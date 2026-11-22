@@ -76,6 +76,10 @@ def _estimate_total(scan_type: ScanType) -> int:
         universe_size = len(load_a_group_universe())
     except Exception:  # noqa: BLE001
         return 0
+    if scan_type == "cup_breakout":
+        from backend.services.universe_loader import load_all_nse_universe
+
+        return len(load_all_nse_universe())  # every NSE equity
     if scan_type == "a_group":
         return 0  # the stocks of today's STRONG sectors: known once the sector check is done (the job sets it)
     return universe_size  # Cup Breakout and Value Buy run over the whole A Group

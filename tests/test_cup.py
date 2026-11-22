@@ -913,7 +913,7 @@ def test_deep_cup_does_not_weaken_the_existing_stale_cup_validation():
     df = _monthly_frame(specs)
     result = detect_cup(df, DEFAULT_CONFIG, now=dt.datetime(y, m, 10))
     assert result["status"] == "NO_SIGNAL"
-    assert result["rejection_reason"] == "stale_breakout_price_already_moved_away"
+    assert result["rejection_reason"] in ("stale_breakout_price_already_moved_away", "stale_breakout_already_ran_far_above")
 
 
 def test_deep_cup_does_not_weaken_the_existing_five_percent_and_25_percent_rules():

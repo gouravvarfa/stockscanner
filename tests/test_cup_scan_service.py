@@ -90,7 +90,7 @@ def _patched_provider(monthly_series_by_symbol, fail_symbols=None):
 
 
 def _set_universe(monkeypatch, symbols):
-    monkeypatch.setattr(universe_loader, "load_a_group_universe", lambda: list(symbols))
+    monkeypatch.setattr(universe_loader, "load_all_nse_universe", lambda: list(symbols))  # Cup runs on every NSE equity
 
 
 CONFIG = CupConfig(history_years=2, chunk_years=2, chunk_delay_seconds=0)
@@ -187,3 +187,11 @@ async def test_raw_daily_dataframes_are_not_retained_after_each_stock_finishes(m
     gc.collect()
     still_alive = [i for i, ref in enumerate(live_refs) if ref() is not None]
     assert still_alive == [], f"{len(still_alive)}/{len(symbols)} raw daily DataFrames were still referenced after the scan"
+
+
+def test_cup_universe_is_every_nse_equity():
+    universe_loader._nse_cache = None
+    symbols = universe_loader.load_all_nse_universe()
+    assert len(symbols) > 2000
+    assert {"SONACOMS", "PAYTM", "RELIANCE"} <= set(symbols)
+    assert universe_loader.company_name_for("PAYTM")

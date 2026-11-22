@@ -262,6 +262,17 @@ def _find_cup_structure(monthly: pd.DataFrame, config: CupConfig) -> tuple[dict[
         if cup_low_idx == b_idx or recovery_pct < config.min_recovery_pct:
             last_rejection_reason = "insufficient_recovery"
             continue
+        # Finished move (2026-11-22, DMART): price already broke this rim long ago and ran far above it - this
+        # rim is history, not resistance; a later, higher rim (its own candidate in this loop) is the real one.
+        closes_after = monthly["close"].iloc[cup_low_idx + 1 : b_idx + 1]
+        broke = closes_after[closes_after > left_rim_price]
+        if not broke.empty:
+            k = monthly.index.get_loc(broke.index[0])
+            if b_idx - k > config.recent_breakout_months and float(highs.iloc[k : b_idx + 1].max()) > left_rim_price * (
+                1 + config.stale_breakout_max_run_pct / 100.0
+            ):
+                last_rejection_reason = "stale_breakout_already_ran_far_above"
+                continue
         # Continuation-only (2026-09-25): the cup must be a correction
         # inside an existing uptrend — see _validate_pre_cup_uptrend.
         # 2026-10-31: only enforced when require_pre_cup_uptrend is on (off
@@ -558,6 +569,15 @@ def _detect_cup_structure_and_status(
         # level, actually re-testing it — is still actionable, so THAT case
         # alone is allowed to fall through to the NEAR_BREAKOUT/EARLY_CUP
         # checks below.
+        # A stale breakout that ran far above the level afterwards (DMART, 2026-11-22: broke its Mar-2021 rim of
+        # 3330 in Jun 2021, ran to 5900, then spent five years falling back) is a finished move, not a re-test -
+        # whatever price does near that old level now is a downtrend, never "cup forming".
+        post_breakout_high = float(monthly["high"].iloc[breakout_idx : b_idx + 1].max())
+        if post_breakout_high > breakout_level * (1 + config.stale_breakout_max_run_pct / 100.0):
+            result["status"] = STATUS_NO_SIGNAL
+            result["invalidation_reason"] = "stale_breakout_already_ran_far_above"
+            result["rejection_reason"] = result["invalidation_reason"]
+            return result
         if latest_close > breakout_level:
             result["status"] = STATUS_NO_SIGNAL
             result["invalidation_reason"] = "stale_breakout_price_already_moved_away"

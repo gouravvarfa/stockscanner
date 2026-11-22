@@ -81,8 +81,8 @@ async def run_cup_scan(
     on_result: Callable[[str, list[tuple[str, StrategySignal]]], None] | None = None,
 ) -> CupScanOutcome:
     started_at = dt.datetime.utcnow()
-    universe = universe_loader.load_a_group_universe()
-    logger.info("Cup Breakout scan: %d symbols (same A Group universe)", len(universe))
+    universe = universe_loader.load_all_nse_universe()
+    logger.info("Cup Breakout scan: %d symbols (every NSE equity)", len(universe))
 
     semaphore = asyncio.Semaphore(max_concurrent_fetches)
     results: list[dict[str, Any]] = []

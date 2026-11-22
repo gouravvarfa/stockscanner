@@ -31,6 +31,10 @@ from pathlib import Path
 import openpyxl
 
 A_GROUP_PATH = Path("A_Group_Stock_List.xlsx")
+# Every NSE equity (EQ series), from NSE's own EQUITY_L list - the Cup Breakout universe (2026-11-22, user:
+# "sare stocks par hona chahiye naki bus a group"). Every other strategy stays on the A Group.
+NSE_EQUITIES_PATH = Path(__file__).resolve().parent.parent / "data" / "nse_equity_list.csv"  # NSE EQUITY_L (shared with Gann)
+_nse_cache: dict[str, str] | None = None
 
 _a_group_cache: list[str] | None = None
 
@@ -80,6 +84,26 @@ def load_a_group_universe() -> list[str]:
     return list(_a_group_cache)
 
 
+
+def _nse_equities() -> dict[str, str]:
+    global _nse_cache
+    if _nse_cache is None:
+        import csv
+
+        with open(NSE_EQUITIES_PATH, encoding="utf-8-sig") as f:
+            rows = list(csv.reader(f))[1:]  # SYMBOL, NAME OF COMPANY, SERIES, ...
+        _nse_cache = {r[0].strip().upper(): r[1].strip() for r in rows if len(r) > 2 and r[2].strip() == "EQ" and r[0].strip()}
+        if not _nse_cache:
+            raise RuntimeError(f"Universe file '{NSE_EQUITIES_PATH}' yielded zero symbols.")
+    return _nse_cache
+
+
+def load_all_nse_universe() -> list[str]:
+    """Every NSE equity (EQ series) - the Cup Breakout universe. Stocks Angel One has no data for simply fail
+    that one symbol in the scan; they never stop it."""
+    return list(_nse_equities())
+
+
 _company_names_cache: dict[str, str] | None = None
 
 
@@ -102,7 +126,14 @@ def company_name_for(symbol: str) -> str | None:
         except (OSError, ValueError):
             pass
         _company_names_cache = names
-    return _company_names_cache.get(symbol.strip().upper())
+    key = symbol.strip().upper()
+    name = _company_names_cache.get(key)
+    if name is None:
+        try:
+            name = _nse_equities().get(key)
+        except OSError:
+            name = None
+    return name
 
 
 def reset_cache_for_tests() -> None:

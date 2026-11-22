@@ -82,6 +82,9 @@ class CupConfig(BaseModel):
     # ---- Breakout classification -----------------------------------------
     near_breakout_pct: float = 10.0
     recent_breakout_months: int = 3
+    # An old breakout (> recent_breakout_months) after which price ran more than this far above the level is a
+    # finished move; a later return to that level is a downtrend, not a re-test (2026-11-22, DMART example).
+    stale_breakout_max_run_pct: float = 25.0
     # A valid-depth structure whose price is still farther than this from
     # its own breakout level is NOT reported at all (NO_SIGNAL), not even
     # as EARLY_CUP — per explicit user direction (2026-09-23, ACC example):
