@@ -2,6 +2,7 @@ import type React from "react";
 import { useEffect, useRef, useState } from "react";
 import { useChart } from "../chart/ChartContext";
 import { TrendIcon } from "../components/icons";
+import { StockLogo } from "../components/StockLogo";
 import { useWeeklyReport } from "../context/WeeklyReportContext";
 import {
   downloadWeeklyPdf,
@@ -127,14 +128,14 @@ function ActionCard({ report, onStock, onSector }: {
   const watchList = [...watchMap.values()].sort((x, y) => y.st.combined - x.st.combined);
   const vsNifty = (s: SectorRow) =>
     b.r1w !== null && b.r1m !== null && s.r1w !== null && s.r1m !== null ? `${pp(s.r1w - b.r1w)} / ${pp(s.r1m - b.r1m)}` : "";
-  const Box = ({ tone, title, note, count, children }: { tone: string; title: string; note: string; count: number; children: React.ReactNode }) => (
+  const Box = ({ tone, title, note, count, logos, children }: { tone: string; title: string; note: string; count: number; logos?: boolean; children: React.ReactNode }) => (
     <div className={`act-box act-${tone}`}>
       <div className="act-head">
         <span className="act-name">{title}</span>
         <span className="act-count">{count}</span>
       </div>
       <p className="act-note">{note}</p>
-      {count === 0 ? <p className="act-empty">None this week</p> : <ul className="act-items">{children}</ul>}
+      {count === 0 ? <p className="act-empty">None this week</p> : <ul className={logos ? "act-items act-items-logo" : "act-items"}>{children}</ul>}
     </div>
   );
   return (
@@ -144,9 +145,12 @@ function ActionCard({ report, onStock, onSector }: {
         <span className="muted small">Week ending {niceDate(report.end_date)} · vs Nifty 50 {pct(b.r1w)} 1W, {pct(b.r1m)} 1M</span>
       </div>
       <div className="act-grid">
-        <Box tone="watch" title="Watch" count={watchList.length} note="Leaders of the STRONG sectors, above their 50-day average">
+        <Box tone="watch" title="Watch" count={watchList.length} logos note="Leaders of the STRONG sectors, above their 50-day average">
           {watchList.map(({ st, sectors }) => (
             <li key={st.symbol} onClick={() => onStock(st, sectors[0])} title="Open chart">
+              <span className="act-logo">
+                <StockLogo symbol={st.symbol} />
+              </span>
               <span className="act-main">{st.symbol}</span>
               <span className="act-sub">{sectors.join(", ")}</span>
               <span className="act-val wk-up">{pct(st.r1w)}</span>
@@ -248,9 +252,14 @@ function StockTable({ rows, withSector, sectorLabel, endDate }: {
             <tr key={`${s.symbol}-${s.sector ?? ""}`}>
               <td className="wk-sym" title={s.name ?? undefined}>
                 <div className="wk-sym-cell">
-                  <div className="wk-sym-text">
-                    {s.symbol}
-                    {s.name && <span className="wk-name">{s.name}</span>}
+                  <div className="wk-sym-id">
+                    <span className="wk-logo">
+                      <StockLogo symbol={s.symbol} />
+                    </span>
+                    <div className="wk-sym-text">
+                      {s.symbol}
+                      {s.name && <span className="wk-name">{s.name}</span>}
+                    </div>
                   </div>
                   <ChartButton label={s.symbol} onOpen={() => showChart(s)} />
                 </div>

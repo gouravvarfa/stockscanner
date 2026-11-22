@@ -1199,7 +1199,7 @@ html { scrollbar-gutter: stable; }
   --hm-up4: #016f3f; --hm-up4-fg: #ffffff;
   --hm-edge: rgba(16, 24, 40, 0.07);
   --hm-lift: 0 6px 16px -6px rgba(16, 24, 40, 0.3);
-  --hm-logo-ring: 0 0 0 1px rgba(16, 24, 40, 0.1);
+  --logo-ring: 0 0 0 1px rgba(16, 24, 40, 0.1);
   --hm-seg-active: var(--bg-surface);
   --teal: #0e7490;
 }
@@ -1215,7 +1215,7 @@ html { scrollbar-gutter: stable; }
   --hm-up4: #069e5d; --hm-up4-fg: #ffffff;
   --hm-edge: rgba(255, 255, 255, 0.07);
   --hm-lift: 0 8px 18px -6px rgba(0, 0, 0, 0.75);
-  --hm-logo-ring: 0 0 0 1px rgba(0, 0, 0, 0.35);
+  --logo-ring: 0 0 0 1px rgba(0, 0, 0, 0.35);
   --hm-seg-active: #232c3d;
   --teal: #3cc3d8;
 }
@@ -1232,7 +1232,7 @@ html { scrollbar-gutter: stable; }
     --hm-up4: #069e5d; --hm-up4-fg: #ffffff;
     --hm-edge: rgba(255, 255, 255, 0.07);
     --hm-lift: 0 8px 18px -6px rgba(0, 0, 0, 0.75);
-    --hm-logo-ring: 0 0 0 1px rgba(0, 0, 0, 0.35);
+    --logo-ring: 0 0 0 1px rgba(0, 0, 0, 0.35);
     --hm-seg-active: #232c3d;
     --teal: #3cc3d8;
   }
@@ -1296,9 +1296,12 @@ html { scrollbar-gutter: stable; }
 /* logo always in the same spot: its own row at the top centre of the tile */
 .hm-tile { position: relative; align-items: center; }
 .hm-logo-slot { width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; margin-bottom: 2px; }
-.hm-logo { width: 22px; height: 22px; border-radius: 50%; background: #fff; box-shadow: var(--hm-logo-ring); }
-.hm-logo { opacity: 0; transition: opacity 0.2s ease; }
-.hm-logo-ok { opacity: 1; }
+/* Company logo (components/StockLogo): a 22px white circle; fades in once loaded; a letter when there is no image */
+.stock-logo { width: 22px; height: 22px; flex: none; border-radius: 50%; background: #fff; box-shadow: var(--logo-ring);
+  opacity: 0; transition: opacity 0.2s ease; }
+.stock-logo-ok { opacity: 1; }
+.stock-logo-mono { display: grid; place-items: center; font-size: 11px; font-weight: 600; line-height: 1;
+  background: var(--bg-soft); color: var(--text-secondary); box-shadow: inset 0 0 0 1px var(--border); }
 .hm-sym { display: block; max-width: 100%; }
 .hm-star { position: absolute; top: 4px; right: 4px; width: 15px; height: 15px; border-radius: 50%; display: grid; place-items: center;
   font-size: 9px; line-height: 1; background: #f5b70a; color: #3f2c00; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.28); }
@@ -1312,7 +1315,12 @@ html { scrollbar-gutter: stable; }
   column-gap: 10px; align-items: center; width: 100%; padding: 7px 6px; border: 0; border-radius: 6px; background: none;
   font: inherit; color: inherit; text-align: left; cursor: pointer; }
 .hm-watch-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-.hm-watch-logo { grid-area: logo; width: 24px; height: 24px; display: grid; place-items: center; }
+/* lists with a logo column: the Weekly action list's Watch box and the Heatmap's Stocks to watch */
+.act-items-logo li { grid-template-columns: 24px minmax(0, 1fr) auto; grid-template-areas: "logo main val" "logo sub val"; column-gap: 10px; }
+.act-logo { grid-area: logo; align-self: center; width: 24px; height: 24px; display: grid; place-items: center; }
+/* stock tables (Weekly Sectors): logo, then symbol and company name; the Chart button stays on the right */
+.wk-sym-id { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.wk-logo { width: 24px; height: 24px; flex: none; display: grid; place-items: center; }
 .hm-watch-row .act-val small { margin-left: 5px; font-size: 10.5px; font-weight: 600; color: var(--text-muted); }
 @media (max-width: 760px) { .hm-watch-grid { grid-template-columns: 1fr; } .hm-watch-grid .act-note { min-height: 0; } }
 @media (max-width: 600px) {

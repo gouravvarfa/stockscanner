@@ -4,33 +4,13 @@ import { useChart } from "../chart/ChartContext";
 import { HeatmapIcon } from "../components/icons";
 import { useWeeklyReport } from "../context/WeeklyReportContext";
 import { type SectorStock } from "../services/weeklySectorsApi";
-import stockLogos from "../data/stockLogos.json";
+import { StockLogo } from "../components/StockLogo";
 
 /**
  * Heatmap (2026-11-22): every sector and its stocks in one coloured grid - green up, red down - for one day, one week
  * or one month. It is drawn from the Weekly Sectors report (the same run, shared through this device's saved report),
  * so nothing extra is fetched.
  */
-
-// Company logos (TradingView's public logo images, ids looked up once for every stock in the sector lists).
-const LOGOS = stockLogos as Record<string, string>;
-function StockLogo({ symbol }: { symbol: string }) {
-  // hidden until it has loaded (no empty white circle on a slow network); the slot keeps its place either way
-  const [state, setState] = useState<"loading" | "ok" | "failed">("loading");
-  const id = LOGOS[symbol];
-  if (!id || state === "failed") return null;
-  return (
-    <img
-      className={state === "ok" ? "hm-logo hm-logo-ok" : "hm-logo"}
-      src={`https://s3-symbol-logo.tradingview.com/${id}.svg`}
-      alt=""
-      loading="lazy"
-      decoding="async"
-      onLoad={() => setState("ok")}
-      onError={() => setState("failed")}
-    />
-  );
-}
 
 type Period = "r1d" | "r1w" | "r1m";
 const PERIODS: { key: Period; label: string; steps: number[] }[] = [
@@ -114,7 +94,7 @@ function WatchBox({ tone: boxTone, title, note, rows, empty, onPick }: {
                 onClick={() => onPick(st, sectors[0])}
                 title={`${st.name ?? st.symbol}: open chart`}
               >
-                <span className="hm-watch-logo">
+                <span className="act-logo">
                   <StockLogo symbol={st.symbol} />
                 </span>
                 <span className="act-main">{st.symbol}</span>
