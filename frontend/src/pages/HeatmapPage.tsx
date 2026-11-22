@@ -1,16 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useChart } from "../chart/ChartContext";
 import { HeatmapIcon } from "../components/icons";
-import {
-  getWeeklyJob,
-  loadLastReport,
-  saveLastReport,
-  startWeeklyReport,
-  type SectorStock,
-  type WeeklyJob,
-  type WeeklyReport,
-} from "../services/weeklySectorsApi";
+import { useWeeklyReport } from "../context/WeeklyReportContext";
+import { type SectorStock } from "../services/weeklySectorsApi";
 
 /**
  * Heatmap (2026-11-22): every sector and its stocks in one coloured grid - green up, red down - for one day, one week
@@ -39,51 +32,13 @@ function pct(v: number | null | undefined): string {
 }
 
 export function HeatmapPage() {
-  const [report, setReport] = useState<WeeklyReport | null>(() => loadLastReport());
-  const [job, setJob] = useState<WeeklyJob | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [period, setPeriod] = useState<Period>(() => (loadLastReport()?.benchmark.r1d !== undefined ? "r1d" : "r1w"));
+  // The same report run as Weekly Sectors (app level): it keeps going while another page is open.
+  const { report, job, running, error, run } = useWeeklyReport();
+  const [period, setPeriod] = useState<Period>(() => (report?.benchmark.r1d !== undefined ? "r1d" : "r1w"));
   const [strongOnly, setStrongOnly] = useState(false);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { openChart } = useChart();
-  useEffect(() => () => {
-    if (timer.current) clearTimeout(timer.current);
-  }, []);
-
-  const running = job?.status === "running";
   const hasDay = report?.benchmark.r1d !== undefined;
   const conf = PERIODS.find((p) => p.key === period) ?? PERIODS[1];
-
-  async function run() {
-    setError(null);
-    try {
-      const j = await startWeeklyReport("");
-      const done = (r: WeeklyJob) => {
-        setJob(r);
-        if (r.status === "done" && r.result) {
-          setReport(r.result);
-          saveLastReport(r.result);
-        } else if (r.status === "failed") setError(r.error ?? "The report could not be built.");
-      };
-      if (j.status !== "running") return done(j);
-      setJob(j);
-      const poll = async () => {
-        try {
-          const next = await getWeeklyJob(j.job_id);
-          if (next.status === "running") {
-            setJob(next);
-            timer.current = setTimeout(poll, 1500);
-          } else done(next);
-        } catch (e) {
-          setJob(null);
-          setError(e instanceof Error ? e.message : String(e));
-        }
-      };
-      timer.current = setTimeout(poll, 1200);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    }
-  }
 
   const sectors = useMemo(() => {
     if (!report) return [];

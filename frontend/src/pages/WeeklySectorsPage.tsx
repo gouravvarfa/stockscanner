@@ -2,16 +2,12 @@ import { useEffect, useRef, useState } from "react";
 import { useChart } from "../chart/ChartContext";
 import { TrendIcon } from "../components/icons";
 import { RotationMap } from "./weekly/RotationMap";
+import { useWeeklyReport } from "../context/WeeklyReportContext";
 import {
   downloadWeeklyPdf,
   downloadWeeklyXlsx,
-  getWeeklyJob,
-  loadLastReport,
-  saveLastReport,
-  startWeeklyReport,
   type SectorRow,
   type SectorStock,
-  type WeeklyJob,
   type WeeklyReport,
 } from "../services/weeklySectorsApi";
 
@@ -271,13 +267,13 @@ function StockTable({ rows, withSector, sectorLabel, endDate }: {
 }
 
 export function WeeklySectorsPage() {
-  const [report, setReport] = useState<WeeklyReport | null>(() => loadLastReport());
+  // The run lives at app level (context/WeeklyReportContext): it keeps going while another page is open.
+  const { report, job, running, error: runError, run: runReport } = useWeeklyReport();
   const [asOf, setAsOf] = useState("");
-  const [job, setJob] = useState<WeeklyJob | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [dlError, setDlError] = useState<string | null>(null);
+  const error = runError ?? dlError;
   const [busy, setBusy] = useState<"" | "pdf" | "xlsx">("");
   const [selected, setSelected] = useState<string | null>(null);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const detailRef = useRef<HTMLDivElement>(null);
   const { openChart } = useChart();
   // A sector's own index chart, with its RSI levels in the chart header.
@@ -294,52 +290,19 @@ export function WeeklySectorsPage() {
     });
   };
 
-  useEffect(() => () => {
-    if (timer.current) clearTimeout(timer.current);
-  }, []);
+  // a new report starts on its first sector again
+  useEffect(() => setSelected(null), [report?.generated_at]);
 
-  const running = job?.status === "running";
-
-  function finish(j: WeeklyJob) {
-    setJob(j);
-    if (j.status === "done" && j.result) {
-      setReport(j.result);
-      saveLastReport(j.result);
-      setSelected(null);
-    } else if (j.status === "failed") {
-      setError(j.error ?? "The report could not be built.");
-    }
-  }
-
-  async function run() {
-    setError(null);
-    try {
-      const j = await startWeeklyReport(asOf);
-      if (j.status !== "running") return finish(j);
-      setJob(j);
-      const poll = async () => {
-        try {
-          const next = await getWeeklyJob(j.job_id);
-          if (next.status === "running") {
-            setJob(next);
-            timer.current = setTimeout(poll, 1500);
-          } else finish(next);
-        } catch (e) {
-          setJob(null);
-          setError(e instanceof Error ? e.message : String(e));
-        }
-      };
-      timer.current = setTimeout(poll, 1200);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    }
+  function run() {
+    setDlError(null);
+    return runReport(asOf);
   }
 
   function dl(kind: "pdf" | "xlsx") {
     if (!report) return;
     setBusy(kind);
     (kind === "pdf" ? downloadWeeklyPdf(report) : downloadWeeklyXlsx(report))
-      .catch((e) => setError(e instanceof Error ? e.message : "Download failed"))
+      .catch((e) => setDlError(e instanceof Error ? e.message : "Download failed"))
       .finally(() => setBusy(""));
   }
 

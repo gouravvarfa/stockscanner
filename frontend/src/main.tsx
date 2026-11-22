@@ -6,14 +6,17 @@ import './design.css'
 import App from './App.tsx'
 import { ScanProvider } from './context/ScanContext'
 import { ChartProvider } from './chart/ChartContext'
+import { WeeklyReportProvider } from './context/WeeklyReportContext'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <BrowserRouter>
       <ScanProvider>
-        <ChartProvider>
-          <App />
-        </ChartProvider>
+        <WeeklyReportProvider>
+          <ChartProvider>
+            <App />
+          </ChartProvider>
+        </WeeklyReportProvider>
       </ScanProvider>
     </BrowserRouter>
   </StrictMode>,
