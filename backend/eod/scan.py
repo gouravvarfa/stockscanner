@@ -159,6 +159,7 @@ def run(store: dict[str, pd.DataFrame], strong_map: dict[str, str] | None = None
                 cup["instrument_type"] = "EQUITY"
                 cup["updated_at"] = started.isoformat()
                 cup["data_source"] = "NSE_EOD"
+                cup["sectors"] = [x for x in ((sector_info or {}).get("members", {}).get(sym) or []) if x["status"] == "strong"]
                 cup_results.append(cup)
         except Exception as exc:  # noqa: BLE001 - one bad stock never stops the scan
             failed.append({"symbol": sym, "error": f"cup: {exc}"})
@@ -198,7 +199,7 @@ def run(store: dict[str, pd.DataFrame], strong_map: dict[str, str] | None = None
     cup_payload = {**common, "started_at": started.isoformat(), "finished_at": finished.isoformat(),
                    "execution_seconds": (finished - started).total_seconds(), "stocks_scanned": scanned,
                    "stocks_failed": len(failed), "failed_symbols": [f["symbol"] for f in failed if f["error"].startswith("cup")],
-                   "results": cup_results}
+                   "results": cup_results, "sector_status": (sector_info or {}).get("sectors", [])}
     vb_payload = {**common, "started_at": started.isoformat(), "finished_at": finished.isoformat(),
                   "stocks_scanned": scanned, "stocks_failed": len([f for f in failed if f["error"].startswith("value_buy")]),
                   "strategies": {"Value Buy": vb_signals}, "support_zone": support, "strong_symbols": strong_map or {}, "strong_sectors": strong_sectors or [],

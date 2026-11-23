@@ -21,6 +21,8 @@ const SCAN_TYPE = "cup_breakout";
 
 interface CupResult {
   symbol: string;
+  /** strong sectors this stock belongs to (NSE end-of-day result, 2026-11-23) */
+  sectors?: { key: string; label: string; status: string }[];
   company_name?: string | null;
   instrument_type: "FUTURE" | "EQUITY" | null;
   status: string;
@@ -153,6 +155,7 @@ export function CupBreakoutPage() {
 
   const [activeTab, setActiveTab] = useState<StatusTabKey>("all");
   const [symbolSearch, setSymbolSearch] = useState("");
+  const [strongOnly, setStrongOnly] = useState(false);
   const [distanceFilter, setDistanceFilter] = useState<"all" | "0-2" | "2-5" | "5-10">("all");
   const [depthFilter, setDepthFilter] = useState<"all" | "10-20" | "20-30" | "30-40" | "40+">("all");
   const [sortKey, setSortKey] = useState<SortKey>("closest_breakout");
@@ -184,6 +187,7 @@ export function CupBreakoutPage() {
   const filtered = useMemo(() => {
     let rows = allResults;
     if (activeTab !== "all") rows = rows.filter((r) => r.status === activeTab);
+    if (strongOnly) rows = rows.filter((r) => (r.sectors ?? []).length > 0);
     if (symbolSearch.trim()) {
       const q = symbolSearch.trim().toUpperCase();
       rows = rows.filter((r) => r.symbol.toUpperCase().includes(q));
@@ -221,7 +225,7 @@ export function CupBreakoutPage() {
       }
     });
     return sorted;
-  }, [allResults, activeTab, symbolSearch, distanceFilter, depthFilter, sortKey]);
+  }, [allResults, activeTab, symbolSearch, distanceFilter, depthFilter, sortKey, strongOnly]);
 
   const qualifying = useMemo(() => allResults.filter((r) => r.status !== "EARLY_CUP"), [allResults]);
   const closestToBreakout = useMemo(
@@ -337,6 +341,18 @@ export function CupBreakoutPage() {
             ))}
           </div>
 
+          <div className="cup-strong-bar">
+            <div className="vb-seg" role="tablist" aria-label="Sectors">
+              <button type="button" role="tab" aria-selected={!strongOnly} className={!strongOnly ? "active" : ""} onClick={() => setStrongOnly(false)}>
+                All cups <b>{allResults.length}</b>
+              </button>
+              <button type="button" role="tab" aria-selected={strongOnly} className={strongOnly ? "active" : ""} onClick={() => setStrongOnly(true)}>
+                Strong sector <b>{allResults.filter((r) => (r.sectors ?? []).length > 0).length}</b>
+              </button>
+            </div>
+            <span className="muted small">Strong sector = your Weekly Sectors whose index daily, weekly and monthly RSI are all above 60 today</span>
+          </div>
+
           <div className="card filters-row filter-panel">
             <label>
               Search symbol
@@ -418,6 +434,7 @@ export function CupBreakoutPage() {
                         <span className="wk-logo"><StockLogo symbol={r.symbol} /></span>
                         <b>{r.symbol}</b>
                         <InstrumentBadge type={r.instrument_type} />
+                        {(r.sectors ?? []).map((sc) => <span key={sc.key} className="vb-sec vb-sec-strong" style={{ marginLeft: 6 }}>{sc.label}</span>)}
                       </td>
                       <td>{r.company_name ?? "—"}</td>
                       <td>{r.instrument_type ?? "—"}</td>

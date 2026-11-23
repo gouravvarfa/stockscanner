@@ -2123,3 +2123,4 @@ h1, .page-header h1, .app-content > h1, .app-content > div > h1:first-child { fo
 .vb-best-price { font-size: 22px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
 .vb-best-meta { display: flex; flex-direction: column; gap: 2px; font-size: 12px; color: var(--text-secondary); }
 .vb-best-meta b { font-weight: 600; color: var(--text-primary); }
+.cup-strong-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin: 0 0 12px; }
