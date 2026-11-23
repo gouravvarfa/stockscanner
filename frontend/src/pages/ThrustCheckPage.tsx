@@ -32,9 +32,9 @@ function ThrustMotif() {
 }
 
 const STATUS: Record<ThrustCheck["status"], { label: string; cls: string; text: string }> = {
-  stretched: { label: "Stretched — don't chase", cls: "th-hot", text: "A thrust fired in the last 3 candles. A pullback of about 1 ATR usually comes within 1–2 days; a fresh entry here is late." },
-  fired: { label: "Thrust fired earlier", cls: "th-warm", text: "This swing already had a thrust; it is more than 3 candles old now." },
-  normal: { label: "Normal pace", cls: "th-calm", text: "The move from the last swing is below 1 ATR per candle — no thrust." },
+  stretched: { label: "Stretched — don't chase", cls: "th-hot", text: "It has run too fast in the last few days. Don't buy (or sell) late here — a dip of about one normal day's range usually comes within 1–2 days." },
+  fired: { label: "Was stretched earlier", cls: "th-warm", text: "It ran too fast earlier in this move, but that was more than 3 days ago — the warning has passed." },
+  normal: { label: "Normal speed", cls: "th-calm", text: "It is moving at a normal speed — nothing stretched, no warning." },
 };
 
 export function ThrustCheckPage() {
@@ -82,7 +82,7 @@ export function ThrustCheckPage() {
         tone="outlook"
         eyebrow="Single stock · move speed"
         title="Thrust Check"
-        subtitle="Has the move from the last swing run at 1 ATR or more per candle? Such thrusts often pause or pull back soon — a warning not to chase, never a signal to trade against."
+        subtitle="Is this stock running too fast? If it has moved a full normal day's range every single day since its last turn, it is stretched — it often pauses or dips soon. A warning not to chase, never a buy or sell signal."
         motif={<ThrustMotif />}
       >
         <span className="hero-pill">Tested on 613 stocks & markets, 2005–2026</span>
@@ -118,6 +118,18 @@ export function ThrustCheckPage() {
         </div>
       </section>
 
+      <section className="card th-how">
+        <h2>How it works — in 3 steps</h2>
+        <ol>
+          <li><b>Find the last turn.</b> The latest clear top or bottom (the highest or lowest point of 10 days on each side).</li>
+          <li><b>Measure the speed.</b> How far price has moved since then, per day, compared with a normal day&apos;s range for that stock (ATR).</li>
+          <li><b>Warn when it is too fast.</b> If it has moved a full normal day&apos;s range or more every day, it is <b>stretched</b>. After that it often pauses or dips, so don&apos;t chase it.</li>
+        </ol>
+        <p className="muted small">
+          Example: a stock that normally moves ₹20 a day and has risen ₹200 in 8 days (₹25 a day = 125%) is stretched. The same ₹200 in 30 days (₹7 a day = 33%) is normal.
+        </p>
+      </section>
+
       {error && <div className="error-banner">{error}</div>}
       {!symbol && !loading && (
         <div className="card state-block">
@@ -140,33 +152,39 @@ export function ThrustCheckPage() {
               <span className={`th-status ${st.cls}`}>{st.label}</span>
             </div>
             <p className="th-text">{st.text}</p>
+            <div className="th-plain">
+              Since its last {data.pivot.kind === "low" ? "bottom" : "top"} on {fmtDate(data.pivot.date)} ({data.bars_since} trading days ago) it has moved{" "}
+              <b>{data.direction === "up" ? "up" : "down"} ₹{num(data.move)}</b>. A normal day&apos;s move for it is about <b>₹{num(data.atr)}</b>, so it has
+              moved <b>₹{num(data.bars_since > 0 ? data.move / data.bars_since : 0)} a day</b> — <b>{Math.round(data.pace * 100)}%</b> of a normal day&apos;s range
+              every day. It is &quot;stretched&quot; only at 100% or more.
+            </div>
 
-            <div className="th-meter" aria-label={`Pace ${data.pace} ATR per candle`}>
+            <div className="th-meter" aria-label={`Speed ${Math.round(data.pace * 100)}% of a normal day per day`}>
               <div className="th-track"><span style={{ width: `${fill}%` }} className={st.cls} /><i style={{ left: `${(1 / 1.5) * 100}%` }} /></div>
-              <div className="th-meter-labels"><span>0</span><b>1 ATR / candle</b><span>1.5</span></div>
+              <div className="th-meter-labels"><span>Slow</span><b>Stretched line (100%)</b><span>Very fast</span></div>
             </div>
 
             <div className="tb-summary-grid wk-kpis">
               <div className="tb-summary-tile">
-                <div className="tb-summary-label">LAST SWING</div>
-                <div className="tb-summary-value">{data.pivot.kind === "low" ? "Low" : "High"} ₹{num(data.pivot.price)}</div>
-                <div className="tb-config-hint" style={{ margin: 0 }}>{fmtDate(data.pivot.date)} · {data.bars_since} candles ago</div>
+                <div className="tb-summary-label">LAST TURN</div>
+                <div className="tb-summary-value">{data.pivot.kind === "low" ? "Bottom" : "Top"} ₹{num(data.pivot.price)}</div>
+                <div className="tb-config-hint" style={{ margin: 0 }}>{fmtDate(data.pivot.date)} · {data.bars_since} days ago</div>
               </div>
               <div className="tb-summary-tile">
-                <div className="tb-summary-label">MOVE SINCE ({data.direction.toUpperCase()})</div>
+                <div className="tb-summary-label">MOVED SINCE ({data.direction.toUpperCase()})</div>
                 <div className="tb-summary-value">₹{num(data.move)}</div>
-                <div className="tb-config-hint" style={{ margin: 0 }}>ATR at the swing ₹{num(data.atr)}</div>
+                <div className="tb-config-hint" style={{ margin: 0 }}>A normal day ≈ ₹{num(data.atr)}</div>
               </div>
               <div className="tb-summary-tile">
-                <div className="tb-summary-label">PACE NOW</div>
-                <div className="tb-summary-value">{data.pace.toFixed(2)} ATR / candle</div>
-                <div className="tb-config-hint" style={{ margin: 0 }}>A thrust needs 1.00 (from the 5th candle)</div>
+                <div className="tb-summary-label">SPEED NOW</div>
+                <div className="tb-summary-value">{Math.round(data.pace * 100)}%</div>
+                <div className="tb-config-hint" style={{ margin: 0 }}>of a normal day, every day · stretched at 100%</div>
               </div>
               <div className="tb-summary-tile">
-                <div className="tb-summary-label">THRUST</div>
-                <div className="tb-summary-value">{data.thrust ? fmtDate(data.thrust.date) : "None yet"}</div>
+                <div className="tb-summary-label">LAST STRETCH</div>
+                <div className="tb-summary-value">{data.thrust ? fmtDate(data.thrust.date) : "None"}</div>
                 <div className="tb-config-hint" style={{ margin: 0 }}>
-                  {data.thrust ? `${data.thrust.bars_ago} candles ago · pace ${data.thrust.pace}${data.thrust.climax ? " · volume climax" : ""}` : "on this swing"}
+                  {data.thrust ? `${data.thrust.bars_ago} days ago · ${Math.round(data.thrust.pace * 100)}% speed${data.thrust.climax ? " · on heavy volume" : ""}` : "in this move"}
                 </div>
               </div>
             </div>
@@ -175,28 +193,28 @@ export function ThrustCheckPage() {
           <section className="card">
             <div className="dash-card-head">
               <div>
-                <h2>{data.symbol}: past thrusts</h2>
+                <h2>{data.symbol}: past times it got stretched</h2>
                 <p className="muted small">
-                  On this chart: a new swing formed within ±3 candles after {data.own_record.turned} of {data.own_record.thrusts} thrusts.
+                  It turned (made a new top or bottom) within 3 days in {data.own_record.turned} of these {data.own_record.thrusts} times.
                 </p>
               </div>
             </div>
             {data.history.length === 0 ? (
-              <p className="muted dash-empty">No thrust in the loaded history.</p>
+              <p className="muted dash-empty">It never got stretched in the loaded history.</p>
             ) : (
               <div className="table-wrap">
                 <table className="dash-signal-table">
                   <thead>
-                    <tr><th>Thrust</th><th>Direction</th><th className="num-cell">Candles</th><th className="num-cell">Pace</th><th className="num-cell">Came back</th><th>New swing ±3</th></tr>
+                    <tr><th>Date</th><th>Move</th><th className="num-cell">Days</th><th className="num-cell">Speed</th><th className="num-cell">Came back (normal days)</th><th>Turned within 3 days?</th></tr>
                   </thead>
                   <tbody>
                     {data.history.map((h) => (
                       <tr key={h.date + h.from_date}>
                         <td><span className="dash-two">{fmtDate(h.date)}<small>from {fmtDate(h.from_date)}</small></span></td>
-                        <td><span className={h.direction === "up" ? "wk-up" : "wk-down"}>{h.direction}</span>{h.climax && <span className="th-climax">climax</span>}</td>
+                        <td><span className={h.direction === "up" ? "wk-up" : "wk-down"}>{h.direction}</span>{h.climax && <span className="th-climax">heavy volume</span>}</td>
                         <td className="num-cell">{h.bars}</td>
-                        <td className="num-cell">{h.pace.toFixed(2)}</td>
-                        <td className="num-cell">{h.back_atr == null ? "—" : `${h.back_atr.toFixed(1)} ATR`}</td>
+                        <td className="num-cell">{Math.round(h.pace * 100)}%</td>
+                        <td className="num-cell">{h.back_atr == null ? "—" : `${h.back_atr.toFixed(1)}×`}</td>
                         <td>{h.turned == null ? <span className="muted small">too recent</span> : h.turned ? "Yes" : "No"}</td>
                       </tr>
                     ))}
@@ -205,18 +223,18 @@ export function ThrustCheckPage() {
               </div>
             )}
             <p className="muted small aw-honest">
-              Tested on 613 stocks, indices and commodities (2005–2026), with only confirmed swings: after a thrust a new swing
-              formed within ±3 days {data.record.turn_within_3} of the time against {data.record.turn_random} at random, and price came
-              back 1 ATR {data.record.back_1atr} of the time, usually in 1–2 days. Trading against the thrust (stop beyond its extreme,
-              1R or 2R target) averaged {data.record.avg_r} — so read it as "don&apos;t chase", not as a short or buy signal.
+              What 20 years of data say (613 stocks, indices and commodities): after a stock got stretched, it made a new top or bottom
+              within 3 days about half the time ({data.record.turn_within_3}, against {data.record.turn_random} on an ordinary day), and it gave back
+              about one normal day&apos;s move {data.record.back_1atr} of the time, usually in 1–2 days. But betting on that reversal made no
+              money over time — so use it only as &quot;don&apos;t chase&quot;, not as a buy or sell signal.
             </p>
           </section>
         </>
       )}
 
       <p className="muted small aw-foot">
-        Daily candles from Angel One. Swing = highest high or lowest low of ±10 candles, counted once 10 candles have closed after it.
-        ATR = 14-day average true range at the swing. Volume climax = a candle of 1.5 ATR or more on 1.5× the 20-day volume. For
+        Daily candles from Angel One. A turn counts once 10 days have closed after it.
+        A normal day's range = the 14-day average true range (ATR). Heavy volume = a day of 1.5× the normal range on 1.5× the 20-day volume. For
         education only; not investment advice.
       </p>
     </div>
