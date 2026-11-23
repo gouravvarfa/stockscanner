@@ -42,6 +42,42 @@ def _dedupe_and_sort(frames: list[pd.DataFrame]) -> pd.DataFrame:
     return combined
 
 
+# Token bucket (2026-11-23): every Cup history request takes a token; tokens refill at a steady rate shared by all the
+# stocks running in parallel. Angel One allows about 3 historical-candle calls a second, so the bucket keeps the scan
+# just under that however many stocks run at once - fast, but without tripping the limiter.
+BUCKET_RATE_PER_SECOND = 2.5
+BUCKET_CAPACITY = 3
+
+
+class _TokenBucket:
+    def __init__(self, rate: float, capacity: int):
+        self.rate, self.capacity = rate, float(capacity)
+        self.tokens = float(capacity)
+        self.updated = 0.0
+        self._lock: asyncio.Lock | None = None
+        self._loop: asyncio.AbstractEventLoop | None = None
+
+    async def take(self) -> None:
+        loop = asyncio.get_running_loop()
+        if self._lock is None or self._loop is not loop:  # a lock belongs to one event loop
+            self._lock, self._loop = asyncio.Lock(), loop
+            self.tokens, self.updated = self.capacity, 0.0
+        async with self._lock:
+            while True:
+                now = loop.time()
+                if self.updated == 0.0:
+                    self.updated = now
+                self.tokens = min(self.capacity, self.tokens + (now - self.updated) * self.rate)
+                self.updated = now
+                if self.tokens >= 1:
+                    self.tokens -= 1
+                    return
+                await asyncio.sleep((1 - self.tokens) / self.rate)
+
+
+_bucket = _TokenBucket(BUCKET_RATE_PER_SECOND, BUCKET_CAPACITY)
+
+
 # Angel One's rate limiter answers HTTP 403 / "Too many requests" when calls bunch up. That is temporary, so a chunk
 # is retried with a growing pause instead of failing the whole stock (2026-11-23: half of an all-NSE Cup scan was
 # failing on exactly this and those stocks were silently missing from the results).
@@ -57,6 +93,7 @@ def _is_rate_limited(exc: Exception) -> bool:
 async def _fetch_with_retry(angelone: AngelOneProvider, exch_seg: str, token: str, start: dt.datetime, end: dt.datetime) -> pd.DataFrame:
     for attempt in range(RATE_LIMIT_RETRIES + 1):
         try:
+            await _bucket.take()
             return await angelone.get_daily_ohlc_range(exch_seg, token, start, end)
         except Exception as exc:  # noqa: BLE001 - only rate-limit errors are retried; anything else is raised as before
             if attempt >= RATE_LIMIT_RETRIES or not _is_rate_limited(exc):

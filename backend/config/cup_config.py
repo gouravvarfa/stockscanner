@@ -26,7 +26,7 @@ class CupConfig(BaseModel):
     # back-to-back chunk requests, gone entirely once spaced out).
     history_years: int = 10
     chunk_years: float = 2.0
-    chunk_delay_seconds: float = 3.0
+    chunk_delay_seconds: float = 0.0  # pacing is done by the shared token bucket in cup_history.py
     # ---- Disk cache (2026-09-24, Render OOM) ------------------------------
     # Render's instance kept exceeding its memory limit and auto-restarting
     # mid-scan even after the per-symbol disk cache fix — on Render's small

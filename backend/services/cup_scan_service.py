@@ -35,7 +35,7 @@ logger = logging.getLogger("scanner.cup_scan_service")
 # rate limit even with several "lanes" running at once, per the existing
 # per-job-semaphore pattern in scan_service.py (never a shared cross-job
 # limiter — see that module's DEFAULT_MAX_CONCURRENT_PER_JOB_FETCHES comment).
-DEFAULT_MAX_CONCURRENT_CUP_FETCHES = 2
+DEFAULT_MAX_CONCURRENT_CUP_FETCHES = 6  # parallel stocks; the token bucket caps the request rate
 
 
 @dataclass

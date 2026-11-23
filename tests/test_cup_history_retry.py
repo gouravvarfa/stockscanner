@@ -37,3 +37,14 @@ def test_other_errors_are_not_retried(monkeypatch):
     except RuntimeError as exc:
         assert "not found" in str(exc)
     assert p.calls == 1
+
+
+def test_token_bucket_paces_requests():
+    async def go():
+        b = cup_history._TokenBucket(rate=20.0, capacity=2)
+        loop = asyncio.get_running_loop()
+        t0 = loop.time()
+        await asyncio.gather(*(b.take() for _ in range(6)))
+        return loop.time() - t0
+    elapsed = asyncio.run(go())
+    assert 0.15 <= elapsed < 1.0  # 2 at once, then 4 more at 20/s = ~0.2s
