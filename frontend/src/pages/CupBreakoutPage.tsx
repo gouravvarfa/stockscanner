@@ -143,7 +143,7 @@ function partialToCupResult(signal: { extra: Record<string, unknown> }): CupResu
 }
 
 export function CupBreakoutPage() {
-  const { result, partial, progressLog, job, running, error, run, runFresh, cancel, cache, clearSaved, queued } = useScanJob<CupScanResult>(SCAN_TYPE);
+  const { result, partial, progressLog, job, running, error, cancel, cache, clearSaved, queued } = useScanJob<CupScanResult>(SCAN_TYPE);
   const { openChart } = useChart();
   const eod = useEodResult<CupScanResult>("cup");
   const { shown, isEod } = newerOf(result, eod);
@@ -288,10 +288,7 @@ export function CupBreakoutPage() {
               <span className="eod-ready">✓ Ready · NSE data of {new Date(`${eod.data_as_of}T00:00:00`).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })} · no scan needed</span>
             </>
           ) : !running ? (
-            <>
-              <button className="primary-button" onClick={run}>Scan</button>
-              <button className="secondary-button" onClick={runFresh} style={{ marginLeft: 8 }}>Fresh Scan</button>
-            </>
+            eod === undefined ? <span className="eod-ready eod-wait"><span className="spinner" /> Loading NSE results…</span> : null
           ) : (
             <button className="secondary-button stop-scan-button" onClick={cancel}>Stop Scan</button>
           )}
@@ -534,12 +531,7 @@ export function CupBreakoutPage() {
         </>
       )}
 
-      {!running && allResults.length === 0 && !error && (
-        <div className="card state-block">
-          <div className="state-title">No Cup Breakout scan yet</div>
-          <div className="state-subtitle">Run a scan to find long-term monthly Cup structures approaching or breaking resistance.</div>
-        </div>
-      )}
+      {!running && allResults.length === 0 && !error && (eod === undefined ? <div className="card state-block eod-loading"><span className="spinner" /><div className="state-title">Loading today&apos;s NSE results…</div></div> : <div className="card state-block"><div className="state-title">Results are being prepared</div><div className="state-subtitle">The Cup list is built from NSE&apos;s end-of-day data every evening after the market closes.</div></div>)}
     </div>
   );
 }

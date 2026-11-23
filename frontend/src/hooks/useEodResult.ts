@@ -7,21 +7,22 @@ import { useEffect, useState } from "react";
  */
 export type EodMeta = { data_as_of: string; generated_at: string; source: string };
 
-export function useEodResult<T>(name: "cup" | "value_buy"): (T & EodMeta) | null {
-  const [data, setData] = useState<(T & EodMeta) | null>(null);
+/** undefined while the file is loading, null when there is none. */
+export function useEodResult<T>(name: "cup" | "value_buy"): (T & EodMeta) | null | undefined {
+  const [data, setData] = useState<(T & EodMeta) | null | undefined>(undefined);
   useEffect(() => {
     let alive = true;
     fetch(`/eod/${name}.json?d=${new Date().toISOString().slice(0, 10)}`, { cache: "no-cache" })
       .then((r) => (r.ok ? r.json() : null))
-      .then((j) => { if (alive && j && j.data_as_of) setData(j as T & EodMeta); })
-      .catch(() => { /* no EOD file: the page works from live scans as before */ });
+      .then((j) => { if (alive) setData(j && j.data_as_of ? (j as T & EodMeta) : null); })
+      .catch(() => { if (alive) setData(null); });
     return () => { alive = false; };
   }, [name]);
   return data;
 }
 
 /** The live result when it is newer than the end-of-day one, otherwise the end-of-day one. */
-export function newerOf<T extends { finished_at?: string }>(live: T | null | undefined, eod: (T & EodMeta) | null): { shown: T | null; isEod: boolean } {
+export function newerOf<T extends { finished_at?: string }>(live: T | null | undefined, eod: (T & EodMeta) | null | undefined): { shown: T | null; isEod: boolean } {
   if (live && (!eod || new Date(live.finished_at ?? 0).getTime() > new Date(eod.generated_at).getTime())) return { shown: live, isEod: false };
-  return { shown: eod, isEod: !!eod };
+  return { shown: eod ?? null, isEod: !!eod };
 }

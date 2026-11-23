@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useChart } from "../chart/ChartContext";
 import { ConditionChip } from "../components/ConditionChip";
 import { InstrumentBadge } from "../components/InstrumentBadge";
-import { TrendIcon, ValueTagIcon } from "../components/icons";
+import { TrendIcon } from "../components/icons";
 import { useScanJob } from "../hooks/useScanJob";
 import { newerOf, useEodResult } from "../hooks/useEodResult";
 import type { ScanResult, StrategySignal } from "../services/api";
@@ -48,7 +48,7 @@ function minutes(seconds: number | null | undefined): string {
 }
 
 export function ValueBuyPage() {
-  const { result, partial, job, running, error, cache, run, runFresh, cancel, queued } = useScanJob<ValueBuyResult>("value_buy");
+  const { result, partial, job, running, error, cache, cancel, queued } = useScanJob<ValueBuyResult>("value_buy");
   const eodVb = useEodResult<ValueBuyResult>("value_buy");
   const { shown: vb, isEod } = newerOf(running ? null : result, eodVb);
   const [strongOnly, setStrongOnly] = useState<boolean>(() => {
@@ -124,18 +124,9 @@ export function ValueBuyPage() {
             <>
               <span className="eod-ready">✓ Ready · NSE data of {new Date(`${eodVb.data_as_of}T00:00:00`).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })} · no scan needed</span>
             </>
-          ) : (
-            <>
-              <button className="primary-button" onClick={() => void run()} disabled={running}>
-                {running ? "Scanning…" : "Run Scan"}
-              </button>
-              {!running && (
-                <button className="secondary-button" onClick={() => void runFresh()} title="Ignore the saved result and fetch fresh data">
-                  Fresh Scan
-                </button>
-              )}
-            </>
-          )}
+          ) : eodVb === undefined && !running ? (
+            <span className="eod-ready eod-wait"><span className="spinner" /> Loading NSE results…</span>
+          ) : null}
           {running && (
             <button className="secondary-button stop-scan-button" onClick={() => void cancel()}>
               Stop Scan
@@ -181,15 +172,7 @@ export function ValueBuyPage() {
       )}
       {error && <div className={running ? "notice-banner" : "error-banner"}>{error}</div>}
 
-      {!vb && !running && !error && (
-        <div className="card state-block">
-          <div className="state-icon">
-            <ValueTagIcon width={28} height={28} />
-          </div>
-          <div className="state-title">No Value Buy scan yet</div>
-          <div className="state-subtitle">Run a scan to check every NSE stock with the Value Buy rules.</div>
-        </div>
-      )}
+      {!vb && !running && !error && (eodVb === undefined ? <div className="card state-block eod-loading"><span className="spinner" /><div className="state-title">Loading today&apos;s NSE results…</div></div> : <div className="card state-block"><div className="state-title">Results are being prepared</div><div className="state-subtitle">The Value Buy list is built from NSE&apos;s end-of-day data every evening after the market closes.</div></div>)}
 
       {vb && (
         <>
