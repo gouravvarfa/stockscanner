@@ -1952,3 +1952,15 @@ h1, .page-header h1, .app-content > h1, .app-content > div > h1:first-child { fo
   color: var(--pt, var(--accent)); background: color-mix(in srgb, var(--pt, var(--accent)) 10%, transparent); }
 .dash-tabs .tab.active { color: var(--pt, var(--accent)); border-color: var(--pt, var(--accent)); }
 .dash-tabs .tab.active .tab-count { background: color-mix(in srgb, var(--pt, var(--accent)) 14%, transparent); color: var(--pt, var(--accent)); }
+
+/* Sidebar in the page colour (2026-11-23): the rail takes a soft wash of the open page's colour */
+:root[data-page] .app-sidebar {
+  background:
+    radial-gradient(120% 50% at 0% 0%, color-mix(in srgb, var(--pt) 12%, transparent), transparent 70%),
+    radial-gradient(120% 40% at 100% 100%, color-mix(in srgb, var(--pt) 8%, transparent), transparent 70%),
+    linear-gradient(180deg, color-mix(in srgb, var(--pt) 5%, var(--bg-surface)), var(--bg-surface));
+  border-right-color: color-mix(in srgb, var(--pt) 18%, var(--border));
+  transition: background .35s ease, border-color .35s ease; }
+:root[data-page] .app-sidebar .sidebar-brand { border-bottom-color: color-mix(in srgb, var(--pt) 18%, var(--border)); }
+:root[data-page] .app-sidebar .sidebar-link:hover:not(.active) { background: color-mix(in srgb, var(--pt) 7%, transparent); }
+:root[data-page] .app-sidebar .sidebar-foot { border-top-color: color-mix(in srgb, var(--pt) 18%, var(--border)); }
