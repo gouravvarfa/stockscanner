@@ -398,6 +398,12 @@ def detect_cup(
     """
     result = _detect_cup_structure_and_status(daily_ohlcv, config, now)
     neckline = result.get("potential_breakout_level")
+    if result["status"] in QUALIFYING_STATUSES and neckline and _rim_broken_then_failed(daily_ohlcv, result, neckline, config, now):
+        # 2026-11-23 (user, AXISBANK): a cup whose rim was already broken once and then given back is not a cup any
+        # more (it is a failed breakout / a big handle) - not reported.
+        result.update({"status": "NO_SIGNAL", "invalidation_reason": "rim_already_broken_and_failed",
+                       "rejection_reason": "rim_already_broken_and_failed"})
+        return result
     if result["status"] in QUALIFYING_STATUSES and neckline:
         levels = compute_trade_levels(neckline, config)
         current_price = float(daily_ohlcv["close"].iloc[-1])
@@ -410,6 +416,25 @@ def detect_cup(
             **levels,
         })
     return result
+
+
+def _rim_broken_then_failed(daily_ohlcv: pd.DataFrame, result: dict[str, Any], rim: float, config: CupConfig,
+                            now: dt.datetime | None) -> bool:
+    """True when, after the cup low, a completed month already CLOSED above the rim and a later completed month closed
+    more than failed_breakout_pullback_pct below it (AXISBANK: Feb-2026 close 1384 above the 1340 rim, then 1217 in
+    Oct-2026)."""
+    low_date = result.get("cup_low_date")
+    if not low_date:
+        return False
+    now = now or dt.datetime.now()
+    closes = daily_ohlcv["close"].resample("ME").last().dropna()
+    closes = closes[closes.index < pd.Timestamp(now.year, now.month, 1)]  # completed months only
+    closes = closes[closes.index > pd.Timestamp(low_date)]
+    above = closes[closes > rim]
+    if above.empty:
+        return False
+    after = closes[closes.index > above.index[0]]
+    return bool((after < rim * (1 - config.failed_breakout_pullback_pct / 100.0)).any())
 
 
 def _detect_cup_structure_and_status(

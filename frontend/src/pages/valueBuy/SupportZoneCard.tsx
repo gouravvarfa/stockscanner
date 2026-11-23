@@ -40,7 +40,7 @@ export function SupportZoneCard({ rows, strongMap, strongOnly, query }: {
           <input type="checkbox" checked={only78} onChange={(e) => setOnly78(e.target.checked)} />
           Only the 78% pullback <b>{count78}</b>
         </label>
-        <span className="muted small">Monthly RSI 38–45 (support at 40) · daily pullback measured on the last swing low → high (5-day swings)</span>
+        <span className="muted small">Monthly RSI 38–45 with this month's candle (support at 40) · daily pullback measured on the last swing low → high (5-day swings)</span>
       </div>
       {list.length === 0 ? (
         <p className="muted" style={{ marginBottom: 0 }}>{only78 ? "No stock with a 78% pullback in this list right now — untick to see every support-zone stock." : "No stock matches."}</p>
@@ -51,7 +51,7 @@ export function SupportZoneCard({ rows, strongMap, strongOnly, query }: {
               <tr>
                 <th>Stock</th>
                 <th className="num-cell">Price</th>
-                <th className="num-cell">Monthly RSI</th>
+                <th className="num-cell" title="Including this month's candle as of the data date">Monthly RSI (this month)</th>
                 <th className="num-cell">Daily pullback</th>
                 <th>Swing (low → high)</th>
                 <th>Also</th>

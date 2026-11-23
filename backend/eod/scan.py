@@ -29,6 +29,22 @@ VALUE_BUY_DAYS = 1500  # the live scan's MONTHLY_RSI_LOOKBACK_DAYS
 STALE_DAYS = 10  # a stock with no trade in the last 10 days (suspended/delisted) is skipped
 
 
+def monthly_rsi_now(df: pd.DataFrame, length: int = 14) -> float | None:
+    """Monthly RSI(14) including the CURRENT month's candle as it stands today (2026-11-23, user: 'aaj ki candle' -
+    is the stock near the 40 support today, not at last month's close). Wilder smoothing, like charting apps."""
+    closes = df["close"].resample("ME").last().dropna()
+    if len(closes) < length + 1:
+        return None
+    delta = closes.diff().dropna()
+    gain = delta.clip(lower=0.0)
+    loss = -delta.clip(upper=0.0)
+    avg_gain = gain.ewm(alpha=1 / length, adjust=False, min_periods=length).mean().iloc[-1]
+    avg_loss = loss.ewm(alpha=1 / length, adjust=False, min_periods=length).mean().iloc[-1]
+    if avg_loss == 0:
+        return 100.0
+    return float(100 - 100 / (1 + avg_gain / avg_loss))
+
+
 def daily_retracement(df: pd.DataFrame) -> dict | None:
     """The daily pullback inside the last up-swing (2026-11-23, the user's PFC example: low 310.30 -> high 346.37,
     then a dip to ~319 = the 78.6% zone). Swings use 5 daily bars on each side, like a chart's Fibonacci tool. The
@@ -102,12 +118,14 @@ def run(store: dict[str, pd.DataFrame], strong_map: dict[str, str] | None = None
             result = analyze_stock(sym, tail, config)
             if result is not None:
                 sig = evaluate_value_buy(result, tail, vb_config)
-                if sig.conditions.get("monthly_rsi_in_support_zone"):
+                rsi_now = monthly_rsi_now(df)
+                if rsi_now is not None and vb_config.monthly_rsi_support_min <= rsi_now <= vb_config.monthly_rsi_support_max:
                     ret = daily_retracement(df)
                     support.append({
                         "symbol": sym, "company_name": universe_loader.company_name_for(sym) or sym,
                         "price": round(float(result.current_price), 2), "daily_rsi": result.daily.rsi,
-                        "weekly_rsi": result.weekly.rsi, "monthly_rsi": result.monthly.rsi,
+                        "weekly_rsi": result.weekly.rsi, "monthly_rsi": round(rsi_now, 2),
+                        "monthly_rsi_last_close": result.monthly.rsi,
                         "conditions": sig.conditions, "value_buy": bool(sig.qualifies), "retracement": ret,
                     })
                 if sig.qualifies:

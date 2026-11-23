@@ -52,6 +52,9 @@ class CupConfig(BaseModel):
     # under 5 years is never reported (longer is fine/better, no upper cap).
     # 2026-11-23: per user, 2-3 year monthly cups count too (SONACOMS, PAYTM) - minimum lowered to 24 months.
     min_cup_months: int = 24
+    # 2026-11-23 (user, AXISBANK): a completed month closing above the rim and a later one closing this far below it
+    # = a failed breakout, not a cup.
+    failed_breakout_pullback_pct: float = 8.0
     # Recently-listed stocks (e.g. a 2021 IPO) may simply not HAVE 5 years
     # of history at all yet — per explicit user direction (2026-09-24,
     # SONACOMS example): rather than reject them outright, a stock whose

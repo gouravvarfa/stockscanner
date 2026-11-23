@@ -15,6 +15,7 @@ import numpy as np
 import pandas as pd
 
 ADJUST_MIN = 0.03  # |factor - 1| below this is not a split/bonus (dividends, rounding)
+GAP_ACTION = 0.35  # an opening gap this large (beyond NSE price bands) is a corporate action
 SERIES_RANK = {"EQ": 0, "BE": 1, "BZ": 2}
 
 
@@ -49,6 +50,14 @@ def _adjust(g: pd.DataFrame) -> pd.DataFrame:
         f = prev[1:] / close[:-1]
     f = np.where(np.isfinite(f) & (f > 0), f, 1.0)
     f = np.where(np.abs(f - 1) >= ADJUST_MIN, f, 1.0)
+    # Demergers (2026-11-23, VEDL 30 Apr 2026: 773 -> 271): NSE sometimes leaves PREVCLOSE unadjusted. A stock cannot
+    # open more than ~20% away from the last close on its own (price bands), so an opening gap beyond GAP_ACTION with no
+    # PREVCLOSE adjustment is a corporate action too - adjust by open / previous close.
+    opens = g["open"].to_numpy(float)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        gap = opens[1:] / close[:-1]
+    gap_action = np.isfinite(gap) & (gap > 0) & (np.abs(gap - 1) >= GAP_ACTION) & (f == 1.0)
+    f = np.where(gap_action, gap, f)
     factor[:-1] = f  # the factor of day i+1 applies to day i and everything before it
     cum = np.cumprod(factor[::-1])[::-1]  # product of all factors from this day onward
     out = g[["open", "high", "low", "close", "volume"]].copy()
