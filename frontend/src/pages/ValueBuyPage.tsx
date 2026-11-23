@@ -282,7 +282,7 @@ export function ValueBuyPage() {
                     {rows.map((s) => {
                       const price = priceOf(s);
                       return (
-                        <tr key={s.symbol}>
+                        <tr key={s.symbol} className="wk-click" title="Open the chart" onClick={(e) => { if (!(e.target as HTMLElement).closest("button, a, input")) showChart(s); }}>
                           <td>
                             <span className="logo-line">
                               <span className="wk-logo"><StockLogo symbol={s.symbol} /></span>
