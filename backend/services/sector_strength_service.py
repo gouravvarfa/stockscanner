@@ -86,6 +86,31 @@ def _parse_csv(text: str) -> list[dict[str, str]]:
     return out
 
 
+def add_industry_members(data: dict[str, list[dict[str, str]]]) -> dict[str, list[dict[str, str]]]:
+    """Every NSE stock of a sector, not only the index members (2026-11-23, user: e.g. Karnataka Bank under Banking):
+    adds the stocks NSE tags with the matching industry (backend/data/nse_industry.csv - Nifty Total Market +
+    Microcap 250 lists; mapping in backend/eod/sectors.py). Index members stay first."""
+    from backend.eod.sectors import INDUSTRY_FILE, industry_members
+
+    names: dict[str, tuple[str, str]] = {}
+    if INDUSTRY_FILE.exists():
+        with open(INDUSTRY_FILE, encoding="utf-8") as fh:
+            for r in csv.DictReader(fh):
+                names[r["symbol"]] = (r["company"], r["industry"])
+    out: dict[str, list[dict[str, str]]] = {}
+    extra = industry_members()
+    for key, rows in data.items():
+        seen = {r["symbol"] for r in rows}
+        merged = list(rows)
+        for sym in sorted(extra.get(key, [])):
+            if sym not in seen:
+                name, ind = names.get(sym, (sym, ""))
+                merged.append({"symbol": sym, "name": name, "industry": ind})
+                seen.add(sym)
+        out[key] = merged
+    return out
+
+
 async def load_constituents() -> tuple[dict[str, list[dict[str, str]]], str]:
     """{sector key: [{symbol, name, industry}]} and where it came from ("NSE <date>" or "snapshot <date>")."""
     today = dt.date.today()
@@ -104,6 +129,7 @@ async def load_constituents() -> tuple[dict[str, list[dict[str, str]]], str]:
             except Exception as exc:  # noqa: BLE001 - NSE may refuse the server; use the bundled list
                 logger.info("NSE constituents for %s not reachable (%s); using the snapshot", s["key"], exc)
                 data[s["key"]] = snapshot["sectors"].get(s["key"], [])
+    data = add_industry_members(data)
     source = f"NSE {today.isoformat()}" if live == len(SECTORS) else (
         f"snapshot {snapshot['snapshot_date']}" if live == 0 else f"NSE {today.isoformat()} ({len(SECTORS) - live} from snapshot {snapshot['snapshot_date']})")
     _constituents_cache.update({"date": today, "data": data, "source": source})

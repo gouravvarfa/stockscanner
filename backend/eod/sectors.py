@@ -25,6 +25,35 @@ STRONG_RSI = 60.0
 VALUE_MIN, VALUE_MAX = 38.0, 45.0
 FULL_MONTHS = 36  # a sector index needs 3 full years of daily closes (>= 10 days every month) to be judged
 CONSTITUENTS = Path(__file__).resolve().parent.parent / "data" / "sector_constituents.json"
+INDUSTRY_FILE = Path(__file__).resolve().parent.parent / "data" / "nse_industry.csv"
+# NSE industry -> the sectors whose stocks it adds (2026-11-23, user: every stock of a sector, not only the index members)
+INDUSTRY_TO_SECTORS = {
+    "Healthcare": ["pharma", "healthcare"], "Information Technology": ["it"], "Automobile and Auto Components": ["auto"],
+    "Fast Moving Consumer Goods": ["fmcg"], "Metals & Mining": ["metal"], "Oil Gas & Consumable Fuels": ["oil_gas", "energy"],
+    "Power": ["energy"], "Realty": ["realty"], "Media Entertainment & Publication": ["media"], "Chemicals": ["chemicals"],
+    "Consumer Durables": ["consumer_durables"], "Construction": ["infra"], "Construction Materials": ["infra"], "Capital Goods": ["infra"],
+}
+PSU_BANKS = {"SBIN", "PNB", "BANKBARODA", "CANBK", "UNIONBANK", "BANKINDIA", "INDIANB", "IOB", "UCOBANK", "CENTRALBK", "MAHABANK", "PSB"}
+
+
+def industry_members() -> dict[str, list[str]]:
+    """sector key -> symbols, from NSE's industry tags (Nifty Total Market + Microcap 250 lists)."""
+    import csv
+
+    out: dict[str, list[str]] = {}
+    if not INDUSTRY_FILE.exists():
+        return out
+    with open(INDUSTRY_FILE, encoding="utf-8") as fh:
+        for r in csv.DictReader(fh):
+            sym, name, ind = r["symbol"], r["company"], r["industry"]
+            keys = list(INDUSTRY_TO_SECTORS.get(ind, []))
+            if ind == "Financial Services":
+                keys.append("fin_service")
+                if " bank" in f" {name.lower()}" and "finance" not in name.lower():
+                    keys += ["bank", "psu_bank" if sym in PSU_BANKS else "pvt_bank"]
+            for k in keys:
+                out.setdefault(k, []).append(sym)
+    return out
 
 
 def _rsi(closes: pd.Series, length: int = 14) -> float | None:
@@ -63,6 +92,7 @@ def classify(root: Path) -> dict:
     labels = {s["key"]: s["label"] for s in SECTORS}
     closes = load_index_closes(root)
     snap = json.loads(CONSTITUENTS.read_text(encoding="utf-8")).get("sectors", {})
+    extra = industry_members()
     sectors, members = [], {}
     for key, ser in closes.items():
         monthly = ser.resample("ME").last()
@@ -83,6 +113,7 @@ def classify(root: Path) -> dict:
         rsi = {"d": None if d is None else round(d, 1), "w": None if w is None else round(w, 1), "m": None if m is None else round(m, 1)}
         sectors.append({"key": key, "label": labels.get(key, key), "rsi": rsi, "status": status, "as_of": ser.index[-1].date().isoformat()})
         if status:
-            for mem in snap.get(key, []):
-                members.setdefault(mem["symbol"], []).append({"key": key, "label": labels.get(key, key), "status": status})
+            syms = {m["symbol"] for m in snap.get(key, [])} | set(extra.get(key, []))
+            for sym in syms:
+                members.setdefault(sym, []).append({"key": key, "label": labels.get(key, key), "status": status})
     return {"sectors": sectors, "members": members}
