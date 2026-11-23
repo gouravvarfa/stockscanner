@@ -1720,9 +1720,9 @@ h1, .page-header h1, .app-content > h1, .app-content > div > h1:first-child { fo
 @media (max-width: 600px) { .ol-event { grid-template-columns: 44px minmax(0, 1fr); } .ol-kind { grid-column: 2; } .ol-event-text { grid-column: 2; } }
 
 /* Anniversary Dates (2026-11-23): amber accent, month-ring motif, expandable date cards */
-:root { --anniv: #b45309; --anniv-2: #be123c; }
-:root[data-theme="dark"] { --anniv: #fbbf24; --anniv-2: #fb7185; }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --anniv: #fbbf24; --anniv-2: #fb7185; } }
+:root { --anniv: #b45309; --anniv-2: #92400e; }
+:root[data-theme="dark"] { --anniv: #fbbf24; --anniv-2: #fde68a; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --anniv: #fbbf24; --anniv-2: #fde68a; } }
 .hero-anniv { --tone: var(--anniv); --tone-2: var(--anniv-2); }
 .motif-svg .m-mark { fill: var(--anniv); }
 .motif-svg .m-dot { fill: color-mix(in srgb, var(--anniv) 40%, transparent); }
