@@ -21,6 +21,9 @@ export const HeatmapIcon = (p: SVGProps<SVGSVGElement>) => (
 export const AngleIcon = (p: SVGProps<SVGSVGElement>) => (
   <Base {...p}><path d="M3 21h18" /><path d="M3 21L19 5" /><path d="M3 21l16-8" /><path d="M10 21a7 7 0 0 0-2-5" /></Base>
 );
+export const CompassIcon = (p: SVGProps<SVGSVGElement>) => (
+  <Base {...p}><circle cx="12" cy="12" r="9" /><path d="M15.5 8.5l-2 5-5 2 2-5z" /></Base>
+);
 export const StarIcon = (p: SVGProps<SVGSVGElement>) => (
   <Base {...p}><path d="M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6 6.6 19.5l1.2-6L3.3 9.3l6.1-.7z" /></Base>
 );

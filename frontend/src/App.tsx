@@ -11,6 +11,7 @@ import { Dashboard } from "./pages/Dashboard";
 import { GFSUniversePage } from "./pages/GFSUniversePage";
 import { GannTimePage } from "./pages/GannTimePage";
 import { GannAnglesPage } from "./pages/GannAnglesPage";
+import { OutlookPage } from "./pages/OutlookPage";
 import { StockScanner } from "./pages/StockScanner";
 import { Strategies } from "./pages/Strategies";
 import { SystemOneBacktestPage } from "./pages/SystemOneBacktestPage";
@@ -86,6 +87,7 @@ export default function App() {
             <Route path="/cup-breakout" element={<CupBreakoutPage />} />
             <Route path="/gann-time" element={<GannTimePage />} />
             <Route path="/gann-angles" element={<GannAnglesPage />} />
+            <Route path="/outlook" element={<OutlookPage />} />
             <Route path="/stocks" element={<StockScanner />} />
             <Route path="/breakout-15" element={<Breakout15Page />} />
             <Route path="/range-analysis" element={<RangeAnalysisPage />} />

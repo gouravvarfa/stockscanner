@@ -39,6 +39,7 @@ from backend.api import advanced_gfs_backtest as advanced_gfs_backtest_api
 from backend.api import gfs50_backtest as gfs50_backtest_api
 from backend.api import gfs_backtest as gfs_backtest_api
 from backend.api import gann_time as gann_time_api
+from backend.api import outlook as outlook_api
 from backend.api import system_one_backtest as system_one_backtest_api
 from backend.api import top_bottom as top_bottom_api
 from backend.api import tradingview as tradingview_api
@@ -98,6 +99,7 @@ app.include_router(gfs_backtest_api.router)
 app.include_router(advanced_gfs_backtest_api.router)
 app.include_router(gfs50_backtest_api.router)
 app.include_router(gann_time_api.router)
+app.include_router(outlook_api.router)
 app.include_router(live_api.router)
 
 app.include_router(breakout15_api.router)

@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
  * page's own colour (astro / gann / angle) - everything else is the app's normal card, type and theme tokens.
  */
 export function PageHero({ tone, eyebrow, title, subtitle, motif, children }: {
-  tone: "astro" | "gann" | "angle";
+  tone: "astro" | "gann" | "angle" | "outlook";
   eyebrow: string;
   title: string;
   subtitle: ReactNode;
@@ -103,6 +103,33 @@ export function AngleFanMotif() {
       })}
       <path d={`M ${ox + 34} ${oy} A 34 34 0 0 0 ${ox + Math.cos((base * Math.PI) / 180) * 34} ${oy - Math.sin((base * Math.PI) / 180) * 34}`} className="m-arc" />
       <circle cx={ox} cy={oy} r={5} className="m-origin" />
+    </svg>
+  );
+}
+
+/** A bell curve with its 1-sigma and 2-sigma bands - the shape behind every range on the Outlook page. */
+export function BellCurveMotif() {
+  const pts: string[] = [];
+  for (let x = -100; x <= 100; x += 4) {
+    const z = x / 34;
+    pts.push(`${x},${60 - Math.exp(-z * z / 2) * 120}`);
+  }
+  const band = (a: number, b: number) => {
+    const p: string[] = [`${a},60`];
+    for (let x = a; x <= b; x += 2) { const z = x / 34; p.push(`${x},${60 - Math.exp(-z * z / 2) * 120}`); }
+    p.push(`${b},60`);
+    return p.join(" ");
+  };
+  return (
+    <svg viewBox="-110 -80 220 160" className="motif-svg">
+      <polygon points={band(-68, 68)} className="m-band2" />
+      <polygon points={band(-34, 34)} className="m-band1" />
+      <polyline points={pts.join(" ")} className="m-curve" />
+      <line x1={-108} y1={60} x2={108} y2={60} className="m-axis" />
+      <line x1={0} y1={60} x2={0} y2={-64} className="m-mid" />
+      <text x={0} y={74} className="m-lab" textAnchor="middle">today</text>
+      <text x={-51} y={74} className="m-lab" textAnchor="middle">−1σ</text>
+      <text x={51} y={74} className="m-lab" textAnchor="middle">+1σ</text>
     </svg>
   );
 }

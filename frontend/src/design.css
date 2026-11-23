@@ -1649,3 +1649,72 @@ h1, .page-header h1, .app-content > h1, .app-content > div > h1:first-child { fo
 .aw-seg-glyph { font-family: "Nirmala UI", "Noto Sans Devanagari", "Mangal", var(--font-sans); font-size: 13px; font-weight: 700; color: var(--astro); }
 .aw-meter-fill { background: linear-gradient(90deg, var(--astro-gold), var(--success)); }
 .hero-astro .hero-pill { color: var(--astro); background: color-mix(in srgb, var(--astro) 10%, transparent); border-color: color-mix(in srgb, var(--astro-gold) 40%, transparent); }
+
+/* ==========================================================================
+   Outlook (2026-11-23): teal accent, bell-curve motif, range ladders, weather, event calendar
+   ========================================================================== */
+:root { --outlook: #0d9488; --outlook-2: #2563eb; }
+:root[data-theme="dark"] { --outlook: #2dd4bf; --outlook-2: #60a5fa; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --outlook: #2dd4bf; --outlook-2: #60a5fa; } }
+.hero-outlook { --tone: var(--outlook); --tone-2: var(--outlook-2); }
+.motif-svg .m-band2 { fill: color-mix(in srgb, var(--outlook) 14%, transparent); }
+.motif-svg .m-band1 { fill: color-mix(in srgb, var(--outlook) 30%, transparent); }
+.motif-svg .m-curve { fill: none; stroke: var(--outlook); stroke-width: 2; }
+.motif-svg .m-axis { stroke: var(--border-strong); }
+.motif-svg .m-mid { stroke: var(--outlook-2); stroke-dasharray: 3 3; }
+.motif-svg .m-lab { font-size: 10px; fill: var(--text-muted); }
+.ol-refresh { cursor: pointer; font: inherit; font-size: 12px; }
+.ol-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.ol-grid > .card { margin: 0; }
+.outlook-page > .ol-grid { margin-bottom: 16px; }
+@media (max-width: 960px) { .ol-grid { grid-template-columns: 1fr; } }
+.ol-range-block + .ol-range-block { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--border); }
+.ol-range-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; margin-bottom: 10px; }
+.ol-range-head b { color: var(--text-primary); font-weight: 600; }
+.ol-range-track { position: relative; height: 14px; border-radius: 999px; background: var(--bg-soft); box-shadow: inset 0 0 0 1px var(--border); }
+.ol-band-2 { position: absolute; inset: 2px 2%; border-radius: 999px; background: color-mix(in srgb, var(--outlook) 18%, transparent); }
+.ol-band-1 { position: absolute; inset: 2px 26%; border-radius: 999px; background: color-mix(in srgb, var(--outlook) 45%, transparent); }
+.ol-now { position: absolute; left: 50%; top: -4px; width: 3px; height: 22px; margin-left: -1.5px; border-radius: 2px; background: var(--outlook-2); }
+.ol-range-labels { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; margin-top: 6px; font-size: 12px; font-variant-numeric: tabular-nums; color: var(--text-muted); }
+.ol-range-labels b { color: var(--text-primary); font-weight: 600; }
+.ol-range-labels > :nth-child(2) { text-align: center; padding-left: 10%; }
+.ol-range-labels > :nth-child(3) { text-align: center; padding-right: 10%; }
+.ol-range-labels > :nth-child(4) { text-align: right; }
+.ol-rec { margin: 8px 0 0; }
+.ol-weather { display: flex; flex-wrap: wrap; gap: 8px; }
+.ol-tag { padding: 4px 12px; border-radius: 999px; font-size: 12.5px; font-weight: 600; background: var(--bg-soft); color: var(--text-secondary); }
+.ol-tag-up { background: var(--success-soft); color: var(--success); }
+.ol-tag-down { background: var(--danger-soft); color: var(--danger); }
+.ol-tag-mid { background: var(--warning-soft); color: var(--warning); }
+.ol-tag-vix { background: color-mix(in srgb, var(--outlook-2) 12%, transparent); color: var(--outlook-2); }
+.ol-dma { margin: 10px 0 14px; }
+.ol-weather-rec { display: flex; gap: 16px; align-items: center; padding: 14px 16px; border-radius: 12px;
+  background: color-mix(in srgb, var(--outlook) 8%, transparent); border: 1px solid color-mix(in srgb, var(--outlook) 25%, var(--border)); }
+.ol-weather-rec > div:last-child { display: flex; flex-direction: column; gap: 4px; }
+.ol-big { font-size: 34px; font-weight: 600; letter-spacing: -0.03em; color: var(--outlook); }
+.ol-metal { padding: 14px; border-radius: 12px; border: 1px solid var(--border); }
+.ol-metal-row { display: grid; grid-template-columns: 74px minmax(0, 1fr); align-items: start; gap: 10px; }
+.ol-metal-row + .ol-metal-row { margin-top: 12px; }
+.ol-events { display: flex; flex-direction: column; gap: 8px; }
+.ol-event { display: grid; grid-template-columns: 52px 74px minmax(0, 1fr); align-items: center; gap: 12px; padding: 8px 12px;
+  border-radius: 12px; border: 1px solid var(--border); }
+.ol-event-text { display: flex; flex-direction: column; min-width: 0; }
+.ol-event-title { font-weight: 550; color: var(--text-primary); }
+.ol-approx { margin-left: 8px; font-style: normal; font-size: 11px; font-weight: 600; color: var(--warning); }
+.ol-kind { justify-self: start; padding: 2px 10px; border-radius: 999px; font-size: 11.5px; font-weight: 600; background: var(--bg-soft); color: var(--text-secondary); }
+.ol-k-rbi { background: color-mix(in srgb, #2563eb 12%, transparent); color: #2563eb; }
+.ol-k-fed { background: color-mix(in srgb, #7c3aed 12%, transparent); color: #7c3aed; }
+.ol-k-budget { background: var(--warning-soft); color: var(--warning); }
+.ol-k-expiry { background: color-mix(in srgb, var(--outlook) 12%, transparent); color: var(--outlook); }
+.ol-k-results { background: var(--success-soft); color: var(--success); }
+.ol-k-holiday { background: var(--danger-soft); color: var(--danger); }
+.ol-k-astro { background: color-mix(in srgb, var(--astro) 12%, transparent); color: var(--astro); }
+:root[data-theme="dark"] .ol-k-rbi { color: #60a5fa; } :root[data-theme="dark"] .ol-k-fed { color: #a78bfa; }
+.ol-budget { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border); }
+.ol-budget b { font-weight: 600; color: var(--text-primary); }
+.ol-budget-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.ol-bud { display: inline-flex; flex-direction: column; align-items: center; min-width: 58px; padding: 6px 8px; border-radius: 10px;
+  border: 1px solid var(--border); font-size: 11.5px; color: var(--text-muted) !important; }
+.ol-bud b { font-size: 13px; }
+.ol-bud.wk-up b { color: var(--success); } .ol-bud.wk-down b { color: var(--danger); }
+@media (max-width: 600px) { .ol-event { grid-template-columns: 44px minmax(0, 1fr); } .ol-kind { grid-column: 2; } .ol-event-text { grid-column: 2; } }

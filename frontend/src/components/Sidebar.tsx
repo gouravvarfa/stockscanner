@@ -13,6 +13,7 @@ import {
   TargetIcon,
   HeatmapIcon,
   StarIcon,
+  CompassIcon,
   TrendIcon,
   ValueTagIcon,
 } from "./icons";
@@ -24,6 +25,7 @@ type NavItem = { to: string; label: string; end?: boolean; icon: typeof Dashboar
 // own colour for its icon tile and its active tint (see design.css).
 export const NAV_ITEMS: NavItem[] = [
   { to: "/", label: "Dashboard", end: true, icon: DashboardIcon, tone: "#2563eb" },
+  { to: "/outlook", label: "Outlook", icon: CompassIcon, tone: "#0d9488" },
   { to: "/weekly-sectors", label: "Weekly Sectors", icon: TrendIcon, tone: "#16a34a" },
   { to: "/heatmap", label: "Heatmap", icon: HeatmapIcon, tone: "#e11d48" },
   { to: "/top-bottom", label: "Top Bottom Backtesting", icon: TrendIcon, tone: "#ea580c" },
