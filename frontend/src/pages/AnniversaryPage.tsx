@@ -13,9 +13,10 @@ type Turn = { kind: "top" | "bottom"; strength: number; days_off: number } | nul
 type Row = { year: number; date: string; close: number; day: number; next5: number | null; next20: number | null; turn: Turn; event: string | null; big: boolean };
 type Source = { year: number; kind: "top" | "bottom"; price: number; strength: number };
 type Anniv = { md: string; next: string; sources: Source[]; history: Row[] };
+type Mk = "nifty" | "gold" | "silver";
 type Market = { name: string; from: string; dates: Anniv[] };
-const MARKETS = data.markets as Record<"nifty" | "gold", Market>;
-const RECORD = data.record as Record<"nifty" | "gold", { anniv3: number; random3: number; anniv5: number; random5: number }>;
+const MARKETS = data.markets as Record<Mk, Market>;
+const RECORD = data.record as Record<Mk, { anniv3: number; random3: number; anniv5: number; random5: number }>;
 
 const num = (v: number, d = 0) => v.toLocaleString("en-IN", { minimumFractionDigits: d, maximumFractionDigits: d });
 const pct = (v: number | null) => (v == null ? "—" : `${v > 0 ? "+" : ""}${v.toFixed(1)}%`);
@@ -88,12 +89,12 @@ function DateCard({ a, unit }: { a: Anniv; unit: string }) {
 }
 
 export function AnniversaryPage() {
-  const [mk, setMk] = useState<"nifty" | "gold">("nifty");
+  const [mk, setMk] = useState<Mk>("nifty");
   const m = MARKETS[mk];
   const today = new Date().toISOString().slice(0, 10);
   const horizon = new Date(Date.now() + 90 * 86400000).toISOString().slice(0, 10);
   const list = m.dates.filter((a) => a.next >= today && a.next <= horizon);
-  const unit = mk === "gold" ? "$" : "";
+  const unit = mk === "nifty" ? "" : "₹";
   const rec = RECORD[mk];
   return (
     <div className="page anniv-page">
@@ -101,7 +102,7 @@ export function AnniversaryPage() {
         tone="anniv"
         eyebrow="History · the same date in past years"
         title="Anniversary Dates"
-        subtitle="The coming dates when Nifty or Gold made a big top or bottom in an earlier year — and everything that happened on that date before: the move, what followed, crashes and events."
+        subtitle="The coming dates when Nifty, Gold or Silver made a big top or bottom in an earlier year — and everything that happened on that date before: the move, what followed, crashes and events."
         motif={<AnniversaryMotif />}
       >
         <span className="hero-pill">Next 90 days · {list.length} dates</span>
@@ -110,7 +111,8 @@ export function AnniversaryPage() {
 
       <div className="aw-seg an-seg" role="tablist" aria-label="Market">
         <button type="button" role="tab" aria-selected={mk === "nifty"} className={mk === "nifty" ? "active" : ""} onClick={() => setMk("nifty")}>Nifty 50</button>
-        <button type="button" role="tab" aria-selected={mk === "gold"} className={mk === "gold" ? "active" : ""} onClick={() => setMk("gold")}>Gold</button>
+        <button type="button" role="tab" aria-selected={mk === "gold"} className={mk === "gold" ? "active" : ""} onClick={() => setMk("gold")}>Gold ₹/10 g</button>
+        <button type="button" role="tab" aria-selected={mk === "silver"} className={mk === "silver" ? "active" : ""} onClick={() => setMk("silver")}>Silver ₹/kg</button>
       </div>
 
       <section className="card">
@@ -134,8 +136,8 @@ export function AnniversaryPage() {
       </section>
 
       <p className="muted small aw-foot">
-        Prices: Nifty 50 and COMEX Gold daily closes (data to {new Date(`${data.data_to}T00:00:00`).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}). Events
-        are well-known market days; a "big fall/rise" is a day move of 3% or more. For education only; not investment advice.
+        Prices: Nifty 50 daily closes; Gold (₹/10 g) and Silver (₹/kg) are MCX front-month futures for the last year and, before that, the international price × USD/INR × India&apos;s import duty of the day (data to {new Date(`${data.data_to}T00:00:00`).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}). Events
+        are well-known market days; a "big fall/rise" is a day move of 3% or more (4% for Silver). For education only; not investment advice.
       </p>
     </div>
   );
