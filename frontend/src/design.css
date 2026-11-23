@@ -1890,10 +1890,10 @@ h1, .page-header h1, .app-content > h1, .app-content > div > h1:first-child { fo
 .app-content .page-header h1 { margin: 0; font-size: 26px; letter-spacing: -0.03em; }
 .app-content .page-header .page-subtitle { margin-top: 6px; color: var(--text-secondary); }
 
-.app-content :is(.card.filter-panel, .card:has(> .tb-config-grid), .card:has(> .filters-row), .card:has(> .gt-run)) {
+.app-content :is(.card.filter-panel, .card:has(> .tb-config-grid), .card:has(> .filters-row), .card:has(> .gt-run), .card:has(> .run-row)) {
   position: relative; overflow: hidden;
   background: linear-gradient(180deg, color-mix(in srgb, var(--pt, var(--accent)) 4%, var(--bg-surface)), var(--bg-surface) 70%); }
-.app-content :is(.card.filter-panel, .card:has(> .tb-config-grid), .card:has(> .filters-row), .card:has(> .gt-run))::before {
+.app-content :is(.card.filter-panel, .card:has(> .tb-config-grid), .card:has(> .filters-row), .card:has(> .gt-run), .card:has(> .run-row))::before {
   content: ""; position: absolute; inset: 0 0 auto 0; height: 3px;
   background: linear-gradient(90deg, var(--pt, var(--accent)), color-mix(in srgb, var(--pt, var(--accent)) 10%, transparent)); }
 
@@ -1997,3 +1997,42 @@ h1, .page-header h1, .app-content > h1, .app-content > div > h1:first-child { fo
 .ds-bar i { background: linear-gradient(90deg, color-mix(in srgb, var(--pt, var(--accent)) 45%, transparent), var(--pt, var(--accent))); }
 .ds-name { color: var(--text-primary); }
 .dash-strong .ds-stocks { color: var(--pt, var(--accent)); font-weight: 600; }
+
+/* Backtesting inputs on one row with the Run button, like 15-Min (2026-11-23) */
+.run-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 14px; }
+.run-row > .tb-config-grid { flex: 1 1 560px; margin: 0; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+.run-row > .tb-actions { flex: none; margin: 0; padding: 0; border: 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.run-row > .tb-actions .tb-btn { height: 38px; }
+.run-row > .tb-actions .tb-config-hint { flex-basis: 100%; }
+
+/* Dashboard boxes, one family (2026-11-23): every card with the same head (colour mark, title, muted line, a meta
+   pill on the right), roomy padding, and the inner boxes - sector cards, ranked rows, best-stock setup - in the page colour */
+.dashboard-page .card, .app-content .card.dash-strong, .app-content .card.dash-signals { padding: 18px 20px; border-radius: 14px; }
+.app-content .dash-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.app-content .dash-card-head h2 { margin: 0; font-size: 16px; }
+.app-content .dash-card-head p { margin: 3px 0 0; }
+.app-content .dash-card-meta { padding: 4px 10px; border-radius: 999px; font-size: 11.5px; font-weight: 500;
+  color: var(--text-secondary); background: color-mix(in srgb, var(--pt, var(--accent)) 7%, var(--bg-soft));
+  border: 1px solid color-mix(in srgb, var(--pt, var(--accent)) 16%, var(--border)); }
+.app-content .dash-strong .dash-foot { margin: 14px 0 0; padding-top: 12px; border-top: 1px dashed color-mix(in srgb, var(--pt, var(--accent)) 20%, var(--border)); }
+.app-content .dash-foot a, .app-content .dash-strong a { color: var(--pt, var(--accent)); font-weight: 500; }
+.app-content .dash-tools { display: flex; gap: 8px; align-items: center; }
+.app-content .dash-tabs { gap: 6px; padding: 4px; border-radius: 12px; background: color-mix(in srgb, var(--pt, var(--accent)) 5%, var(--bg-soft));
+  border: 1px solid color-mix(in srgb, var(--pt, var(--accent)) 12%, var(--border)); margin-bottom: 14px; flex-wrap: wrap; }
+.app-content .dash-tabs .tab { border-radius: 9px; border: 1px solid transparent; padding: 6px 12px; }
+.app-content .dash-tabs .tab.active { background: var(--bg-surface); border-color: color-mix(in srgb, var(--pt, var(--accent)) 30%, var(--border));
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--pt, var(--accent)) 18%, transparent); }
+.app-content .dash-rank-table .dash-score { color: var(--pt, var(--accent)); font-weight: 600; }
+.app-content .ranked-component { border-color: color-mix(in srgb, var(--pt, var(--accent)) 18%, var(--border));
+  background: color-mix(in srgb, var(--pt, var(--accent)) 5%, var(--bg-surface)); }
+.app-content .trade-setup { border-radius: 12px; border: 1px solid color-mix(in srgb, var(--pt, var(--accent)) 18%, var(--border));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--pt, var(--accent)) 6%, var(--bg-surface)), var(--bg-surface)); }
+.app-content .ds-card { transition: transform .15s ease, box-shadow .15s ease; }
+.app-content .ds-card:hover { transform: translateY(-1px); box-shadow: 0 6px 16px -10px color-mix(in srgb, var(--pt, var(--accent)) 60%, transparent); }
+
+.run-row > .tb-actions[style] { margin-top: 0 !important; }
+.run-row > .tb-config-grid { flex: 1 1 0; min-width: min(100%, 520px); grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+.app-content .rm-seg button.active, .app-content .rm-seg .active { background: var(--pt, var(--accent)) !important; border-color: var(--pt, var(--accent)) !important; color: #fff !important; }
+.run-row > .tb-actions { position: relative; }
+.run-row > .tb-actions .tb-config-hint { position: absolute; top: calc(100% + 6px); right: 0; flex-basis: auto; white-space: nowrap; margin: 0; }
+.run-row:has(> .tb-actions .tb-config-hint) { margin-bottom: 22px; }

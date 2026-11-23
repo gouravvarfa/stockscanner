@@ -141,6 +141,7 @@ export function TopBottomBacktest() {
             <p className="muted small">Pick the market, the stock or contract, the period and the candle size — then run.</p>
           </div>
         </div>
+        <div className="run-row">
         <div className="tb-config-grid">
           <div className="tb-field">
             <label>
@@ -213,6 +214,7 @@ export function TopBottomBacktest() {
           {!loading && segment === "EQUITY" && !equitySymbol.trim() && (
             <span className="tb-config-hint">Select an A Group equity to enable Run Backtest.</span>
           )}
+        </div>
         </div>
 
         {segment === "EQUITY" ? (

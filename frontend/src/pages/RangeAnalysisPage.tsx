@@ -289,6 +289,7 @@ export function RangeAnalysisPage() {
       </PageHero>
 
       <div className="card">
+        <div className="run-row">
         <div className="tb-config-grid">
           <InstrumentSearch
             value={symbol}
@@ -367,6 +368,7 @@ export function RangeAnalysisPage() {
               {symbol} · {mode === "years" ? `${fromYear} to ${toYear}` : "since inception"} — press Run Backtest to build the sheet.
             </span>
           )}
+        </div>
         </div>
       </div>
 

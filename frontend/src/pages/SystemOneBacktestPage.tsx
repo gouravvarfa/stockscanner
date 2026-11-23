@@ -110,6 +110,7 @@ export function SystemOneBacktestPage() {
       </div>
 
       <div className="card">
+        <div className="run-row">
         <div className="tb-config-grid">
           <EquitySearchBox selected={symbol} onSelect={(v) => setParam("symbol", v)} />
           <div className="tb-field">
@@ -155,6 +156,7 @@ export function SystemOneBacktestPage() {
             </a>
           )}
           {invalidRange && <span className="tb-config-hint">From Date must not be after To Date.</span>}
+        </div>
         </div>
       </div>
 
