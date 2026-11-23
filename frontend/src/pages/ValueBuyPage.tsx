@@ -211,7 +211,7 @@ export function ValueBuyPage() {
               Stocks scanned: {vb.stocks_scanned} · failed: {vb.stocks_failed}
             </div>
             <div>
-              Value Buy: <strong>{allSignals.length}</strong>
+              Value Buy: <strong>{vb.support_zone ? vb.support_zone.length : allSignals.length}</strong>
               {hasStrongInfo && <span className="muted small"> · {strongCount} in strong sectors</span>}
             </div>
             {vb.strong_sectors && vb.strong_sectors.length > 0 && (
