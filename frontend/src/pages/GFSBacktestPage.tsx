@@ -116,7 +116,7 @@ export function GFSBacktestPage({ variant = "gfs" }: { variant?: GfsVariant }) {
               <path d="M19 12H5" />
               <path d="m12 19-7-7 7-7" />
             </svg>
-            Strategies
+            Backtesting
           </Link>
           <Link to={`${gfsPagePath(variant)}/stocks`} className="so-back-link">
             All Stocks

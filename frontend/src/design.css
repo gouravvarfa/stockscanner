@@ -1905,3 +1905,31 @@ h1, .page-header h1, .app-content > h1, .app-content > div > h1:first-child { fo
   outline: none; border-color: var(--pt, var(--accent)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--pt, var(--accent)) 18%, transparent); }
 .app-content :is(input[type="checkbox"], input[type="radio"], input[type="range"]) { accent-color: var(--pt, var(--accent)); }
 :root[data-page] .app-main .app-content .aw-seg button.active, :root[data-page] .app-main .app-content .seg-active { color: var(--pt); }
+
+/* Results in the page colour, on every page (2026-11-23): section titles, summary tiles and tables share the look of the
+   Top Bottom results - a small colour mark before each card title, tiles with a tinted face and a bottom accent,
+   tables with a tinted header and row highlight */
+.app-content .card > h2:first-child, .app-content .card > .dash-card-head h2 {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 16px; }
+.app-content .card > h2:first-child::before, .app-content .card > .dash-card-head h2::before {
+  content: ""; flex: none; width: 4px; height: 16px; border-radius: 3px;
+  background: linear-gradient(180deg, var(--pt, var(--accent)), color-mix(in srgb, var(--pt, var(--accent)) 40%, transparent)); }
+.app-content .tb-summary-tile { position: relative; overflow: hidden; border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--pt, var(--accent)) 14%, var(--border));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--pt, var(--accent)) 6%, var(--bg-surface)), var(--bg-surface)); }
+.app-content .tb-summary-tile::after { content: ""; position: absolute; left: 14px; right: 14px; bottom: 0; height: 2px; border-radius: 2px;
+  background: color-mix(in srgb, var(--pt, var(--accent)) 40%, transparent); }
+.app-content .tb-summary-label { text-transform: uppercase; letter-spacing: 0.06em; }
+.app-content .tb-summary-value { font-variant-numeric: tabular-nums; }
+.app-content .table-wrap { border-color: color-mix(in srgb, var(--pt, var(--accent)) 14%, var(--border)); }
+.app-content .table-wrap thead th { background: color-mix(in srgb, var(--pt, var(--accent)) 6%, var(--bg-soft));
+  border-bottom: 1px solid color-mix(in srgb, var(--pt, var(--accent)) 18%, var(--border)); }
+.app-content .table-wrap tbody tr { transition: background-color .12s; }
+.app-content .table-wrap tbody tr:hover td { background: color-mix(in srgb, var(--pt, var(--accent)) 5%, transparent); }
+.app-content .table-wrap td { font-variant-numeric: tabular-nums; }
+.app-content .state-block { border-style: dashed; border-color: color-mix(in srgb, var(--pt, var(--accent)) 28%, var(--border));
+  background: color-mix(in srgb, var(--pt, var(--accent)) 3%, var(--bg-surface)); }
+.app-content .state-title { color: var(--text-primary); }
+.app-content :is(.secondary-button, .tb-btn-secondary):hover:not(:disabled) { border-color: color-mix(in srgb, var(--pt, var(--accent)) 45%, var(--border)); color: var(--pt, var(--accent)); }
+.app-content .strategy-card:hover { border-color: color-mix(in srgb, var(--pt, var(--accent)) 40%, var(--border)); }
+.app-content .strategy-card-cta { color: var(--pt, var(--accent)); }

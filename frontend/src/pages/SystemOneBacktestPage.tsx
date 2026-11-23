@@ -97,7 +97,7 @@ export function SystemOneBacktestPage() {
               <path d="M19 12H5" />
               <path d="m12 19-7-7 7-7" />
             </svg>
-            Strategies
+            Backtesting
           </Link>
           <h1>System One</h1>
           <p className="page-subtitle">
