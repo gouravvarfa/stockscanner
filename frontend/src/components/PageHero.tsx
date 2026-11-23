@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
  * page's own colour (astro / gann / angle) - everything else is the app's normal card, type and theme tokens.
  */
 export function PageHero({ tone, eyebrow, title, subtitle, motif, children }: {
-  tone: "astro" | "gann" | "angle" | "outlook";
+  tone: "astro" | "gann" | "angle" | "outlook" | "anniv";
   eyebrow: string;
   title: string;
   subtitle: ReactNode;
@@ -130,6 +130,29 @@ export function BellCurveMotif() {
       <text x={0} y={74} className="m-lab" textAnchor="middle">today</text>
       <text x={-51} y={74} className="m-lab" textAnchor="middle">−1σ</text>
       <text x={51} y={74} className="m-lab" textAnchor="middle">+1σ</text>
+    </svg>
+  );
+}
+
+/** A ring of 12 months with a few marked dates - the same day coming round again each year. */
+export function AnniversaryMotif() {
+  const marks = [0, 3, 7, 10];
+  return (
+    <svg viewBox="-110 -110 220 220" className="motif-svg">
+      <circle r={92} className="m-faint" />
+      <circle r={70} className="m-line" />
+      {Array.from({ length: 12 }, (_, i) => {
+        const a = (i * 30 - 90) * (Math.PI / 180);
+        const on = marks.includes(i);
+        return (
+          <g key={i}>
+            <line x1={Math.cos(a) * 70} y1={Math.sin(a) * 70} x2={Math.cos(a) * 92} y2={Math.sin(a) * 92} className="m-faint" />
+            <circle cx={Math.cos(a + 0.26) * 81} cy={Math.sin(a + 0.26) * 81} r={on ? 6 : 2.5} className={on ? "m-mark" : "m-dot"} />
+          </g>
+        );
+      })}
+      <path d="M -38 -6 L -16 -6 L -4 -30 L 10 24 L 22 -2 L 40 -2" className="m-pulse" />
+      <text x={0} y={46} className="m-lab" textAnchor="middle">same date, every year</text>
     </svg>
   );
 }

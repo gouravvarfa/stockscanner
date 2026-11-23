@@ -1718,3 +1718,35 @@ h1, .page-header h1, .app-content > h1, .app-content > div > h1:first-child { fo
 .ol-bud b { font-size: 13px; }
 .ol-bud.wk-up b { color: var(--success); } .ol-bud.wk-down b { color: var(--danger); }
 @media (max-width: 600px) { .ol-event { grid-template-columns: 44px minmax(0, 1fr); } .ol-kind { grid-column: 2; } .ol-event-text { grid-column: 2; } }
+
+/* Anniversary Dates (2026-11-23): amber accent, month-ring motif, expandable date cards */
+:root { --anniv: #b45309; --anniv-2: #be123c; }
+:root[data-theme="dark"] { --anniv: #fbbf24; --anniv-2: #fb7185; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --anniv: #fbbf24; --anniv-2: #fb7185; } }
+.hero-anniv { --tone: var(--anniv); --tone-2: var(--anniv-2); }
+.motif-svg .m-mark { fill: var(--anniv); }
+.motif-svg .m-dot { fill: color-mix(in srgb, var(--anniv) 40%, transparent); }
+.motif-svg .m-pulse { fill: none; stroke: var(--anniv-2); stroke-width: 2; stroke-linejoin: round; }
+.an-seg button.active { color: var(--anniv); background: color-mix(in srgb, var(--anniv) 12%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--anniv) 35%, transparent); }
+.an-list { display: flex; flex-direction: column; gap: 8px; }
+.an-card { border: 1px solid var(--border); border-radius: 12px; background: var(--bg-surface); }
+.an-card[open] { border-color: color-mix(in srgb, var(--anniv) 40%, var(--border)); }
+.an-card summary { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; align-items: center; gap: 14px; padding: 10px 14px;
+  cursor: pointer; list-style: none; }
+.an-card summary::-webkit-details-marker { display: none; }
+.an-sum { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.an-sources { display: flex; flex-wrap: wrap; gap: 6px; }
+.an-src { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 600; white-space: nowrap; }
+.an-top { background: var(--danger-soft); color: var(--danger); }
+.an-bottom { background: var(--success-soft); color: var(--success); }
+.an-open { font-size: 12px; font-weight: 600; color: var(--anniv); }
+.an-open::after { content: " ▾"; }
+.an-card[open] .an-open::after { content: " ▴"; }
+.an-card .table-wrap { margin: 0 12px 12px; }
+.an-table tr.an-hl td { background: color-mix(in srgb, var(--anniv) 7%, transparent); }
+.an-what-cell { white-space: normal !important; min-width: 260px; }
+.an-what { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.an-big { padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; background: var(--warning-soft); color: var(--warning); }
+.an-event { font-size: 12.5px; color: var(--text-primary); }
+@media (max-width: 600px) { .an-card summary { grid-template-columns: 44px minmax(0, 1fr); } .an-open { display: none; } }

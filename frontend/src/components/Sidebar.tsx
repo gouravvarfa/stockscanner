@@ -36,6 +36,7 @@ export const NAV_ITEMS: NavItem[] = [
   { to: "/astro-watch", label: "Astro Watch", icon: StarIcon, tone: "#d97706" },
   { to: "/gann-time", label: "Gann Square", icon: CalendarIcon, tone: "#be185d" },
   { to: "/gann-angles", label: "Angle Projection", icon: AngleIcon, tone: "#4f46e5" },
+  { to: "/anniversary-dates", label: "Anniversary Dates", icon: HistoryIcon, tone: "#b45309" },
   { to: "/strategies", label: "Strategies", icon: TargetIcon, tone: "#9333ea" },
   { to: "/stocks", label: "Stock Scanner", icon: ListIcon, tone: "#16a34a" },
   { to: "/history", label: "Scan History", icon: HistoryIcon, tone: "#059669" },
