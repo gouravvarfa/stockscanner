@@ -418,8 +418,21 @@ export function WeeklySectorsPage() {
 
           <div className="card">
             <h2 style={{ marginTop: 0 }}>Sector scorecard</h2>
+            {(["STRONG", "MIXED", "WEAK"] as const).map((group) => {
+              const list = report.sectors
+                .filter((x) => (x.verdict || "MIXED").toUpperCase() === group)
+                .sort((p1, p2) => (p2.rsi.m ?? -1) - (p1.rsi.m ?? -1));
+              if (!list.length) return null;
+              return (
+                <div key={group} className="ws-group">
+                  <div className={`ws-group-head ws-group-${group.toLowerCase()}`}>
+                    <span className="ws-group-dot" />
+                    <b>{group === "STRONG" ? "Strong" : group === "MIXED" ? "Mixed" : "Weak"}</b>
+                    <span className="ws-group-count">{list.length}</span>
+                    <span className="muted small">{group === "STRONG" ? "daily, weekly and monthly RSI all above 60" : group === "WEAK" ? "all three below 40" : "in between"}</span>
+                  </div>
             <div className="ws-grid">
-              {report.sectors.map((s) => {
+              {list.map((s) => {
                 const canChart = !!((!s.equal_weight && s.index_label) || s.tv_symbol);
                 const v = (s.verdict || "").toUpperCase();
                 return (
@@ -456,6 +469,9 @@ export function WeeklySectorsPage() {
                 );
               })}
             </div>
+                </div>
+              );
+            })}
             <p className="muted small" style={{ marginBottom: 0 }}>
               STRONG = daily, weekly and monthly RSI(14) of the sector index all above 60; WEAK = all below 40; otherwise MIXED.
               ▲/▼ = places moved since last week. Click a sector to see its stocks.

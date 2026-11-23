@@ -2213,3 +2213,10 @@ h1, .page-header h1, .app-content > h1, .app-content > div > h1:first-child { fo
 .ws-bar em { position: absolute; top: -1px; bottom: -1px; left: 60%; width: 1.5px; background: var(--text-muted); opacity: .55; }
 .sector-logo { flex: none; display: grid; place-items: center; border-radius: 10px; color: #fff;
   box-shadow: inset 0 1px 0 rgba(255,255,255,.25), 0 2px 6px -2px rgba(15, 23, 42, .35); }
+.ws-group { margin-bottom: 14px; }
+.ws-group-head { display: flex; align-items: center; gap: 8px; margin: 4px 0 8px; font-size: 13.5px; }
+.ws-group-dot { width: 9px; height: 9px; border-radius: 50%; background: #f59e0b; }
+.ws-group-strong .ws-group-dot { background: var(--success); }
+.ws-group-weak .ws-group-dot { background: var(--danger); }
+.ws-group-count { padding: 0 8px; border-radius: 999px; font-size: 11.5px; font-weight: 600; background: var(--bg-soft); color: var(--text-secondary); }
+.ws-group-strong .ws-group-count { background: var(--success-soft); color: var(--success); }
