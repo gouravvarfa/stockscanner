@@ -84,6 +84,8 @@ export function useTradingViewChart(containerRef: React.RefObject<HTMLDivElement
   const cupMarkersRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
   const breakoutLineRef = useRef<IPriceLine | null>(null);
   const fibLinesRef = useRef<IPriceLine[]>([]);
+  const fibSeriesRef = useRef<ISeriesApi<"Line">[]>([]);
+  const driveMarkersRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
   const barsRef = useRef<OHLCBar[]>([]);
   const optionsRef = useRef(options);
   optionsRef.current = options;
@@ -216,37 +218,54 @@ export function useTradingViewChart(containerRef: React.RefObject<HTMLDivElement
   // drawn when a page passes `fibonacci` (Value Buy's Monthly RSI support list).
   const applyFibonacci = (): void => {
     const series = candleSeriesRef.current;
-    if (!series) return;
+    const chart = chartRef.current;
+    if (!series || !chart) return;
     for (const line of fibLinesRef.current) {
       try { series.removePriceLine(line); } catch { /* series already disposed */ }
     }
     fibLinesRef.current = [];
-    const fib = optionsRef.current.fibonacci;
-    if (!fib || !(fib.high > fib.low)) return;
-    // only the levels that matter, each in its own colour and always labelled with its price (2026-11-23, user:
-    // the 7-line version was hard to read)
-    const levels: [number, string, string, number][] = [
-      [0, "Swing high", "#64748b", 1],
-      [0.618, "61.8%", "#2563eb", 1],
-      [0.786, "78.6% zone", "#ea580c", 3],
-      [1, "Swing low", "#dc2626", 1],
-    ];
-    for (const [f, label, color, width] of levels) {
-      fibLinesRef.current.push(series.createPriceLine({
-        price: fib.high - f * (fib.high - fib.low),
-        color,
-        lineWidth: width as 1 | 2 | 3 | 4,
-        lineStyle: f === 0.786 ? 0 : 2,
-        axisLabelVisible: true,
-        axisLabelColor: color,
-        axisLabelTextColor: "#ffffff",
-        title: label,
-      }));
+    for (const ls of fibSeriesRef.current) {
+      try { chart.removeSeries(ls); } catch { /* chart already disposed */ }
     }
+    fibSeriesRef.current = [];
+    if (!driveMarkersRef.current) driveMarkersRef.current = createSeriesMarkers(series, []);
+    driveMarkersRef.current.setMarkers([]);
+    const fib = optionsRef.current.fibonacci;
+    const bars = barsRef.current;
+    if (!fib || !(fib.high > fib.low) || bars.length === 0) return;
+    // Like a charting app's Fibonacci tool (2026-11-23, user's reference): each level starts at the swing and runs to
+    // the latest candle, labelled "61.8% (546.90)" where it starts; 78.6% is the thick orange one.
+    const t0 = Math.min(
+      barOnDay(bars, fib.low_date) ?? bars[Math.max(0, bars.length - 60)].time,
+      barOnDay(bars, fib.high_date) ?? bars[Math.max(0, bars.length - 60)].time,
+    );
+    const t1 = bars[bars.length - 1].time;
+    const levels: [number, string, number][] = [
+      [0, "#64748b", 1], [0.382, "#0d9488", 1], [0.5, "#7c3aed", 1], [0.618, "#2563eb", 2], [0.786, "#ea580c", 3], [1, "#dc2626", 2],
+    ];
+    for (const [f, color, width] of levels) {
+      const price = fib.high - f * (fib.high - fib.low);
+      const ls = chart.addSeries(LineSeries, {
+        color, lineWidth: width as 1 | 2 | 3 | 4, lineStyle: f === 0.786 ? 0 : 2,
+        priceLineVisible: false, lastValueVisible: true, crosshairMarkerVisible: false,
+        title: `${(f * 100).toFixed(1)}%`,
+      });
+      ls.setData([{ time: t0 as Time, value: price }, { time: t1 as Time, value: price }]);
+      createSeriesMarkers(ls, [{ time: t0 as Time, position: "inBar", color, shape: "circle", size: 0.1, text: `${(f * 100).toFixed(1)}% (${price.toFixed(2)})` }]);
+      fibSeriesRef.current.push(ls);
+    }
+    // green arrows under the 3-5 Drive lows
+    const arrows: SeriesMarker<Time>[] = [];
+    for (const d of fib.drive_dates ?? []) {
+      const t = barOnDay(bars, d);
+      if (t !== null) arrows.push({ time: t as Time, position: "belowBar", color: "#16a34a", shape: "arrowUp", text: "" });
+    }
+    arrows.sort((a, b) => (a.time as number) - (b.time as number));
+    driveMarkersRef.current.setMarkers(arrows);
     // zoom to the last ~6 months so the swing and its levels are easy to see
-    const n = barsRef.current.length;
+    const n = bars.length;
     if (n > 130) {
-      try { chartRef.current?.timeScale().setVisibleLogicalRange({ from: n - 130, to: n + 4 }); } catch { /* chart not ready */ }
+      try { chart.timeScale().setVisibleLogicalRange({ from: n - 130, to: n + 4 }); } catch { /* chart not ready */ }
     }
   };
 
@@ -399,6 +418,8 @@ export function useTradingViewChart(containerRef: React.RefObject<HTMLDivElement
       cupMarkersRef.current = null;
       breakoutLineRef.current = null;
       fibLinesRef.current = [];
+      fibSeriesRef.current = [];
+      driveMarkersRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -601,6 +622,18 @@ export function useTradingViewChart(containerRef: React.RefObject<HTMLDivElement
  * real bar where that month's extreme happened. Returns null if no bar is
  * in range (e.g. the point is older than the loaded history).
  */
+/** The bar on (or the first after) a YYYY-MM-DD day - exact, unlike snapToBar's whole-month window. */
+function barOnDay(bars: OHLCBar[], iso: string | null | undefined): number | null {
+  if (!iso) return null;
+  const t = Date.parse(`${iso}T00:00:00Z`) / 1000;
+  if (!Number.isFinite(t)) return null;
+  let best: number | null = null;
+  for (const b of bars) {
+    if (b.time >= t - 43200) { best = b.time; break; }
+  }
+  return best;
+}
+
 export function snapToBar(bars: OHLCBar[], startIso: string | null | undefined, endIso: string | null | undefined, pick: "high" | "low" | "last"): number | null {
   const start = parseIsoDay(startIso);
   if (start === null) return null;

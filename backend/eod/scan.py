@@ -45,34 +45,52 @@ def monthly_rsi_now(df: pd.DataFrame, length: int = 14) -> float | None:
     return float(100 - 100 / (1 + avg_gain / avg_loss))
 
 
-def falling_drives(bars: pd.DataFrame, k: int, recent_bars: int) -> dict | None:
-    """Consecutive falling drives (2026-11-23, user: 3, 4 or 5 drives on the daily or weekly chart): swing lows
-    (k bars each side) each LOWER than the one before, with a swing high between each pair, ending at the latest swing
-    low - which must be recent (within `recent_bars`) with price still above it. No Fibonacci ratio rules (the user
-    asked for the plain count); count = how many such lows in a row, reported when 3 or more."""
+def falling_drives(bars: pd.DataFrame, k: int, recent_bars: int, min_gap: int = 5) -> dict | None:
+    """The 3-5 Drive setup (2026-11-23, the user's course: Bollinger Bands 20,2 on the chart). A drive is a swing low
+    (k bars each side) that reaches the LOWER band (within BAND_TOUCH); the drives come one after another, each lower
+    than the one before, with a bounce between. The last drive must be recent (within `recent_bars`) with price
+    above it. `mid_reclaim`: since the last drive price has closed back above the middle band - the entry signal."""
     from backend.strategies.gann_time import find_pivots
 
-    if len(bars) < 4 * k + 10:
+    if len(bars) < 4 * k + 30:
         return None
+    close = bars["close"]
+    mid = close.rolling(20).mean()
+    lower = (mid - 2 * close.rolling(20).std(ddof=0)).to_numpy()
     high, low = bars["high"].to_numpy(float), bars["low"].to_numpy(float)
     piv = find_pivots(high, low, k=k)
-    lows = [(i, float(low[i])) for i, kind in piv if kind == "L"]
+    lows = [(i, float(low[i])) for i, kind in piv if kind == "L" and lower[i] == lower[i] and low[i] <= lower[i] * (1 + BAND_TOUCH)]
     if len(lows) < 3:
         return None
     last_i, last_p = lows[-1]
-    if len(bars) - 1 - last_i > recent_bars or float(bars["close"].iloc[-1]) <= last_p:
+    if len(bars) - 1 - last_i > recent_bars or float(close.iloc[-1]) <= last_p:
         return None
+    mid_arr = mid.to_numpy()
+
+    def proper_bounce(i: int, j: int) -> bool:
+        # a real up-and-down between two drives (user): at least min_gap candles apart, and price climbed back to the
+        # MIDDLE band somewhere in between before falling to the lower band again
+        if j - i < min_gap:
+            return False
+        return any(high[t] >= mid_arr[t] for t in range(i + 1, j) if mid_arr[t] == mid_arr[t])
+
     run = [lows[-1]]
     for i, p in reversed(lows[:-1]):
-        if p > run[-1][1]:
+        if p > run[-1][1] and proper_bounce(i, run[-1][0]):
             run.append((i, p))
         else:
             break
-    count = len(run)
-    if count < 3:
+    if len(run) < 3:
         return None
     run.reverse()
-    return {"count": min(count, 9), "lows": [{"date": bars.index[i].date().isoformat(), "price": round(p, 2)} for i, p in run[-6:]]}
+    after = close.iloc[last_i + 1:]
+    mids = mid.iloc[last_i + 1:]
+    reclaim = bool(len(after) and (after > mids).any() and float(close.iloc[-1]) > float(mid.iloc[-1]))
+    return {"count": min(len(run), 9), "mid_reclaim": reclaim,
+            "lows": [{"date": bars.index[i].date().isoformat(), "price": round(p, 2)} for i, p in run[-6:]]}
+
+
+BAND_TOUCH = 0.01  # a low within 1% of the lower Bollinger band counts as touching it
 
 
 def daily_retracement(df: pd.DataFrame) -> dict | None:
@@ -156,7 +174,7 @@ def run(store: dict[str, pd.DataFrame], strong_map: dict[str, str] | None = None
                         and month_green):
                     ret = daily_retracement(df)
                     weekly_bars = df.resample("W-FRI").agg({"open": "first", "high": "max", "low": "min", "close": "last"}).dropna()
-                    drives = {"daily": falling_drives(df.iloc[-400:], 5, 25), "weekly": falling_drives(weekly_bars.iloc[-200:], 3, 8)}
+                    drives = {"daily": falling_drives(df.iloc[-400:], 3, 30, 5), "weekly": falling_drives(weekly_bars.iloc[-200:], 2, 10, 3)}
                     support.append({
                         "drives": drives,
                         "symbol": sym, "company_name": universe_loader.company_name_for(sym) or sym,

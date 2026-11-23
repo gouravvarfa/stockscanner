@@ -47,6 +47,11 @@ export type ChartDataStatus = "loading" | "ready" | "empty" | "error";
 export interface FibonacciLevels {
   low: number;
   high: number;
+  /** swing dates (YYYY-MM-DD): the levels are drawn from the earlier swing point to the latest bar */
+  low_date?: string;
+  high_date?: string;
+  /** 3-5 Drive lows (YYYY-MM-DD) - green arrows under those candles */
+  drive_dates?: string[];
 }
 
 export interface CupStructure {

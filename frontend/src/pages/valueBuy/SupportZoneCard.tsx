@@ -81,7 +81,10 @@ export function SupportZoneCard({ rows, strongMap, strongOnly, query, mode = "su
               {list.map((r) => {
                 const ret = r.retracement;
                 return (
-                  <tr key={r.symbol} className="wk-click" onClick={() => openChart(r.symbol, { strategy: "Value Buy", monthly_rsi: r.monthly_rsi, daily_rsi: r.daily_rsi, weekly_rsi: r.weekly_rsi, signal_date: null, indicators: { rsi: true }, fibonacci: r.retracement ? { low: r.retracement.swing_low, high: r.retracement.swing_high } : null })}>
+                  <tr key={r.symbol} className="wk-click" onClick={() => openChart(r.symbol, { strategy: "Value Buy", monthly_rsi: r.monthly_rsi, daily_rsi: r.daily_rsi, weekly_rsi: r.weekly_rsi, signal_date: null, indicators: { rsi: true, bollinger: true }, fibonacci: r.retracement ? {
+                      low: r.retracement.swing_low, high: r.retracement.swing_high, low_date: r.retracement.swing_low_date, high_date: r.retracement.swing_high_date,
+                      drive_dates: inRange(r.drives?.daily) ? r.drives!.daily!.lows.slice(-r.drives!.daily!.count).map((l) => l.date) : [],
+                    } : null })}>
                     <td>
                       <span className="logo-line">
                         <span className="wk-logo"><StockLogo symbol={r.symbol} /></span>
