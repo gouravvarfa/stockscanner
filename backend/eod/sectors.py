@@ -90,6 +90,7 @@ def classify(root: Path) -> dict:
     from backend.services.sector_strength_service import SECTORS
 
     labels = {s["key"]: s["label"] for s in SECTORS}
+    index_names = {s["key"]: s["index"] for s in SECTORS}
     closes = load_index_closes(root)
     snap = json.loads(CONSTITUENTS.read_text(encoding="utf-8")).get("sectors", {})
     extra = industry_members()
@@ -111,7 +112,7 @@ def classify(root: Path) -> dict:
         elif m is not None and VALUE_MIN <= m <= VALUE_MAX:
             status = "value"
         rsi = {"d": None if d is None else round(d, 1), "w": None if w is None else round(w, 1), "m": None if m is None else round(m, 1)}
-        sectors.append({"key": key, "label": labels.get(key, key), "rsi": rsi, "status": status, "as_of": ser.index[-1].date().isoformat()})
+        sectors.append({"key": key, "label": labels.get(key, key), "index": index_names.get(key), "rsi": rsi, "status": status, "as_of": ser.index[-1].date().isoformat()})
         if status:
             syms = {m["symbol"] for m in snap.get(key, [])} | set(extra.get(key, []))
             for sym in syms:

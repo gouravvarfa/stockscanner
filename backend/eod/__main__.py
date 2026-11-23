@@ -26,18 +26,22 @@ def main() -> None:
         from backend.eod import scan, store
         hist = store.build(ROOT)
         from backend.eod import sectors
-        cup, vb = scan.run(hist, sector_info=sectors.classify(ROOT))
+        info = sectors.classify(ROOT)
+        cup, vb = scan.run(hist, sector_info=info)
+        setup = scan.run_setup(hist, info)
         out = Path(sys.argv[2]) if len(sys.argv) > 2 else Path("frontend/public/eod")
-        scan.write(out, cup, vb, hist)
+        scan.write(out, cup, vb, hist, setup)
         print(f"daily: {got} new day files; data to {cup['data_as_of']}; {len(cup['results'])} cups, {len(vb['strategies']['Value Buy'])} value buy -> {out}")
         return
     elif cmd == "scan":
         from backend.eod import scan, store
         hist = store.load(ROOT) if (ROOT / "history.pkl").exists() and "--rebuild" not in sys.argv else store.build(ROOT)
         from backend.eod import sectors
-        cup, vb = scan.run(hist, sector_info=sectors.classify(ROOT))
+        info = sectors.classify(ROOT)
+        cup, vb = scan.run(hist, sector_info=info)
+        setup = scan.run_setup(hist, info)
         out = Path(sys.argv[2]) if len(sys.argv) > 2 else ROOT / "out"
-        scan.write(out, cup, vb, hist)
+        scan.write(out, cup, vb, hist, setup)
         print(f"scan: {cup['stocks_scanned']} stocks, {len(cup['results'])} cups, {len(vb['strategies']['Value Buy'])} value buy -> {out}")
         return
     else:

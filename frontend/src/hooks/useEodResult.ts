@@ -8,7 +8,7 @@ import { useEffect, useState } from "react";
 export type EodMeta = { data_as_of: string; generated_at: string; source: string };
 
 /** undefined while the file is loading, null when there is none. */
-export function useEodResult<T>(name: "cup" | "value_buy"): (T & EodMeta) | null | undefined {
+export function useEodResult<T>(name: "cup" | "value_buy" | "setup"): (T & EodMeta) | null | undefined {
   const [data, setData] = useState<(T & EodMeta) | null | undefined>(undefined);
   useEffect(() => {
     let alive = true;

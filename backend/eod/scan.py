@@ -208,6 +208,64 @@ def run(store: dict[str, pd.DataFrame], strong_map: dict[str, str] | None = None
     return cup_payload, vb_payload
 
 
+
+def run_setup(store: dict[str, pd.DataFrame], sector_info: dict) -> dict:
+    """The Setup Scanner from end-of-day data (2026-11-23, user: its Run Scan was slow through Angel One): every stock
+    of today's STRONG sectors (all of each sector's NSE stocks), every setup except Value Buy - the same strategy code
+    as the live scan (scan_service._evaluate_all_strategies), so the result has the same shape."""
+    from backend.services import serializers
+    from backend.services.config_store import get_current_config, get_current_multi_strategy_config
+    from backend.services.scan_service import ScanOutcome, _evaluate_all_strategies
+    from backend.services.scan_service import ALL_SIGNAL_STRATEGY_NAMES as STRATEGY_NAMES
+
+    config = get_current_config()
+    multi = get_current_multi_strategy_config()
+    strong = [x for x in sector_info.get("sectors", []) if x["status"] == "strong"]
+    strong_keys = {x["key"] for x in strong}
+    symbols = sorted(sym for sym, tags in sector_info.get("members", {}).items() if any(t["key"] in strong_keys for t in tags))
+    started = dt.datetime.utcnow()
+    signals: dict[str, list] = {name: [] for name in STRATEGY_NAMES}
+    results, failed = [], []
+    for sym in symbols:
+        df = store.get(sym)
+        if df is None or len(df) < MIN_DAILY_BARS:
+            failed.append(sym)
+            continue
+        tail = df[df.index >= df.index[-1] - pd.Timedelta(days=VALUE_BUY_DAYS)]
+        try:
+            res = analyze_stock(sym, tail, config)
+            if res is None:
+                failed.append(sym)
+                continue
+            results.append(res)
+            for name, sig in _evaluate_all_strategies(res, tail, multi, False):
+                sig.extra.setdefault("current_price", res.current_price)
+                sig.extra["data_source"] = "NSE_EOD"
+                signals.setdefault(name, []).append(sig)
+        except Exception:  # noqa: BLE001 - one bad stock never stops the scan
+            failed.append(sym)
+    qualifying = [r for r in results if r.meets_weekly_rsi_band and r.meets_monthly_rsi_min and not r.disqualified_by_divergence]
+    qualifying.sort(key=lambda r: r.score.total_score, reverse=True)
+    finished = dt.datetime.utcnow()
+    outcome = ScanOutcome(
+        started_at=started, finished_at=finished, execution_seconds=(finished - started).total_seconds(),
+        universe_requested=len(symbols), universe_returned=len(symbols), universe_complete=True,
+        value_buy_universe_requested=0, value_buy_universe_returned=0, stocks_scanned=len(results),
+        stocks_failed=len(failed), failed_symbols=failed, all_results=results, qualifying_results=qualifying,
+        top10=qualifying[:10], top3=qualifying[:3], best=qualifying[0] if qualifying else None,
+        strategy_signals=signals, data_source_summary={"NSE_EOD": len(results)},
+    )
+    payload = serializers.scan_outcome_out(outcome).model_dump(mode="json")
+    members = sector_info.get("members", {})
+    payload["strong_sectors"] = [{"key": x["key"], "label": x["label"], "index": x.get("index") or x["label"], "rsi": x["rsi"],
+                                  "stocks": sum(1 for tags in members.values() if any(t["key"] == x["key"] for t in tags))} for x in strong]
+    last_day = max(df.index[-1] for df in store.values())
+    payload.update({"strong_as_of": last_day.date().isoformat(), "data_as_of": last_day.date().isoformat(),
+                    "generated_at": finished.isoformat() + "Z", "source": "NSE bhavcopy (end of day)"})
+    logger.info("EOD setup scan: %d strong-sector stocks, %d signals", len(results), sum(len(v) for v in signals.values()))
+    return payload
+
+
 def write_candles(out_dir: Path, store: dict[str, pd.DataFrame], symbols: set[str]) -> int:
     """Chart data for the listed stocks (2026-11-23, user: charts opened slowly through Render/Angel): the last ~3
     years of daily candles plus the full monthly history, as small JSON files the site serves directly. Rows are
@@ -235,10 +293,15 @@ def write_candles(out_dir: Path, store: dict[str, pd.DataFrame], symbols: set[st
     return n
 
 
-def write(out_dir: Path, cup_payload: dict, vb_payload: dict, store: dict[str, pd.DataFrame] | None = None) -> None:
+def write(out_dir: Path, cup_payload: dict, vb_payload: dict, store: dict[str, pd.DataFrame] | None = None,
+          setup_payload: dict | None = None) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
+    if setup_payload is not None:
+        (out_dir / "setup.json").write_text(json.dumps(setup_payload, separators=(",", ":"), default=str), encoding="utf-8")
     if store is not None:
         syms = {r["symbol"] for r in cup_payload.get("results", [])} | {r["symbol"] for r in vb_payload.get("support_zone", [])}
+        if setup_payload is not None:
+            syms |= {sig["symbol"] for sigs in setup_payload.get("strategies", {}).values() for sig in sigs}
         write_candles(out_dir, store, syms)
     (out_dir / "cup.json").write_text(json.dumps(cup_payload, separators=(",", ":"), default=str), encoding="utf-8")
     (out_dir / "value_buy.json").write_text(json.dumps(vb_payload, separators=(",", ":"), default=str), encoding="utf-8")
