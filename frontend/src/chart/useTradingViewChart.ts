@@ -223,17 +223,24 @@ export function useTradingViewChart(containerRef: React.RefObject<HTMLDivElement
     fibLinesRef.current = [];
     const fib = optionsRef.current.fibonacci;
     if (!fib || !(fib.high > fib.low)) return;
-    const colors = getChartThemeColors();
-    const levels: [number, string][] = [[0, "0"], [0.236, "23.6%"], [0.382, "38.2%"], [0.5, "50%"], [0.618, "61.8%"], [0.786, "78.6%"], [1, "100%"]];
-    for (const [f, label] of levels) {
-      const key = f === 0.786;
+    // only the levels that matter, each in its own colour and always labelled with its price (2026-11-23, user:
+    // the 7-line version was hard to read)
+    const levels: [number, string, string, number][] = [
+      [0, "Swing high", "#64748b", 1],
+      [0.618, "61.8%", "#2563eb", 1],
+      [0.786, "78.6% zone", "#ea580c", 3],
+      [1, "Swing low", "#dc2626", 1],
+    ];
+    for (const [f, label, color, width] of levels) {
       fibLinesRef.current.push(series.createPriceLine({
         price: fib.high - f * (fib.high - fib.low),
-        color: key ? colors.warning : colors.muted,
-        lineWidth: key ? 2 : 1,
-        lineStyle: key ? 0 : 2,
-        axisLabelVisible: key || f === 0 || f === 1,
-        title: `Fib ${label}`,
+        color,
+        lineWidth: width as 1 | 2 | 3 | 4,
+        lineStyle: f === 0.786 ? 0 : 2,
+        axisLabelVisible: true,
+        axisLabelColor: color,
+        axisLabelTextColor: "#ffffff",
+        title: label,
       }));
     }
   };
