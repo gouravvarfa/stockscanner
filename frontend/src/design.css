@@ -2160,3 +2160,5 @@ h1, .page-header h1, .app-content > h1, .app-content > div > h1:first-child { fo
 .vb-best-card:focus-visible, .cup-strong-card:focus-visible { outline: 2px solid var(--pt, var(--accent)); outline-offset: 2px; }
 .eod-wait { color: var(--text-secondary); background: var(--bg-soft); border-color: var(--border); gap: 8px; }
 .eod-loading { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.cup-top-card { transition: border-color .15s ease; }
+.cup-top-card:hover { border-color: color-mix(in srgb, var(--pt, var(--accent)) 45%, var(--border)); }

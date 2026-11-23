@@ -351,10 +351,10 @@ export function CupBreakoutPage() {
       {allResults.length > 0 && (
         <>
           <div className="grid-4" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 16 }}>
-            <TopCard title="Closest to Breakout" result={closestToBreakout} metric={(r) => fmtPct(r.distance_to_breakout_percent)} />
-            <TopCard title="Deepest Cup" result={deepestCup} metric={(r) => fmtPct(r.cup_depth_percent)} />
-            <TopCard title="Highest Recovery" result={highestRecovery} metric={(r) => fmtPct(r.recovery_percent)} />
-            <TopCard title="Recent Breakout" result={mostRecentBreakout} metric={(r) => fmtDay(r.breakout_date)} />
+            <TopCard onOpen={openCupChart} title="Closest to Breakout" result={closestToBreakout} metric={(r) => fmtPct(r.distance_to_breakout_percent)} />
+            <TopCard onOpen={openCupChart} title="Deepest Cup" result={deepestCup} metric={(r) => fmtPct(r.cup_depth_percent)} />
+            <TopCard onOpen={openCupChart} title="Highest Recovery" result={highestRecovery} metric={(r) => fmtPct(r.recovery_percent)} />
+            <TopCard onOpen={openCupChart} title="Recent Breakout" result={mostRecentBreakout} metric={(r) => fmtDay(r.breakout_date)} />
           </div>
 
 
@@ -536,9 +536,16 @@ export function CupBreakoutPage() {
   );
 }
 
-function TopCard({ title, result, metric }: { title: string; result: CupResult | null; metric: (r: CupResult) => string }) {
+function TopCard({ title, result, metric, onOpen }: { title: string; result: CupResult | null; metric: (r: CupResult) => string; onOpen: (r: CupResult) => void }) {
   return (
-    <div className="card">
+    <div
+      className={result ? "card cup-top-card wk-click" : "card"}
+      role={result ? "button" : undefined}
+      tabIndex={result ? 0 : undefined}
+      title={result ? "Open the chart" : undefined}
+      onClick={() => result && onOpen(result)}
+      onKeyDown={(e) => { if (result && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); onOpen(result); } }}
+    >
       <div className="muted small" style={{ marginBottom: 6 }}>{title}</div>
       {result ? (
         <>
