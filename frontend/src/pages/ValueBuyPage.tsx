@@ -115,7 +115,7 @@ export function ValueBuyPage() {
         <div>
           <h1>Value Buy</h1>
           <p className="page-subtitle">
-            Every NSE stock: monthly RSI in the 38-45 support zone, the latest weekly candle green and a daily key reversal. Show only today&apos;s strong sectors, or all.
+            Every NSE stock at the monthly RSI 40 support (38–45, this month&apos;s candle) with this month&apos;s candle green. Daily drives and the 78% pullback are shown as extra tags.
           </p>
         </div>
         <div style={{ display: "flex", gap: 10 }}>
@@ -230,9 +230,6 @@ export function ValueBuyPage() {
                   </button>
                   <button type="button" role="tab" aria-selected={view === "drives"} className={view === "drives" ? "active" : ""} onClick={() => setView("drives")}>
                     Drives (3–5) <b>{vb.support_zone.filter(hasDrives).length}</b>
-                  </button>
-                  <button type="button" role="tab" aria-selected={view === "vb"} className={view === "vb" ? "active" : ""} onClick={() => setView("vb")}>
-                    Value Buy (all 3 rules) <b>{allSignals.length}</b>
                   </button>
                 </div>
               ) : (

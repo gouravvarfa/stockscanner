@@ -15,6 +15,8 @@ export type Retracement = {
 export type Drives = { count: number; lows: { date: string; price: number }[] };
 const inRange = (d: Drives | null | undefined) => !!d && d.count >= 3 && d.count <= 5;
 export const hasDrives = (r: SupportRow) => inRange(r.drives?.daily) || inRange(r.drives?.weekly);
+/** The user's best setup (2026-11-23): 3, 4 or 5 falling drives on the DAILY chart and the 78.6% daily pullback. */
+export const isBest = (r: SupportRow) => inRange(r.drives?.daily) && !!r.retracement?.fib78;
 
 export type SupportRow = {
   symbol: string; company_name: string; price: number; daily_rsi: number | null; weekly_rsi: number | null; monthly_rsi: number | null;
@@ -31,14 +33,16 @@ export function SupportZoneCard({ rows, strongMap, strongOnly, query, mode = "su
 }) {
   const { openChart } = useChart();
   // Drives view: the 78% pullback is a bonus, not a requirement (user) - so it starts unticked there
-  const [only78, setOnly78] = useState(mode === "support");
+  // Value Buy is the monthly 40 support only (user, 2026-11-23): the daily 78% pullback is an extra tag, not a filter
+  const [only78, setOnly78] = useState(false);
+  const [onlyBest, setOnlyBest] = useState(false);
   const base = mode === "drives" ? rows.filter(hasDrives) : rows;
   const list = useMemo(() => {
     const q = query.trim().toUpperCase();
     return base
-      .filter((r) => (!strongOnly || strongMap[r.symbol]) && (!only78 || r.retracement?.fib78) && (!q || r.symbol.includes(q)))
-      .sort((a, b) => Number(!!b.retracement?.fib78) - Number(!!a.retracement?.fib78) || (a.monthly_rsi ?? 99) - (b.monthly_rsi ?? 99));
-  }, [base, strongMap, strongOnly, only78, query]);
+      .filter((r) => (!strongOnly || strongMap[r.symbol]) && (!only78 || r.retracement?.fib78) && (!onlyBest || isBest(r)) && (!q || r.symbol.includes(q)))
+      .sort((a, b) => Number(isBest(b)) - Number(isBest(a)) || Number(!!b.retracement?.fib78) - Number(!!a.retracement?.fib78) || (a.monthly_rsi ?? 99) - (b.monthly_rsi ?? 99));
+  }, [base, strongMap, strongOnly, only78, onlyBest, query]);
   const count78 = base.filter((r) => (!strongOnly || strongMap[r.symbol]) && r.retracement?.fib78).length;
 
   return (
@@ -48,8 +52,14 @@ export function SupportZoneCard({ rows, strongMap, strongOnly, query, mode = "su
           <input type="checkbox" checked={only78} onChange={(e) => setOnly78(e.target.checked)} />
           Only the 78% pullback <b>{count78}</b>
         </label>
+        {mode === "drives" && (
+          <label className="sz-only sz-only-best">
+            <input type="checkbox" checked={onlyBest} onChange={(e) => setOnlyBest(e.target.checked)} />
+            ★ Best only <b>{base.filter((r) => (!strongOnly || strongMap[r.symbol]) && isBest(r)).length}</b>
+          </label>
+        )}
         {mode === "drives" && <span className="sz-note">3, 4 or 5 falling drives on the daily or weekly chart — each low below the last, with a bounce between</span>}
-        <span className="muted small">Monthly RSI 38–45 with this month's candle (support at 40), and this month's candle green · daily pullback measured on the last swing low → high (5-day swings)</span>
+        <span className="muted small">Value Buy = monthly RSI 38–45 with this month's candle (support at 40) and this month's candle green. Extra tags: daily 78% pullback (last swing low → high), daily drives, ★ Best = 3–5 daily drives + 78%</span>
       </div>
       {list.length === 0 ? (
         <p className="muted" style={{ marginBottom: 0 }}>{only78 ? "No stock with a 78% pullback in this list right now — untick to see every support-zone stock." : "No stock matches."}</p>
@@ -77,6 +87,7 @@ export function SupportZoneCard({ rows, strongMap, strongOnly, query, mode = "su
                         <span className="wk-logo"><StockLogo symbol={r.symbol} /></span>
                         <span className="dash-two"><b>{r.symbol}</b><small>{r.company_name}</small></span>
                         {strongMap[r.symbol] && <span className="vb-sector">{strongMap[r.symbol]}</span>}
+                        {isBest(r) && <span className="sz-best" title="3-5 daily drives + the 78.6% daily pullback">★ Best</span>}
                       </span>
                     </td>
                     <td className="num-cell">₹{num(r.price, 2)}</td>
