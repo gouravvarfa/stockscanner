@@ -2040,3 +2040,11 @@ h1, .page-header h1, .app-content > h1, .app-content > div > h1:first-child { fo
 .live-item-setups em { font-style: normal; font-size: 10.5px; font-weight: 600; padding: 1px 7px; border-radius: 999px;
   color: var(--pt, var(--accent)); background: color-mix(in srgb, var(--pt, var(--accent)) 10%, transparent); }
 @media (max-width: 900px) { .live-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* Input cards must never clip their search dropdowns (2026-11-23): no overflow clipping; the top accent bar follows the
+   card's rounded corners instead, and the dropdown sits above the cards below */
+.app-content :is(.card.filter-panel, .card:has(> .tb-config-grid), .card:has(> .filters-row), .card:has(> .gt-run), .card:has(> .run-row)),
+.app-content .tb-config-card { overflow: visible !important; position: relative; z-index: 3; }
+.app-content :is(.card.filter-panel, .card:has(> .tb-config-grid), .card:has(> .filters-row), .card:has(> .gt-run), .card:has(> .run-row))::before,
+.app-content .tb-config-card::before { border-radius: 14px 14px 0 0; }
+.app-content :is(.gt-hits, .tb-search-results, .tb-search-dropdown, .rm-search-results) { z-index: 50; }
