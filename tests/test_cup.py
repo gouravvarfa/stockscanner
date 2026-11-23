@@ -360,7 +360,7 @@ def test_shallow_cup_rejected():
 
 
 def test_extreme_depth_rejected():
-    specs, (y, m) = _cup_specs(left_rim=1000.0, cup_low=350.0, recovery_close=900.0)  # 65% depth > 50% max
+    specs, (y, m) = _cup_specs(left_rim=1000.0, cup_low=50.0, recovery_close=900.0)  # 95% depth > 90% deep-cup cap (2026-11-23)
     df = _monthly_frame(specs)
     result = detect_cup(df, DEFAULT_CONFIG, now=dt.datetime(y, m, 10))
     assert result["status"] == "NO_SIGNAL"
@@ -733,16 +733,16 @@ def test_sonacoms_like_short_total_history_uses_relaxed_room_requirement():
         specs.append((y, m, price, price, price, price, 1000.0)); y, m = _step_month(y, m)
     df = _monthly_frame(specs)
     total_months = len(specs)
-    assert DEFAULT_CONFIG.min_cup_months < total_months < DEFAULT_CONFIG.min_cup_months + 12  # short total history, matching SONACOMS (~5.25y)
+    assert 60 < total_months < 72  # short total history, matching SONACOMS (~5.25y); min_cup_months is 24 since 2026-11-23
     # Relaxation is OFF by default since the strict 5-year Cup Level 1 spec
     # (2026-10-31) — this legacy behavior is now opt-in via the flag.
     relaxed = CupConfig(allow_short_history_relaxation=True)
     result = detect_cup(df, relaxed, now=dt.datetime(y, m, 10))
     assert result["status"] in ("EARLY_CUP", "NEAR_BREAKOUT", "BREAKOUT_CONFIRMED", "RECENT_BREAKOUT")
     assert result["left_rim_price"] == pytest.approx(700.0, abs=1.0)
-    # ...and with the default (strict) config the same chart is rejected.
-    strict = detect_cup(df, DEFAULT_CONFIG, now=dt.datetime(y, m, 10))
-    assert strict["status"] == "NO_SIGNAL"
+    # ...and since 2026-11-23 (24-month minimum) the default config accepts the same ~3-year cup too.
+    default = detect_cup(df, DEFAULT_CONFIG, now=dt.datetime(y, m, 10))
+    assert default["status"] in ("EARLY_CUP", "NEAR_BREAKOUT", "BREAKOUT_CONFIRMED", "RECENT_BREAKOUT", "BREAKOUT_FORMING")
 
 
 def test_short_history_relaxation_never_exceeds_the_normal_five_year_rule():
@@ -835,7 +835,7 @@ def test_deep_cup_50_to_60_percent_v_shaped_spike_is_rejected_as_no_signal():
 def test_depth_beyond_deep_cup_cap_is_rejected_regardless_of_shape():
     # 65% depth - beyond deep_cup_max_depth_pct (60%) even with a gradual,
     # rounded recovery shape identical to the accepted DEEP_CUP case above.
-    specs, (y, m) = _deep_cup_rounded_specs(left_rim=1000.0, cup_low=350.0, recovery_close=900.0)
+    specs, (y, m) = _deep_cup_rounded_specs(left_rim=1000.0, cup_low=50.0, recovery_close=900.0)  # 95% > 90% cap
     df = _monthly_frame(specs)
     result = detect_cup(df, DEFAULT_CONFIG, now=dt.datetime(y, m, 10))
     assert result["status"] == "NO_SIGNAL"

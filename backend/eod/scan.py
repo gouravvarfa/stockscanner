@@ -29,6 +29,38 @@ VALUE_BUY_DAYS = 1500  # the live scan's MONTHLY_RSI_LOOKBACK_DAYS
 STALE_DAYS = 10  # a stock with no trade in the last 10 days (suspended/delisted) is skipped
 
 
+def daily_retracement(df: pd.DataFrame) -> dict | None:
+    """The daily pullback inside the last up-swing (2026-11-23, the user's PFC example: low 310.30 -> high 346.37,
+    then a dip to ~319 = the 78.6% zone). Swings use 5 daily bars on each side, like a chart's Fibonacci tool. The
+    swing high is the last 5-bar high; the swing low is the last 5-bar low before it. `deepest_pct` is the lowest low
+    since the high as a share of the swing (0% = at the high, 100% = back at the low); `pct` is today's close.
+    The 78% tag: the deepest pullback reached 74-82% (around 78.6%) without breaking the swing low."""
+    from backend.strategies.gann_time import find_pivots
+
+    tail = df.iloc[-300:]
+    high, low = tail["high"].to_numpy(float), tail["low"].to_numpy(float)
+    piv = find_pivots(high, low, k=5)
+    highs = [i for i, k in piv if k == "H"]
+    if not highs:
+        return None
+    hi = highs[-1]
+    lows_before = [i for i, k in piv if k == "L" and i < hi]
+    if not lows_before:
+        return None
+    lo = lows_before[-1]
+    h, l = float(high[hi]), float(low[lo])
+    if h <= l:
+        return None
+    rng = h - l
+    close = float(tail["close"].iloc[-1])
+    deepest = float(low[hi + 1:].min()) if hi + 1 < len(low) else close
+    deep_pct = (h - deepest) / rng * 100.0
+    return {"pct": round((h - close) / rng * 100.0, 1), "deepest_pct": round(deep_pct, 1),
+            "swing_high": round(h, 2), "swing_high_date": tail.index[hi].date().isoformat(),
+            "swing_low": round(l, 2), "swing_low_date": tail.index[lo].date().isoformat(),
+            "level_786": round(h - 0.786 * rng, 2), "fib78": 74.0 <= deep_pct <= 82.0 and deepest > l}
+
+
 def _signal_json(sig) -> dict:
     from backend.services.serializers import strategy_signal_out
 
@@ -43,7 +75,7 @@ def run(store: dict[str, pd.DataFrame], strong_map: dict[str, str] | None = None
     cup_config = DEFAULT_CUP_CONFIG.model_copy(update={"history_years": 25}) if hasattr(DEFAULT_CUP_CONFIG, "model_copy") else DEFAULT_CUP_CONFIG
     last_day = max(df.index[-1] for df in store.values())
     started = dt.datetime.utcnow()
-    cup_results, vb_signals, failed = [], [], []
+    cup_results, vb_signals, failed, support = [], [], [], []
     scanned = 0
     universe = set(universe_loader.load_all_nse_universe())  # the live Cup scan's list: NSE equities, no ETFs
     for sym, df in store.items():
@@ -70,6 +102,14 @@ def run(store: dict[str, pd.DataFrame], strong_map: dict[str, str] | None = None
             result = analyze_stock(sym, tail, config)
             if result is not None:
                 sig = evaluate_value_buy(result, tail, vb_config)
+                if sig.conditions.get("monthly_rsi_in_support_zone"):
+                    ret = daily_retracement(df)
+                    support.append({
+                        "symbol": sym, "company_name": universe_loader.company_name_for(sym) or sym,
+                        "price": round(float(result.current_price), 2), "daily_rsi": result.daily.rsi,
+                        "weekly_rsi": result.weekly.rsi, "monthly_rsi": result.monthly.rsi,
+                        "conditions": sig.conditions, "value_buy": bool(sig.qualifies), "retracement": ret,
+                    })
                 if sig.qualifies:
                     sig.extra["current_price"] = result.current_price
                     sig.extra["data_source"] = "NSE_EOD"
@@ -84,7 +124,7 @@ def run(store: dict[str, pd.DataFrame], strong_map: dict[str, str] | None = None
                    "results": cup_results}
     vb_payload = {**common, "started_at": started.isoformat(), "finished_at": finished.isoformat(),
                   "stocks_scanned": scanned, "stocks_failed": len([f for f in failed if f["error"].startswith("value_buy")]),
-                  "strategies": {"Value Buy": vb_signals}, "strong_symbols": strong_map or {}, "strong_sectors": strong_sectors or []}
+                  "strategies": {"Value Buy": vb_signals}, "support_zone": support, "strong_symbols": strong_map or {}, "strong_sectors": strong_sectors or []}
     logger.info("EOD scan: %d stocks, %d cups, %d value buy, %d failed", scanned, len(cup_results), len(vb_signals), len(failed))
     return cup_payload, vb_payload
 

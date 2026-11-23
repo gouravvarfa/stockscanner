@@ -88,6 +88,13 @@ def _classify_deep_cup(
             bottom_duration += 1
         else:
             break
+    # 2026-11-23: the base also includes the months just BEFORE the low that already sat in the band (PAYTM:
+    # Feb-Apr 2024 at 357-386 before the May low of 297) - a rounded bottom has two sides.
+    for i in range(cup_low_idx - 1, -1, -1):
+        if float(closes.iloc[i]) <= band_price:
+            bottom_duration += 1
+        else:
+            break
 
     recovery_duration = b_idx - cup_low_idx
 

@@ -103,8 +103,9 @@ def test_cup_longer_than_five_years_is_accepted():
     assert result["cup_age_years"] > 5
 
 
-def test_cup_with_59_months_is_rejected():
-    specs, (y, m) = _cup_specs(left_rim=1000.0, cup_low=600.0, recovery_close=850.0, n_decline=30, n_recover=29)
+def test_cup_with_23_months_is_rejected():
+    # minimum is 24 months since 2026-11-23 (was 60)
+    specs, (y, m) = _cup_specs(left_rim=1000.0, cup_low=600.0, recovery_close=850.0, n_decline=12, n_recover=11)
     result = detect_cup(_monthly_frame(specs), CONFIG, now=dt.datetime(y, m, 10))
     assert result["status"] == "NO_SIGNAL"
 

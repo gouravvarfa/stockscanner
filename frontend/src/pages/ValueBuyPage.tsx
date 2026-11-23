@@ -7,11 +7,13 @@ import { useScanJob } from "../hooks/useScanJob";
 import { newerOf, useEodResult } from "../hooks/useEodResult";
 import type { ScanResult, StrategySignal } from "../services/api";
 import { StockLogo } from "../components/StockLogo";
+import { SupportZoneCard, type SupportRow } from "./valueBuy/SupportZoneCard";
 
 /** The Value Buy result also carries today's STRONG sectors and their stocks (2026-11-23). */
 type ValueBuyResult = ScanResult & {
   strong_sectors?: { key: string; label: string }[];
   strong_symbols?: Record<string, string>;
+  support_zone?: SupportRow[];
 };
 const STRONG_KEY = "value-buy:strong-only";
 
@@ -61,6 +63,7 @@ export function ValueBuyPage() {
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("monthly_rsi");
   const [asc, setAsc] = useState(true);
+  const [view, setView] = useState<"vb" | "support">("support");
 
   const allSignals = useMemo(() => vb?.strategies?.["Value Buy"] ?? [], [vb]);
   const strongCount = useMemo(() => allSignals.filter((s) => strongMap[s.symbol]).length, [allSignals, strongMap]);
@@ -219,7 +222,18 @@ export function ValueBuyPage() {
 
           <div className="card">
             <div className="vb-toolbar">
-              <h2 style={{ margin: 0 }}>Value Buy stocks</h2>
+              {vb.support_zone ? (
+                <div className="vb-seg vb-view" role="tablist" aria-label="List">
+                  <button type="button" role="tab" aria-selected={view === "support"} className={view === "support" ? "active" : ""} onClick={() => setView("support")}>
+                    Monthly RSI 40 support <b>{vb.support_zone.length}</b>
+                  </button>
+                  <button type="button" role="tab" aria-selected={view === "vb"} className={view === "vb" ? "active" : ""} onClick={() => setView("vb")}>
+                    Value Buy (all 3 rules) <b>{allSignals.length}</b>
+                  </button>
+                </div>
+              ) : (
+                <h2 style={{ margin: 0 }}>Value Buy stocks</h2>
+              )}
               {hasStrongInfo && (
                 <div className="vb-seg" role="tablist" aria-label="Which stocks">
                   <button type="button" role="tab" aria-selected={strongOnly} className={strongOnly ? "active" : ""} onClick={() => toggleStrong(true)}>
@@ -238,7 +252,9 @@ export function ValueBuyPage() {
                 aria-label="Search a stock"
               />
             </div>
-            {rows.length === 0 ? (
+            {view === "support" && vb.support_zone ? (
+              <SupportZoneCard rows={vb.support_zone} strongMap={strongMap} strongOnly={strongOnly && hasStrongInfo} query={query} />
+            ) : rows.length === 0 ? (
               <p className="muted" style={{ marginBottom: 0 }}>
                 {signals.length === 0
                   ? strongOnly && hasStrongInfo && allSignals.length > 0

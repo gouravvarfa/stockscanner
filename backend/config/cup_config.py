@@ -50,7 +50,8 @@ class CupConfig(BaseModel):
     # its left rim and the latest completed month — per explicit user
     # direction (2026-09-23): this is a LONG-TERM cup scanner, so a cup
     # under 5 years is never reported (longer is fine/better, no upper cap).
-    min_cup_months: int = 60
+    # 2026-11-23: per user, 2-3 year monthly cups count too (SONACOMS, PAYTM) - minimum lowered to 24 months.
+    min_cup_months: int = 24
     # Recently-listed stocks (e.g. a 2021 IPO) may simply not HAVE 5 years
     # of history at all yet — per explicit user direction (2026-09-24,
     # SONACOMS example): rather than reject them outright, a stock whose
@@ -111,7 +112,7 @@ class CupConfig(BaseModel):
     # an instant spike), and no single month's move accounting for most of
     # the whole recovery. See _classify_deep_cup() in strategies/cup.py for
     # the exact deterministic check.
-    deep_cup_max_depth_pct: float = 60.0
+    deep_cup_max_depth_pct: float = 90.0  # 2026-11-23: PAYTM-style post-IPO cups (~85% deep) count, with the deep-cup time rules
     deep_cup_min_bottom_months: int = 4
     deep_cup_min_recovery_months: int = 8
     deep_cup_bottom_band_pct: float = 60.0
