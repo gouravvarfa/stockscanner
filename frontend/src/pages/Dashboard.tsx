@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { STRATEGY_NAMES, strategyDisplayName, type StockResult, type StrategyName, type StrategySignal } from "../services/api";
 import { TopRankedCandidates } from "../components/TopRankedCandidates";
 import { useChart } from "../chart/ChartContext";
+import { SectorLogo } from "../components/SectorIcon";
 import { useScan } from "../context/ScanContext";
 import { BestStockCard } from "../components/BestStockCard";
 import { StockDetailPanel } from "../components/StockDetailPanel";
@@ -471,9 +472,18 @@ export function Dashboard() {
           ) : (
             <div className="ds-grid">
               {(latest.strong_sectors ?? []).map((s) => (
-                <div key={s.key} className="ds-card" title={s.index}>
+                <div
+                  key={s.key}
+                  className="ds-card wk-click"
+                  role="button"
+                  tabIndex={0}
+                  title={`Open the ${s.index} chart`}
+                  onClick={() => openChart(s.index, { strategy: "Strong sector", daily_rsi: s.rsi.d, weekly_rsi: s.rsi.w, monthly_rsi: s.rsi.m, signal_date: null, indicators: { rsi: true, volume: true, bollinger: true } })}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openChart(s.index, { strategy: "Strong sector", daily_rsi: s.rsi.d, weekly_rsi: s.rsi.w, monthly_rsi: s.rsi.m, signal_date: null, indicators: { rsi: true, volume: true, bollinger: true } }); } }}
+                >
                   <div className="ds-top">
-                    <b className="ds-name">{s.label}</b>
+                    <SectorLogo sectorKey={s.key} size={30} />
+                    <span className="ds-title"><b className="ds-name">{s.label}</b><small>{s.index}</small></span>
                     <span className="ds-stocks">{s.stocks} stocks</span>
                   </div>
                   <div className="ds-rsi">

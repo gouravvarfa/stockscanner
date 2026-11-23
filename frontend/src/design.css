@@ -2248,3 +2248,9 @@ h1, .page-header h1, .app-content > h1, .app-content > div > h1:first-child { fo
 .range-table tfoot td.rm-top { font-weight: 700; }
 :root[data-theme="dark"] .range-table td.rm-orange { color: #fbbf24; }
 :root[data-theme="dark"] .range-table td.rm-green { color: #4ade80; }
+
+/* Setup Scanner strong-sector cards: sector logo, tap for the index chart (2026-11-23) */
+.ds-top { align-items: center; gap: 10px; }
+.ds-title { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.ds-title small { font-size: 10.5px; color: var(--text-muted); letter-spacing: .02em; }
+.ds-card.wk-click:hover { border-color: color-mix(in srgb, var(--pt, var(--accent)) 45%, var(--border)); transform: none; box-shadow: none; }
