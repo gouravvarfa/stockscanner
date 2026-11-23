@@ -61,6 +61,25 @@ export interface GannStockDetail {
   counts: { from_date: string; from_kind: string; to_date: string; to_kind: string; candles: number }[];
   projections: (GannProjectionRef & { date: string; bars_away: number })[];
   clusters: GannCluster[];
+  angles: GannAngleFan | null;
+}
+
+export interface GannAngleLine { fraction: number; degrees: number; slope: number; today: number }
+export interface GannAngleFan {
+  origin_date: string;
+  origin_price: number;
+  end_date: string;
+  end_price: number;
+  degrees: number;
+  atr: number;
+  lines: GannAngleLine[];
+}
+
+/** "1/2", "mirror 1/4", "flat", "full" */
+export function angleName(f: number): string {
+  if (f === 0) return "flat";
+  const base = Math.abs(f) === 1 ? "full" : `1/${Math.round(1 / Math.abs(f))}`;
+  return f < 0 ? `mirror ${base}` : base;
 }
 
 async function call<T>(path: string, init?: RequestInit): Promise<T> {

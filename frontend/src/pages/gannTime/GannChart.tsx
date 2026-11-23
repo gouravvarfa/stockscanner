@@ -85,6 +85,30 @@ export function GannChart({ data }: { data: GannStockDetail }) {
       text: `${p.kind} ${Math.round(p.price)}`,
     })));
 
+    // Angle halving fan from the last big swing's start: one straight line per angle,
+    // origin -> last bar on the axis (lines run per candle, so future blank bars count).
+    const fan = data.angles;
+    if (fan) {
+      const palette = dark
+        ? ["#60a5fa", "#a78bfa", "#f472b6", "#fbbf24", "#2dd4bf", "#a3e635", "#94a3b8"]
+        : ["#1d4ed8", "#7c3aed", "#be185d", "#d97706", "#0d9488", "#65a30d", "#475569"];
+      const lastCandle = candles.length - 1;
+      const oTs = dayTs(fan.origin_date);
+      let o = allTimes.indexOf(oTs);
+      if (o < 0) o = 0; // swing start older than the drawn candles: begin at the first candle
+      const end = allTimes.length - 1;
+      fan.lines.forEach((l) => {
+        const at = (bar: number) => l.today + l.slope * (bar - lastCandle);
+        const color = palette[Math.min(palette.length - 1, Math.round(Math.log2(1 / Math.abs(l.fraction || 1 / 64))))];
+        const s = chart.addSeries(LineSeries, {
+          color, lineWidth: 1, lineStyle: l.fraction < 0 ? 2 : l.fraction === 0 ? 1 : 0,
+          lastValueVisible: false, priceLineVisible: false, crosshairMarkerVisible: false,
+          autoscaleInfoProvider: () => null,
+        });
+        s.setData([{ time: allTimes[o] as Time, value: at(o) }, { time: allTimes[end] as Time, value: at(end) }]);
+      });
+    }
+
     // Show ~the last 9 months plus every future projection date (fitContent ignores blank future bars).
     chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, candles.length - 180), to: allTimes.length + 2 });
     return () => chart.remove();

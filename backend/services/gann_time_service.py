@@ -328,4 +328,15 @@ async def analyse_symbol(provider: AngelOneProvider, symbol: str) -> dict:
             for p in res.projections if n - 1 - gann_time.WINDOW_BARS <= p.bar <= horizon_end
         ],
         "clusters": [_cluster_out(c) for c in res.clusters],
+        "angles": _angles_out(gann_time.angle_fan(df, res.pivots)),
+    }
+
+
+def _angles_out(fan: gann_time.AngleFan | None) -> dict | None:
+    if fan is None:
+        return None
+    return {
+        "origin_date": fan.origin_date, "origin_price": fan.origin_price, "end_date": fan.end_date,
+        "end_price": fan.end_price, "degrees": fan.degrees, "atr": fan.atr,
+        "lines": [{"fraction": l.fraction, "degrees": l.degrees, "slope": l.slope, "today": l.today} for l in fan.lines],
     }

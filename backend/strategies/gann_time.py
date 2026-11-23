@@ -155,3 +155,55 @@ def analyse(df: pd.DataFrame, holidays: set[dt.date] | None = None, horizon: int
         last.kind == "H" and float(high[last.index + 1:].max(initial=-np.inf)) > last.price
     )
     return GannResult(pivots, counts, projections, clusters, dates[-1], float(close[-1]), forming, future)
+
+
+# ---------------------------------------------------------------- angle halving
+# The last big swing (>= ANGLE_MIN_SWING_ATR x ATR) is measured as an angle on a
+# fixed scale (1 candle = 1 ATR(14), so zoom does not change it). Lines then go
+# out from the swing start at that angle halved again and again (1/2, 1/4 ...),
+# a flat line, and the same angles mirrored the other way. Gold 2010-2026
+# backtest: touches on these lines reversed no more often than on random lines,
+# so they are for looking only, never a signal.
+ATR_BARS = 14
+ANGLE_MIN_SWING_ATR = 3.0
+ANGLE_FRACTIONS = (1, 1 / 2, 1 / 4, 1 / 8, 1 / 16, 1 / 32, 0, -1 / 8, -1 / 4, -1 / 2, -1)
+
+
+@dataclass
+class AngleLine:
+    fraction: float
+    degrees: float
+    slope: float  # price per candle
+    today: float  # line value on the last candle
+
+
+@dataclass
+class AngleFan:
+    origin_date: dt.date
+    origin_price: float
+    end_date: dt.date
+    end_price: float
+    degrees: float
+    atr: float
+    lines: list[AngleLine]
+
+
+def angle_fan(df: pd.DataFrame, pivots: list[Pivot]) -> AngleFan | None:
+    high, low, close = df["high"].to_numpy(float), df["low"].to_numpy(float), df["close"].to_numpy(float)
+    prev = np.r_[close[0], close[:-1]]
+    tr = np.maximum(high - low, np.maximum(abs(high - prev), abs(low - prev)))
+    atr = pd.Series(tr).rolling(ATR_BARS, min_periods=1).mean().to_numpy()
+    for a, b in reversed(list(zip(pivots, pivots[1:]))):
+        unit = float(atr[b.index])
+        move = b.price - a.price
+        if unit <= 0 or abs(move) < ANGLE_MIN_SWING_ATR * unit:
+            continue
+        theta = math.atan(abs(move) / (b.index - a.index) / unit)
+        sign = 1 if move > 0 else -1
+        last = len(df) - 1
+        lines = []
+        for f in ANGLE_FRACTIONS:
+            slope = sign * math.tan(theta * f) * unit
+            lines.append(AngleLine(f, math.degrees(theta * f), slope, a.price + slope * (last - a.index)))
+        return AngleFan(a.date, a.price, b.date, b.price, math.degrees(theta), unit, lines)
+    return None

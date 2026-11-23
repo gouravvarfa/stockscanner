@@ -49,3 +49,22 @@ def test_commodities_are_searchable_and_named():
     assert search_nse("crude")[0]["symbol"] == "CRUDEOIL"
     assert is_commodity("naturalgas") and not is_commodity("RELIANCE")
     assert company_name("CRUDEOIL") == "Crude Oil (MCX futures)"
+
+
+def test_angle_fan_halves_the_swing_angle():
+    import math
+    import numpy as np
+    import pandas as pd
+    from backend.strategies import gann_time as g
+
+    idx = pd.bdate_range("2025-01-01", periods=60)
+    close = np.r_[np.linspace(100, 130, 31), np.linspace(129, 115, 29)]
+    df = pd.DataFrame({"open": close, "high": close + 1, "low": close - 1, "close": close}, index=idx)
+    piv = [g.Pivot(0, "L", idx[0].date(), 99.0), g.Pivot(30, "H", idx[30].date(), 131.0)]
+    fan = g.angle_fan(df, piv)
+    assert fan is not None and fan.origin_price == 99.0
+    by = {l.fraction: l for l in fan.lines}
+    assert math.isclose(by[0.5].degrees, fan.degrees / 2)
+    assert math.isclose(by[0.25].degrees, fan.degrees / 4)
+    assert by[0].slope == 0 and by[-0.5].slope == -by[0.5].slope
+    assert math.isclose(by[1].slope * 30 + 99, 131.0)
