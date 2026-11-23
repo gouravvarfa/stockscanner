@@ -1790,3 +1790,118 @@ h1, .page-header h1, .app-content > h1, .app-content > div > h1:first-child { fo
 .motif-svg .m-base { fill: color-mix(in srgb, var(--tone) 30%, transparent); stroke: var(--tone); stroke-width: 1.4; }
 .motif-svg .m-up { fill: var(--success); }
 .motif-svg .m-down { fill: var(--danger); }
+
+/* Page tint (2026-11-23): each page's hero colour washes softly over the whole page behind the cards */
+:root[data-page="astro"] .app-main { --pt: var(--astro); --pt-2: var(--astro-2); }
+:root[data-page="gann"] .app-main { --pt: var(--gann); --pt-2: var(--gann-2); }
+:root[data-page="angle"] .app-main { --pt: var(--angle); --pt-2: var(--angle-2); }
+:root[data-page="anniv"] .app-main { --pt: var(--anniv); --pt-2: var(--anniv-2); }
+:root[data-page="outlook"] .app-main { --pt: var(--outlook); --pt-2: var(--outlook-2); }
+:root[data-page="dash"] .app-main { --pt: var(--dash); --pt-2: var(--dash-2); }
+:root[data-page="topbottom"] .app-main { --pt: var(--topb); --pt-2: var(--topb-2); }
+:root[data-page="cup"] .app-main { --pt: var(--cup); --pt-2: var(--cup-2); }
+:root[data-page="range"] .app-main { --pt: var(--rng); --pt-2: var(--rng-2); }
+:root[data-page="backtest"] .app-main { --pt: var(--bt); --pt-2: var(--bt-2); }
+:root[data-page="b15"] .app-main { --pt: var(--b15); --pt-2: var(--b15-2); }
+:root[data-page] .app-main {
+  background-image:
+    radial-gradient(1200px 700px at 100% -10%, color-mix(in srgb, var(--pt) 16%, transparent), transparent 70%),
+    radial-gradient(1000px 640px at -8% 30%, color-mix(in srgb, var(--pt-2) 9%, transparent), transparent 70%),
+    radial-gradient(900px 600px at 60% 110%, color-mix(in srgb, var(--pt) 8%, transparent), transparent 70%),
+    linear-gradient(180deg, color-mix(in srgb, var(--pt) 5%, transparent), color-mix(in srgb, var(--pt) 2%, transparent));
+  background-attachment: fixed; background-repeat: no-repeat; }
+:root[data-page] .app-main .app-content .card { border-color: color-mix(in srgb, var(--pt) 14%, var(--border)); }
+:root[data-page] .app-main .app-header { background: color-mix(in srgb, var(--pt) 3%, var(--bg-surface)); }
+:root[data-page] .app-main .app-content :is(.primary-button, .tb-btn-primary) { background: var(--pt); border-color: var(--pt); }
+:root[data-page] .app-main .app-content :is(.primary-button, .tb-btn-primary):hover:not(:disabled) { background: color-mix(in srgb, var(--pt) 86%, #000); }
+:root[data-theme="dark"][data-page] .app-main .app-content :is(.primary-button, .tb-btn-primary) { color: #fff; background: color-mix(in srgb, var(--pt) 72%, #000); border-color: color-mix(in srgb, var(--pt) 80%, #000); }
+@media (prefers-color-scheme: dark) { :root[data-page]:not([data-theme="light"]) .app-main .app-content :is(.primary-button, .tb-btn-primary) { color: #fff; background: color-mix(in srgb, var(--pt) 72%, #000); border-color: color-mix(in srgb, var(--pt) 80%, #000); } }
+
+/* Date inputs (2026-11-23): one calm, recognisable style everywhere - calendar glyph on the left, tabular digits,
+   the page's colour on focus, the native picker still opens on click anywhere in the field */
+:root .app-content input[type="date"]:not(.x-no), :root .app-content input[type="datetime-local"]:not(.x-no), :root .app-content input[type="month"]:not(.x-no) {
+  position: relative; min-height: 38px; padding: 8px 12px 8px 38px; border-radius: 10px;
+  border: 1px solid var(--border); color: var(--text-primary); font: inherit; font-size: 13.5px; font-weight: 500;
+  font-variant-numeric: tabular-nums; letter-spacing: 0.01em; cursor: pointer;
+  background: var(--bg-surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4.5' width='18' height='16' rx='3'/%3E%3Cpath d='M3 9.5h18M8 2.5v4M16 2.5v4'/%3E%3Ccircle cx='8' cy='14' r='.9' fill='%2364748b'/%3E%3Ccircle cx='12' cy='14' r='.9' fill='%2364748b'/%3E%3Ccircle cx='16' cy='14' r='.9' fill='%2364748b'/%3E%3C/svg%3E") no-repeat 12px center / 16px;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--text-primary) 3%, transparent);
+  transition: border-color .15s, box-shadow .15s, background-color .15s; color-scheme: light; }
+:root[data-theme="dark"] .app-content input[type="date"]:not(.x-no), :root[data-theme="dark"] .app-content input[type="datetime-local"]:not(.x-no), :root[data-theme="dark"] .app-content input[type="month"]:not(.x-no) { color-scheme: dark; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .app-content input[type="date"]:not(.x-no), :root:not([data-theme="light"]) .app-content input[type="datetime-local"]:not(.x-no), :root:not([data-theme="light"]) .app-content input[type="month"]:not(.x-no) { color-scheme: dark; } }
+:root .app-content input[type="date"]:not(.x-no):hover, :root .app-content input[type="datetime-local"]:not(.x-no):hover, :root .app-content input[type="month"]:not(.x-no):hover {
+  border-color: color-mix(in srgb, var(--pt, var(--accent)) 45%, var(--border));
+  background-color: color-mix(in srgb, var(--pt, var(--accent)) 4%, var(--bg-surface)); }
+:root .app-content input[type="date"]:not(.x-no):focus, :root .app-content input[type="datetime-local"]:not(.x-no):focus, :root .app-content input[type="month"]:not(.x-no):focus { outline: none;
+  border-color: var(--pt, var(--accent)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--pt, var(--accent)) 18%, transparent); }
+:root .app-content input[type="date"]:not(.x-no)::-webkit-calendar-picker-indicator, :root .app-content input[type="datetime-local"]:not(.x-no)::-webkit-calendar-picker-indicator,
+:root .app-content input[type="month"]:not(.x-no)::-webkit-calendar-picker-indicator { position: absolute; inset: 0; width: auto; height: auto; opacity: 0; cursor: pointer; }
+:root .app-content input[type="date"]:not(.x-no)::-webkit-datetime-edit-fields-wrapper { padding: 0; }
+:root .app-content input[type="date"]:not(.x-no)::-webkit-datetime-edit-month-field:focus, :root .app-content input[type="date"]:not(.x-no)::-webkit-datetime-edit-day-field:focus,
+:root .app-content input[type="date"]:not(.x-no)::-webkit-datetime-edit-year-field:focus { background: color-mix(in srgb, var(--pt, var(--accent)) 18%, transparent); color: inherit; border-radius: 4px; }
+:root .app-content input[type="date"]:not(.x-no):disabled { opacity: .55; cursor: not-allowed; }
+
+/* Top Bottom: numbered sections, headline KPIs, coloured trades (2026-11-23) */
+.tb-card-head { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 14px; }
+.tb-card-head h2 { margin: 0; font-size: 16px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.tb-card-head p { margin: 2px 0 0; }
+.tb-step { flex: none; display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 8px; font-size: 12.5px; font-weight: 600;
+  color: var(--pt, var(--accent)); background: color-mix(in srgb, var(--pt, var(--accent)) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--pt, var(--accent)) 28%, transparent); }
+.tb-config-card { position: relative; overflow: hidden; }
+.tb-config-card::before, .tb-result-card::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 3px;
+  background: linear-gradient(90deg, var(--pt, var(--accent)), color-mix(in srgb, var(--pt, var(--accent)) 10%, transparent)); }
+.tb-result-card { position: relative; overflow: hidden; }
+.tb-config-card .tb-actions { margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--border); }
+.tb-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.tb-kpis-small { margin-top: 12px; }
+.tb-kpi { position: relative; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg-surface); }
+.tb-kpi-big { padding: 16px 16px 14px; background: linear-gradient(180deg, color-mix(in srgb, var(--pt, var(--accent)) 6%, var(--bg-surface)), var(--bg-surface)); }
+.tb-kpi-big::after { content: ""; position: absolute; left: 14px; right: 14px; bottom: 0; height: 2px; border-radius: 2px;
+  background: color-mix(in srgb, var(--pt, var(--accent)) 45%, transparent); }
+.tb-kpi-up.tb-kpi-big::after { background: color-mix(in srgb, var(--success) 60%, transparent); }
+.tb-kpi-down.tb-kpi-big::after { background: color-mix(in srgb, var(--danger) 55%, transparent); }
+.tb-kpi-label { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); }
+.tb-kpi-value { margin-top: 4px; font-size: 18px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tb-kpi-big .tb-kpi-value { font-size: 26px; }
+.tb-kpi-up .tb-kpi-value { color: var(--success); }
+.tb-kpi-down .tb-kpi-value { color: var(--danger); }
+.tb-kpi-hint { margin-top: 2px; font-size: 11.5px; color: var(--text-muted); }
+.tb-filters { margin-bottom: 12px; padding: 10px 12px; border-radius: 10px; background: var(--bg-soft); border: 1px solid var(--border); align-items: flex-end; }
+.tb-filter-note { align-self: center; font-size: 12px; font-weight: 600; color: var(--pt, var(--accent)); }
+.tb-trades td { font-variant-numeric: tabular-nums; }
+.tb-dir { display: inline-block; min-width: 44px; text-align: center; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; letter-spacing: .04em; }
+.tb-dir-buy { color: var(--success); background: var(--success-soft); }
+.tb-dir-sell { color: var(--danger); background: var(--danger-soft); }
+.tb-status { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; background: var(--bg-soft); color: var(--text-secondary); }
+.tb-status-open { color: var(--pt, var(--accent)); background: color-mix(in srgb, var(--pt, var(--accent)) 12%, transparent); }
+@media (max-width: 900px) { .tb-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* Page tint for every page (2026-11-23): the plain page header becomes a tinted card in the page's colour; input and
+   scan cards get the same top accent; every field and select takes the page colour on hover and focus */
+.app-content .page-header { position: relative; overflow: hidden; margin-bottom: 18px; padding: 22px 24px; border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--pt, var(--accent)) 22%, var(--border));
+  background:
+    radial-gradient(110% 150% at 100% 0%, color-mix(in srgb, var(--pt, var(--accent)) 13%, transparent), transparent 60%),
+    radial-gradient(80% 120% at 0% 100%, color-mix(in srgb, var(--pt-2, var(--accent)) 7%, transparent), transparent 55%),
+    var(--bg-surface);
+  box-shadow: var(--card-shadow); }
+.app-content .page-header::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 3px;
+  background: linear-gradient(90deg, var(--pt, var(--accent)), color-mix(in srgb, var(--pt, var(--accent)) 25%, transparent)); }
+.app-content .page-header h1 { margin: 0; font-size: 26px; letter-spacing: -0.03em; }
+.app-content .page-header .page-subtitle { margin-top: 6px; color: var(--text-secondary); }
+
+.app-content :is(.card.filter-panel, .card:has(> .tb-config-grid), .card:has(> .filters-row), .card:has(> .gt-run)) {
+  position: relative; overflow: hidden;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--pt, var(--accent)) 4%, var(--bg-surface)), var(--bg-surface) 70%); }
+.app-content :is(.card.filter-panel, .card:has(> .tb-config-grid), .card:has(> .filters-row), .card:has(> .gt-run))::before {
+  content: ""; position: absolute; inset: 0 0 auto 0; height: 3px;
+  background: linear-gradient(90deg, var(--pt, var(--accent)), color-mix(in srgb, var(--pt, var(--accent)) 10%, transparent)); }
+
+.app-content :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, textarea) {
+  transition: border-color .15s, box-shadow .15s; }
+.app-content :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, textarea):hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--pt, var(--accent)) 45%, var(--border)); }
+.app-content :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, textarea):focus {
+  outline: none; border-color: var(--pt, var(--accent)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--pt, var(--accent)) 18%, transparent); }
+.app-content :is(input[type="checkbox"], input[type="radio"], input[type="range"]) { accent-color: var(--pt, var(--accent)); }
+:root[data-page] .app-main .app-content .aw-seg button.active, :root[data-page] .app-main .app-content .seg-active { color: var(--pt); }

@@ -133,8 +133,14 @@ export function TopBottomBacktest() {
         <span className="hero-pill hero-pill-soft">Stop and reverse · always in the market</span>
       </PageHero>
 
-      <div className="card">
-        <h2 style={{ marginTop: 0 }}>Backtest Configuration</h2>
+      <div className="card tb-config-card">
+        <div className="tb-card-head">
+          <span className="tb-step">1</span>
+          <div>
+            <h2>Backtest setup</h2>
+            <p className="muted small">Pick the market, the stock or contract, the period and the candle size — then run.</p>
+          </div>
+        </div>
         <div className="tb-config-grid">
           <div className="tb-field">
             <label>
@@ -250,36 +256,43 @@ export function TopBottomBacktest() {
             </div>
           )}
 
-          <div className="card">
-            <h2 style={{ marginTop: 0 }}>
-              <span className="logo-line"><span className="wk-logo"><StockLogo symbol={result.symbol} /></span>Backtest Summary — {result.symbol}</span>
-              <InstrumentBadge type={result.instrument_type} />
-            </h2>
-            <div className="tb-summary-grid">
-              <SummaryTile label="Total Signals" value={result.statistics.total_signals} />
-              <SummaryTile label="Buy Signals" value={result.statistics.buy_signals} />
-              <SummaryTile label="Sell Signals" value={result.statistics.sell_signals} />
-              <SummaryTile label="Winning Trades" value={result.statistics.winning_trades} />
-              <SummaryTile label="Losing Trades" value={result.statistics.losing_trades} />
-              <SummaryTile label="Win Rate" value={fmtPct(result.statistics.win_rate)} />
-              <SummaryTile label="Net P&L %" value={fmtPct(result.statistics.net_pnl_pct)} />
-              <SummaryTile label="Average Trade %" value={fmtPct(result.statistics.average_trade_pct)} />
-              <SummaryTile label="Best Trade %" value={fmtPct(result.statistics.best_trade_pct)} />
-              <SummaryTile label="Worst Trade %" value={fmtPct(result.statistics.worst_trade_pct)} />
-              <SummaryTile label="Profit Factor" value={result.statistics.profit_factor === null ? "N/A" : fmtNum(result.statistics.profit_factor)} />
-              <SummaryTile label="Max Drawdown" value={fmtPct(result.statistics.max_drawdown_pct)} />
-              <SummaryTile label="Avg Holding (days)" value={fmtNum(result.statistics.average_holding_days, 1)} />
+          <div className="card tb-result-card">
+            <div className="tb-card-head">
+              <span className="tb-step">2</span>
+              <div className="tb-result-title">
+                <h2>
+                  <span className="logo-line"><span className="wk-logo"><StockLogo symbol={result.symbol} /></span>{result.symbol}</span>
+                  <InstrumentBadge type={result.instrument_type} />
+                </h2>
+                <p className="muted small">
+                  {fmtDate(result.coverage.available_from)} – {fmtDate(result.coverage.available_to)} · {result.statistics.total_signals} trades
+                  ({result.statistics.buy_signals} buy · {result.statistics.sell_signals} sell)
+                </p>
+              </div>
+            </div>
+            <div className="tb-kpis">
+              <Kpi label="Net P&L" value={fmtPct(result.statistics.net_pnl_pct)} tone={toneOf(result.statistics.net_pnl_pct)} big />
+              <Kpi label="Win rate" value={fmtPct(result.statistics.win_rate)} hint={`${result.statistics.winning_trades} won · ${result.statistics.losing_trades} lost`} big />
+              <Kpi label="Profit factor" value={result.statistics.profit_factor === null ? "N/A" : fmtNum(result.statistics.profit_factor)}
+                tone={result.statistics.profit_factor === null ? undefined : result.statistics.profit_factor >= 1 ? "up" : "down"} hint="gross profit ÷ gross loss" big />
+              <Kpi label="Max drawdown" value={fmtPct(result.statistics.max_drawdown_pct)} tone="down" hint="worst fall from a peak" big />
+            </div>
+            <div className="tb-kpis tb-kpis-small">
+              <Kpi label="Average trade" value={fmtPct(result.statistics.average_trade_pct)} tone={toneOf(result.statistics.average_trade_pct)} />
+              <Kpi label="Best trade" value={fmtPct(result.statistics.best_trade_pct)} tone="up" />
+              <Kpi label="Worst trade" value={fmtPct(result.statistics.worst_trade_pct)} tone="down" />
+              <Kpi label="Avg holding" value={`${fmtNum(result.statistics.average_holding_days, 1)} days`} />
             </div>
           </div>
 
           <div className="card">
-            <h2 style={{ marginTop: 0 }}>Price / Signal Chart</h2>
+            <div className="tb-card-head"><span className="tb-step">3</span><div><h2>Price and signals</h2><p className="muted small">Click a trade in the table to highlight it on the chart.</p></div></div>
             <TopBottomChart result={result} focusedTradeNumber={focusedTrade} />
           </div>
 
           <div className="card">
-            <h2 style={{ marginTop: 0 }}>Trade Results</h2>
-            <div className="filters-row" style={{ marginBottom: 12 }}>
+            <div className="tb-card-head"><span className="tb-step">4</span><div><h2>Trades</h2><p className="muted small">Every entry and exit, newest at the bottom.</p></div></div>
+            <div className="filters-row tb-filters">
               <label>
                 Direction
                 <select value={directionFilter} onChange={(e) => setDirectionFilter(e.target.value as DirectionFilter)}>
@@ -304,11 +317,11 @@ export function TopBottomBacktest() {
                   <option value="END_OF_BACKTEST">END OF BACKTEST</option>
                 </select>
               </label>
-              {filtersActive && <span style={{ alignSelf: "center", fontSize: 12, opacity: 0.7 }}>Filters active — showing {filteredTrades.length}/{result.trades.length} trades</span>}
+              {filtersActive && <span className="tb-filter-note">Showing {filteredTrades.length} of {result.trades.length} trades</span>}
             </div>
 
             <div className="table-wrap">
-              <table>
+              <table className="tb-trades">
                 <thead>
                   <tr>
                     <th>#</th><th>Date</th><th>Symbol</th><th>Direction</th>
@@ -330,19 +343,19 @@ export function TopBottomBacktest() {
                       <td>{t.trade_number}</td>
                       <td>{fmtDate(t.entry_date)}</td>
                       <td>{t.trading_symbol}</td>
-                      <td>{t.direction}</td>
+                      <td><span className={`tb-dir ${t.direction === "BUY" ? "tb-dir-buy" : "tb-dir-sell"}`}>{t.direction}</span></td>
                       <td className="num-cell">{fmtNum(t.system_point)}</td>
                       <td className="num-cell">{fmtNum(t.entry_price)}</td>
                       <td className="num-cell">{fmtNum(t.initial_sl)}</td>
                       <td className="num-cell">{fmtNum(t.active_stop)}</td>
                       <td className="num-cell">{fmtNum(t.exit_price)}</td>
                       <td>{fmtDate(t.exit_date)}</td>
-                      <td>{t.exit_reason ?? "—"}</td>
-                      <td className="num-cell">{fmtPct(t.pnl_pct)}</td>
-                      <td className="num-cell">{fmtNum(t.pnl_points)}</td>
-                      <td className="num-cell">{t.pnl_amount === null ? "—" : `${t.pnl_amount < 0 ? "-" : ""}₹${fmtNum(Math.abs(t.pnl_amount), 0)}`}</td>
+                      <td className="muted small">{t.exit_reason ? t.exit_reason.replace(/_/g, " ").toLowerCase().replace(/^./, (c) => c.toUpperCase()) : "—"}</td>
+                      <td className={`num-cell ${pnlClass(t.pnl_pct)}`}><b>{fmtPct(t.pnl_pct)}</b></td>
+                      <td className={`num-cell ${pnlClass(t.pnl_points)}`}>{fmtNum(t.pnl_points)}</td>
+                      <td className={`num-cell ${pnlClass(t.pnl_amount)}`}>{t.pnl_amount === null ? "—" : `${t.pnl_amount < 0 ? "-" : ""}₹${fmtNum(Math.abs(t.pnl_amount), 0)}`}</td>
                       <td className="num-cell">{t.holding_days ?? "—"}</td>
-                      <td>{t.status}</td>
+                      <td><span className={`tb-status tb-status-${String(t.status).toLowerCase()}`}>{t.status}</span></td>
                     </tr>
                   ))}
                   {filteredTrades.length === 0 && (
@@ -358,7 +371,7 @@ export function TopBottomBacktest() {
           </div>
 
           <div className="card">
-            <h2 style={{ marginTop: 0 }}>Equity Curve</h2>
+            <div className="tb-card-head"><span className="tb-step">5</span><div><h2>Equity curve</h2><p className="muted small">How the account would have grown, trade by trade.</p></div></div>
             <EquityCurveChart points={result.equity_curve} />
           </div>
         </>
@@ -367,11 +380,15 @@ export function TopBottomBacktest() {
   );
 }
 
-function SummaryTile({ label, value }: { label: string; value: string | number }) {
+const toneOf = (v: number | null | undefined): "up" | "down" | undefined => (v == null ? undefined : v >= 0 ? "up" : "down");
+const pnlClass = (v: number | null | undefined) => (v == null ? "" : v > 0 ? "wk-up" : v < 0 ? "wk-down" : "");
+
+function Kpi({ label, value, hint, tone, big }: { label: string; value: string | number; hint?: string; tone?: "up" | "down"; big?: boolean }) {
   return (
-    <div className="tb-summary-tile">
-      <div className="tb-summary-label">{label}</div>
-      <div className="tb-summary-value">{value}</div>
+    <div className={`tb-kpi${big ? " tb-kpi-big" : ""}${tone ? ` tb-kpi-${tone}` : ""}`}>
+      <div className="tb-kpi-label">{label}</div>
+      <div className="tb-kpi-value">{value}</div>
+      {hint && <div className="tb-kpi-hint">{hint}</div>}
     </div>
   );
 }

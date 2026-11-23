@@ -3,6 +3,15 @@ import { Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { ChartDrawer } from "./chart/ChartDrawer";
 import { useChart } from "./chart/ChartContext";
 import { ActiveScansPanel } from "./components/ActiveScansPanel";
+import { NAV_ITEMS } from "./components/Sidebar";
+
+/** Menu route -> the page key used by the page-colour styles (hero pages share their hero's name). */
+const PAGE_KEY: Record<string, string> = {
+  "/": "dash", "/strategies": "backtest", "/cup-breakout": "cup", "/value-buy": "value", "/weekly-sectors": "weekly",
+  "/heatmap": "heat", "/range-analysis": "range", "/top-bottom": "topbottom", "/breakout-15": "b15", "/gann-time": "gann",
+  "/gann-angles": "angle", "/anniversary-dates": "anniv", "/astro-watch": "astro", "/stocks": "scanner", "/history": "history",
+  "/settings": "settings",
+};
 import { BottomNav } from "./components/BottomNav";
 import { Header } from "./components/Header";
 import { LogsPanel } from "./components/LogsPanel";
@@ -62,6 +71,17 @@ export default function App() {
     const rest = params.toString();
     navigate({ pathname: location.pathname, search: rest ? `?${rest}` : "" }, { replace: true });
   }, [location.pathname, location.search, navigate, openChart]);
+
+  // Page colour (2026-11-23): every page takes its menu colour, washed softly over the page, its header, its input
+  // cards and buttons (see "Page tint" in design.css). Pages with their own hero palette override it there.
+  useEffect(() => {
+    const path = location.pathname.replace(/\/+$/, "") || "/";
+    const item = NAV_ITEMS.find((n) => (n.to === "/" ? path === "/" : path === n.to || path.startsWith(n.to + "/")));
+    const root = document.documentElement;
+    root.dataset.page = PAGE_KEY[item?.to ?? ""] ?? "other";
+    root.style.setProperty("--pt", item?.tone ?? "#2563eb");
+    root.style.setProperty("--pt-2", item?.tone ?? "#2563eb");
+  }, [location.pathname]);
 
   return (
     <div className="app-shell">
