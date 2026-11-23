@@ -1770,3 +1770,12 @@ h1, .page-header h1, .app-content > h1, .app-content > div > h1:first-child { fo
 .motif-svg .m-bottom { fill: var(--success); stroke: var(--bg-surface); stroke-width: 2; }
 .hero .dash-actions, .hero-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .hero-actions .secondary-button { margin-left: 0 !important; }
+
+/* Backtesting hero + inline logos (2026-11-23) */
+:root { --bt: #7c3aed; --bt-2: #16a34a; }
+:root[data-theme="dark"] { --bt: #a78bfa; --bt-2: #4ade80; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bt: #a78bfa; --bt-2: #4ade80; } }
+.hero-backtest { --tone: var(--bt); --tone-2: var(--bt-2); }
+.motif-svg .m-area { fill: color-mix(in srgb, var(--tone) 12%, transparent); stroke: none; }
+.logo-line { display: inline-flex; align-items: center; gap: 8px; }
+.symbol-cell .wk-logo { margin-right: 8px; vertical-align: middle; }

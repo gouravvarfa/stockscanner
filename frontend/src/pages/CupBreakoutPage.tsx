@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { InstrumentBadge } from "../components/InstrumentBadge";
 import { CupMotif, PageHero } from "../components/PageHero";
+import { StockLogo } from "../components/StockLogo";
 import { useChart } from "../chart/ChartContext";
 import { useLocalHistoryWriter } from "../hooks/useLocalHistoryWriter";
 import { useScanJob } from "../hooks/useScanJob";
@@ -389,6 +390,7 @@ export function CupBreakoutPage() {
                   filtered.map((r) => (
                     <tr key={r.symbol}>
                       <td className="symbol-cell">
+                        <span className="wk-logo"><StockLogo symbol={r.symbol} /></span>
                         <b>{r.symbol}</b>
                         <InstrumentBadge type={r.instrument_type} />
                       </td>
@@ -473,7 +475,7 @@ function TopCard({ title, result, metric }: { title: string; result: CupResult |
       <div className="muted small" style={{ marginBottom: 6 }}>{title}</div>
       {result ? (
         <>
-          <div style={{ fontWeight: 700, fontSize: "1.1rem" }}>{result.symbol}</div>
+          <div className="logo-line" style={{ fontWeight: 600, fontSize: "1.1rem" }}><span className="wk-logo"><StockLogo symbol={result.symbol} /></span>{result.symbol}</div>
           <div className="muted small">{metric(result)}</div>
         </>
       ) : (

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { SearchIcon } from "../components/icons";
 import { PageHero, RangeMotif } from "../components/PageHero";
+import { StockLogo } from "../components/StockLogo";
 import {
   downloadRangeXlsx,
   fetchRangeTable,
@@ -94,7 +95,7 @@ function InstrumentSearch({ value, onPick }: { value: string; onPick: (symbol: s
           {loading && hits.length === 0 && <div className="tb-search-empty">Searching…</div>}
           {hits.map((h) => (
             <button key={h.symbol} type="button" className="tb-search-result" onClick={() => pick(h.symbol)}>
-              <div className="tb-search-result-title">{h.symbol}</div>
+              <div className="tb-search-result-title logo-line"><span className="wk-logo"><StockLogo symbol={h.symbol} /></span>{h.symbol}</div>
               <div className="tb-search-result-meta">
                 {h.name ? `${h.name} · ` : ""}
                 {h.kind === "INDEX" ? "NSE index" : "NSE stock"}
@@ -388,7 +389,7 @@ export function RangeAnalysisPage() {
         <>
           <div className="card">
             <h2 style={{ marginTop: 0 }}>
-              {table.symbol} — % Range Move{table.name ? <span className="muted"> · {table.name}</span> : null}
+              <span className="logo-line"><span className="wk-logo"><StockLogo symbol={table.symbol} /></span>{table.symbol} — % Range Move</span>{table.name ? <span className="muted"> · {table.name}</span> : null}
             </h2>
             <div className="tb-summary-grid" style={{ marginTop: 12 }}>
               <Tile label="Data available" value={fmtDate(table.data_from).replace(/^\d+ /, "")} sub={`to ${fmtDate(table.data_to)} · ${table.kind === "INDEX" ? "index" : "spot"}`} />

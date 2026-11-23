@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, STRATEGY_NAMES, strategyDisplayName, type StrategyDescriptor } from "../services/api";
 import { useScan } from "../context/ScanContext";
+import { BacktestMotif, PageHero } from "../components/PageHero";
 
 export function Strategies() {
   const { latest } = useScan();
@@ -19,12 +20,16 @@ export function Strategies() {
 
   return (
     <div className="page">
-      <div className="page-header">
-        <div>
-          <h1>Strategies</h1>
-          <p className="page-subtitle">Active strategy definitions and current signal counts</p>
-        </div>
-      </div>
+      <PageHero
+        tone="backtest"
+        eyebrow="Strategies · backtests"
+        title="Backtesting"
+        subtitle="Every strategy the scanner runs, how many stocks qualify today, and — for System One and the GFS family — a full backtest on past data."
+        motif={<BacktestMotif />}
+      >
+        <span className="hero-pill">{STRATEGY_NAMES.length} strategies</span>
+        <span className="hero-pill hero-pill-soft">Open a card to backtest it</span>
+      </PageHero>
 
       {error && <div className="error-banner small">Could not load strategy descriptions: {error}</div>}
 

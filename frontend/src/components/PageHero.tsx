@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
  * page's own colour (astro / gann / angle) - everything else is the app's normal card, type and theme tokens.
  */
 export function PageHero({ tone, eyebrow, title, subtitle, motif, children }: {
-  tone: "astro" | "gann" | "angle" | "outlook" | "anniv" | "dash" | "topbottom" | "cup" | "range";
+  tone: "astro" | "gann" | "angle" | "outlook" | "anniv" | "dash" | "topbottom" | "cup" | "range" | "backtest";
   eyebrow: string;
   title: string;
   subtitle: ReactNode;
@@ -211,6 +211,20 @@ export function RangeMotif() {
         return <rect key={i} x={-94 + i * 19.5} y={top} width={11} height={len + 30} rx={3} className={big ? "m-tile-on" : "m-tile"} />;
       })}
       <text x={0} y={72} className="m-lab" textAnchor="middle">how far it moves each month</text>
+    </svg>
+  );
+}
+
+/** Backtesting: an equity curve climbing over a light grid, with its drawdown shaded. */
+export function BacktestMotif() {
+  const curve = "M -96 44 L -72 30 L -52 36 L -30 10 L -10 18 L 12 -8 L 30 -2 L 52 -30 L 72 -22 L 96 -58";
+  return (
+    <svg viewBox="-110 -80 220 160" className="motif-svg">
+      {[-50, -20, 10, 40].map((y) => <line key={y} x1={-100} y1={y} x2={100} y2={y} className="m-faint" />)}
+      <path d={`${curve} L 96 56 L -96 56 Z`} className="m-area" />
+      <path d={curve} className="m-stroke" />
+      {[[-30, 10], [12, -8], [52, -30], [96, -58]].map(([x, y]) => <circle key={x} cx={x} cy={y} r={4} className="m-dot-on" />)}
+      <text x={0} y={72} className="m-lab" textAnchor="middle">equity curve</text>
     </svg>
   );
 }

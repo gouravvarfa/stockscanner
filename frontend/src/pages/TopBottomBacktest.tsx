@@ -1,5 +1,6 @@
 import { InstrumentBadge } from "../components/InstrumentBadge";
 import { PageHero, TopBottomMotif } from "../components/PageHero";
+import { StockLogo } from "../components/StockLogo";
 import { useMemo, useState } from "react";
 import { EquityCurveChart } from "./topBottom/EquityCurveChart";
 import { EquitySearchBox } from "./topBottom/EquitySearchBox";
@@ -251,7 +252,7 @@ export function TopBottomBacktest() {
 
           <div className="card">
             <h2 style={{ marginTop: 0 }}>
-              Backtest Summary — {result.symbol}
+              <span className="logo-line"><span className="wk-logo"><StockLogo symbol={result.symbol} /></span>Backtest Summary — {result.symbol}</span>
               <InstrumentBadge type={result.instrument_type} />
             </h2>
             <div className="tb-summary-grid">

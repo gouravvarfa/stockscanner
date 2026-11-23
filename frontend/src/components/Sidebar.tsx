@@ -25,7 +25,7 @@ type NavItem = { to: string; label: string; end?: boolean; icon: typeof Dashboar
 // own colour for its icon tile and its active tint (see design.css).
 export const NAV_ITEMS: NavItem[] = [
   { to: "/", label: "Dashboard", end: true, icon: DashboardIcon, tone: "#2563eb" },
-  { to: "/strategies", label: "Strategies", icon: TargetIcon, tone: "#9333ea" },
+  { to: "/strategies", label: "Backtesting", icon: TargetIcon, tone: "#9333ea" },
   { to: "/cup-breakout", label: "Cup Breakout", icon: SectorIcon, tone: "#7c3aed" },
   { to: "/value-buy", label: "Value Buy", icon: ValueTagIcon, tone: "#0d9488" },
   { to: "/weekly-sectors", label: "Weekly Sectors", icon: TrendIcon, tone: "#16a34a" },
@@ -49,7 +49,7 @@ const SUB_PAGES: Record<string, string> = {
   "/strategies/gfs-50": "50 GFS",
 };
 
-/** Breadcrumb for the top bar, e.g. ["Top Bottom Backtesting"] or ["Strategies", "GFS", "All Stocks"]. */
+/** Breadcrumb for the top bar, e.g. ["Top Bottom Backtesting"] or ["Backtesting", "GFS", "All Stocks"]. */
 export function navTrail(pathname: string): string[] {
   const path = pathname.replace(/\/+$/, "") || "/";
   for (const item of NAV_ITEMS) {
