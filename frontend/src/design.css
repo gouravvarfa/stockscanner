@@ -2138,3 +2138,16 @@ h1, .page-header h1, .app-content > h1, .app-content > div > h1:first-child { fo
 .vb-seg button.cup-strong-tab { color: var(--success); font-weight: 600; }
 .vb-seg button.cup-strong-tab.active { background: var(--success); color: #fff; }
 .vb-seg button.cup-strong-tab.active b { color: #fff; }
+
+/* Strong sector cups: compact cards (2026-11-23, user: smaller but professional) */
+.cup-strong .dash-card-head { margin-bottom: 10px; }
+.cup-strong-grid { grid-template-columns: repeat(auto-fill, minmax(205px, 1fr)); gap: 8px; }
+.cup-strong-card { gap: 5px; padding: 9px 11px; border-radius: 11px; }
+.cup-strong-card .vb-best-top { gap: 8px; }
+.cup-strong-card .vb-best-name b { font-size: 13.5px; }
+.cup-strong-card .vb-best-name small { font-size: 10.5px; }
+.cup-strong-card .stock-logo, .cup-strong-card .wk-logo { transform: scale(.9); }
+.cup-strong-card .chip, .cup-strong-card [class*="chip"] { font-size: 10px; padding: 1px 7px; }
+.cup-strong-card .vb-best-meta { font-size: 11.5px; }
+.cup-strong-card .vb-sec { font-size: 10.5px; padding: 1px 7px; }
+.cup-strong-secs { gap: 3px; }
