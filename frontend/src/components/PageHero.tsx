@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
  * page's own colour (astro / gann / angle) - everything else is the app's normal card, type and theme tokens.
  */
 export function PageHero({ tone, eyebrow, title, subtitle, motif, children }: {
-  tone: "astro" | "gann" | "angle" | "outlook" | "anniv" | "dash" | "topbottom" | "cup" | "range" | "backtest";
+  tone: "astro" | "gann" | "angle" | "outlook" | "anniv" | "dash" | "topbottom" | "cup" | "range" | "backtest" | "b15";
   eyebrow: string;
   title: string;
   subtitle: ReactNode;
@@ -225,6 +225,30 @@ export function BacktestMotif() {
       <path d={curve} className="m-stroke" />
       {[[-30, 10], [12, -8], [52, -30], [96, -58]].map(([x, y]) => <circle key={x} cx={x} cy={y} r={4} className="m-dot-on" />)}
       <text x={0} y={72} className="m-lab" textAnchor="middle">equity curve</text>
+    </svg>
+  );
+}
+
+/** 15-Min Breakout: the base candle's high and low as lines, small candles, and the first break above the high. */
+export function Breakout15Motif() {
+  const candles: [number, number, number, number, number][] = [ // x, open, close, high, low
+    [-80, 10, -14, -22, 18], [-56, -8, 4, -14, 12], [-34, 2, -6, -12, 8], [-12, -4, 6, -10, 12], [10, 4, -8, -14, 10],
+    [32, -6, -30, -36, -2], [54, -30, -52, -58, -26],
+  ];
+  return (
+    <svg viewBox="-110 -80 220 160" className="motif-svg">
+      <line x1={-96} y1={-22} x2={96} y2={-22} className="m-dash" />
+      <line x1={-96} y1={18} x2={96} y2={18} className="m-dash" />
+      {candles.map(([x, o, c, h, l], i) => (
+        <g key={i}>
+          <line x1={x} y1={h} x2={x} y2={l} className={i === 0 ? "m-wick-base" : "m-wick"} />
+          <rect x={x - 6} y={Math.min(o, c)} width={12} height={Math.max(3, Math.abs(o - c))} rx={2}
+            className={i === 0 ? "m-base" : c < o ? "m-up" : "m-down"} />
+        </g>
+      ))}
+      <circle cx={32} cy={-22} r={5} className="m-dot-on" />
+      <text x={-80} y={-30} className="m-lab" textAnchor="middle">base</text>
+      <text x={0} y={60} className="m-lab" textAnchor="middle">first break of the day</text>
     </svg>
   );
 }

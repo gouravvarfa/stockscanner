@@ -1779,3 +1779,14 @@ h1, .page-header h1, .app-content > h1, .app-content > div > h1:first-child { fo
 .motif-svg .m-area { fill: color-mix(in srgb, var(--tone) 12%, transparent); stroke: none; }
 .logo-line { display: inline-flex; align-items: center; gap: 8px; }
 .symbol-cell .wk-logo { margin-right: 8px; vertical-align: middle; }
+
+/* 15-Min Breakout hero (2026-11-23) */
+:root { --b15: #0284c7; --b15-2: #16a34a; }
+:root[data-theme="dark"] { --b15: #38bdf8; --b15-2: #4ade80; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --b15: #38bdf8; --b15-2: #4ade80; } }
+.hero-b15 { --tone: var(--b15); --tone-2: var(--b15-2); }
+.motif-svg .m-wick { stroke: color-mix(in srgb, var(--tone) 50%, transparent); stroke-width: 1.2; }
+.motif-svg .m-wick-base { stroke: var(--tone); stroke-width: 1.4; }
+.motif-svg .m-base { fill: color-mix(in srgb, var(--tone) 30%, transparent); stroke: var(--tone); stroke-width: 1.4; }
+.motif-svg .m-up { fill: var(--success); }
+.motif-svg .m-down { fill: var(--danger); }

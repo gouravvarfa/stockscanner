@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { Breakout15Motif, PageHero } from "../components/PageHero";
 import {
   breakout15Api, candleTimes, downloadResultXlsx, importExcel, saveBlob, type Breakout15BarMinutes, type Breakout15ExitMode, type Breakout15Result, type Breakout15Row, type Breakout15Symbol, type ExcelImport,
 } from "../services/breakout15Api";
@@ -96,14 +97,16 @@ export function Breakout15Page() {
 
   return (
     <div className="page">
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">15-Min Candle Breakout</h1>
-          <p className="page-subtitle">
-            CALL above the base candle High (stop at its Low) · PUT below its Low (stop at its High) · first break of the day only · 15 or 5 minute candles · base candle by time · index points only, no orders
-          </p>
-        </div>
-      </div>
+      <PageHero
+        tone="b15"
+        eyebrow="Intraday · Nifty and Bank Nifty"
+        title="15-Min Candle Breakout"
+        subtitle="CALL when price breaks above the base candle's high (stop at its low), PUT when it breaks below its low (stop at its high). Only the first break of the day counts."
+        motif={<Breakout15Motif />}
+      >
+        <span className="hero-pill">15 or 5 minute candles</span>
+        <span className="hero-pill hero-pill-soft">Index points only — no orders placed</span>
+      </PageHero>
 
       <div className="card filters-row filter-panel" style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
         <label className="muted small" style={{ display: "grid", gap: 4 }}>
