@@ -2124,3 +2124,17 @@ h1, .page-header h1, .app-content > h1, .app-content > div > h1:first-child { fo
 .vb-best-meta { display: flex; flex-direction: column; gap: 2px; font-size: 12px; color: var(--text-secondary); }
 .vb-best-meta b { font-weight: 600; color: var(--text-primary); }
 .cup-strong-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin: 0 0 12px; }
+
+/* Cup: Strong sector cups up front (2026-11-23) */
+.cup-strong { border-color: color-mix(in srgb, var(--success) 35%, var(--border)); background: linear-gradient(180deg, color-mix(in srgb, var(--success) 8%, var(--bg-surface)), var(--bg-surface)); }
+.cup-strong .dash-card-head h2::before { background: var(--success) !important; }
+.cup-strong-count { padding: 4px 12px; border-radius: 999px; font-weight: 700; color: #fff; background: var(--success); }
+.cup-strong-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+.cup-strong-card { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 14px 16px; text-align: left; cursor: pointer; font: inherit; color: inherit;
+  border-radius: 14px; border: 1px solid color-mix(in srgb, var(--success) 30%, var(--border)); background: var(--bg-surface);
+  transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease; }
+.cup-strong-card:hover { transform: translateY(-2px); border-color: var(--success); box-shadow: 0 10px 22px -14px color-mix(in srgb, var(--success) 70%, transparent); }
+.cup-strong-secs { display: flex; flex-wrap: wrap; gap: 4px; }
+.vb-seg button.cup-strong-tab { color: var(--success); font-weight: 600; }
+.vb-seg button.cup-strong-tab.active { background: var(--success); color: #fff; }
+.vb-seg button.cup-strong-tab.active b { color: #fff; }

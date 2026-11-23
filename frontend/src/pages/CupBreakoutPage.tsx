@@ -156,6 +156,34 @@ export function CupBreakoutPage() {
   const [activeTab, setActiveTab] = useState<StatusTabKey>("all");
   const [symbolSearch, setSymbolSearch] = useState("");
   const [strongOnly, setStrongOnly] = useState(false);
+  const openCupChart = (r: CupResult) =>
+    openChart(r.symbol, {
+                              strategy: "CUP",
+                              daily_rsi: null,
+                              weekly_rsi: null,
+                              monthly_rsi: null,
+                              signal_date: r.updated_at,
+                              divergence_timeframe: "MONTHLY",
+                              explanation:
+                                `Cup Breakout: ${statusLabel(r.status)} — left rim ${fmtPrice(r.left_rim_price)} on ${fmtDay(r.left_rim_date)}, ` +
+                                `cup low ${fmtPrice(r.cup_low_price)} on ${fmtDay(r.cup_low_date)}, breakout level ${fmtPrice(r.potential_breakout_level)}.`,
+                              cupStructure: {
+                                trend_start_date: r.trend_start_date ?? null,
+                                trend_start_price: r.trend_start_price ?? null,
+                                left_rim_date: r.left_rim_date,
+                                left_rim_price: r.left_rim_price,
+                                cup_bottom_date: r.cup_bottom_date ?? r.cup_low_date,
+                                cup_bottom_price: r.cup_bottom_price ?? r.cup_low_price,
+                                right_rim_date: r.right_rim_date ?? null,
+                                right_rim_price: r.right_rim_price ?? null,
+                                breakout_level: r.breakout_level ?? r.potential_breakout_level,
+                                breakout_date: r.breakout_date,
+                                handle_start_date: r.handle_start_date ?? null,
+                                handle_end_date: r.handle_end_date ?? null,
+                                handle_low_price: r.handle_low_price ?? null,
+                              },
+                            });
+
   const [distanceFilter, setDistanceFilter] = useState<"all" | "0-2" | "2-5" | "5-10">("all");
   const [depthFilter, setDepthFilter] = useState<"all" | "10-20" | "20-30" | "30-40" | "40+">("all");
   const [sortKey, setSortKey] = useState<SortKey>("closest_breakout");
@@ -341,12 +369,41 @@ export function CupBreakoutPage() {
             ))}
           </div>
 
+          {allResults.some((r) => (r.sectors ?? []).length > 0) && (
+            <section className="card cup-strong">
+              <div className="dash-card-head">
+                <div>
+                  <h2>Strong sector cups</h2>
+                  <p className="muted small">Cups in your sectors that are strong today (sector index daily, weekly and monthly RSI above 60). Tap a card for its chart.</p>
+                </div>
+                <span className="cup-strong-count">{allResults.filter((r) => (r.sectors ?? []).length > 0).length}</span>
+              </div>
+              <div className="cup-strong-grid">
+                {allResults.filter((r) => (r.sectors ?? []).length > 0)
+                  .sort((a, b) => Math.abs(a.distance_to_breakout_percent ?? 99) - Math.abs(b.distance_to_breakout_percent ?? 99))
+                  .map((r) => (
+                    <button key={r.symbol} type="button" className="cup-strong-card" onClick={() => openCupChart(r)}>
+                      <span className="vb-best-top">
+                        <span className="wk-logo"><StockLogo symbol={r.symbol} /></span>
+                        <span className="vb-best-name"><b>{r.symbol}</b><small>{r.company_name ?? ""}</small></span>
+                      </span>
+                      <span className={statusChipClass(r.status)}>{statusLabel(r.status)}</span>
+                      <span className="vb-best-meta">
+                        <span>Breakout level <b>{fmtPrice(r.potential_breakout_level)}</b>{r.distance_to_breakout_percent != null ? ` · ${r.distance_to_breakout_percent.toFixed(1)}% away` : ""}</span>
+                      </span>
+                      <span className="cup-strong-secs">{(r.sectors ?? []).map((sc) => <span key={sc.key} className="vb-sec vb-sec-strong">{sc.label}</span>)}</span>
+                    </button>
+                  ))}
+              </div>
+            </section>
+          )}
+
           <div className="cup-strong-bar">
             <div className="vb-seg" role="tablist" aria-label="Sectors">
               <button type="button" role="tab" aria-selected={!strongOnly} className={!strongOnly ? "active" : ""} onClick={() => setStrongOnly(false)}>
                 All cups <b>{allResults.length}</b>
               </button>
-              <button type="button" role="tab" aria-selected={strongOnly} className={strongOnly ? "active" : ""} onClick={() => setStrongOnly(true)}>
+              <button type="button" role="tab" aria-selected={strongOnly} className={strongOnly ? "active cup-strong-tab" : "cup-strong-tab"} onClick={() => setStrongOnly(true)}>
                 Strong sector <b>{allResults.filter((r) => (r.sectors ?? []).length > 0).length}</b>
               </button>
             </div>
@@ -461,32 +518,7 @@ export function CupBreakoutPage() {
                           type="button"
                           className="secondary-button cup-chart-btn"
                           onClick={() =>
-                            openChart(r.symbol, {
-                              strategy: "CUP",
-                              daily_rsi: null,
-                              weekly_rsi: null,
-                              monthly_rsi: null,
-                              signal_date: r.updated_at,
-                              divergence_timeframe: "MONTHLY",
-                              explanation:
-                                `Cup Breakout: ${statusLabel(r.status)} — left rim ${fmtPrice(r.left_rim_price)} on ${fmtDay(r.left_rim_date)}, ` +
-                                `cup low ${fmtPrice(r.cup_low_price)} on ${fmtDay(r.cup_low_date)}, breakout level ${fmtPrice(r.potential_breakout_level)}.`,
-                              cupStructure: {
-                                trend_start_date: r.trend_start_date ?? null,
-                                trend_start_price: r.trend_start_price ?? null,
-                                left_rim_date: r.left_rim_date,
-                                left_rim_price: r.left_rim_price,
-                                cup_bottom_date: r.cup_bottom_date ?? r.cup_low_date,
-                                cup_bottom_price: r.cup_bottom_price ?? r.cup_low_price,
-                                right_rim_date: r.right_rim_date ?? null,
-                                right_rim_price: r.right_rim_price ?? null,
-                                breakout_level: r.breakout_level ?? r.potential_breakout_level,
-                                breakout_date: r.breakout_date,
-                                handle_start_date: r.handle_start_date ?? null,
-                                handle_end_date: r.handle_end_date ?? null,
-                                handle_low_price: r.handle_low_price ?? null,
-                              },
-                            })
+                            openCupChart(r)
                           }
                         >
                           Chart
