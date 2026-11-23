@@ -5,6 +5,7 @@ import { StockLogo } from "../components/StockLogo";
 import { useChart } from "../chart/ChartContext";
 import { useLocalHistoryWriter } from "../hooks/useLocalHistoryWriter";
 import { useScanJob } from "../hooks/useScanJob";
+import { newerOf, useEodResult } from "../hooks/useEodResult";
 import { fmtDuration } from "../services/scanJobsApi";
 
 const SCAN_TYPE = "cup_breakout";
@@ -142,6 +143,8 @@ function partialToCupResult(signal: { extra: Record<string, unknown> }): CupResu
 export function CupBreakoutPage() {
   const { result, partial, progressLog, job, running, error, run, runFresh, cancel, cache, clearSaved, queued } = useScanJob<CupScanResult>(SCAN_TYPE);
   const { openChart } = useChart();
+  const eod = useEodResult<CupScanResult>("cup");
+  const { shown, isEod } = newerOf(result, eod);
 
   // Permanent, device-local Scan History (IndexedDB) — same mechanism the
   // A Group scan already uses (frontend/src/hooks/useLocalHistoryWriter.ts),
@@ -160,6 +163,7 @@ export function CupBreakoutPage() {
   // final `result` yet), fall back to the live `partial` stream so results
   // appear progressively, exactly like the Dashboard's PRD/NRD tabs do.
   const allResults: CupResult[] = useMemo(() => {
+    if (!running && shown?.results) return shown.results;
     if (result?.results) return result.results;
     const seen = new Map<string, CupResult>();
     for (const p of partial) {
@@ -169,7 +173,7 @@ export function CupBreakoutPage() {
       }
     }
     return Array.from(seen.values());
-  }, [result, partial]);
+  }, [result, partial, shown, running]);
 
   const counts = useMemo(() => {
     const c: Record<string, number> = { all: allResults.length };
@@ -258,7 +262,15 @@ export function CupBreakoutPage() {
         </div>
       </PageHero>
 
-      {queued && (
+      {isEod && !running && shown && (
+        <div className="notice-banner eod-banner">
+          <span>
+            NSE end-of-day data as of <b>{new Date(`${(shown as CupScanResult & { data_as_of: string }).data_as_of}T00:00:00`).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</b>
+            {" "}· every NSE stock, up to 20 years of monthly candles · updated each evening, no scan needed
+          </span>
+        </div>
+      )}
+            {queued && (
         <div className="notice-banner queue-banner">
           <span>{queued}</span>
           <button type="button" className="secondary-button" onClick={() => void cancel()}>Cancel</button>

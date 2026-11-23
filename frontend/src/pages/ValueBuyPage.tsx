@@ -4,6 +4,7 @@ import { ConditionChip } from "../components/ConditionChip";
 import { InstrumentBadge } from "../components/InstrumentBadge";
 import { TrendIcon, ValueTagIcon } from "../components/icons";
 import { useScanJob } from "../hooks/useScanJob";
+import { newerOf, useEodResult } from "../hooks/useEodResult";
 import type { ScanResult, StrategySignal } from "../services/api";
 import { StockLogo } from "../components/StockLogo";
 
@@ -45,6 +46,8 @@ function minutes(seconds: number | null | undefined): string {
 
 export function ValueBuyPage() {
   const { result, partial, job, running, error, cache, run, runFresh, cancel, queued } = useScanJob<ValueBuyResult>("value_buy");
+  const eodVb = useEodResult<ValueBuyResult>("value_buy");
+  const { shown: vb, isEod } = newerOf(running ? null : result, eodVb);
   const [strongOnly, setStrongOnly] = useState<boolean>(() => {
     try { return localStorage.getItem(STRONG_KEY) !== "0"; } catch { return true; }
   });
@@ -52,14 +55,14 @@ export function ValueBuyPage() {
     setStrongOnly(on);
     try { localStorage.setItem(STRONG_KEY, on ? "1" : "0"); } catch { /* not saved */ }
   };
-  const strongMap = useMemo(() => result?.strong_symbols ?? {}, [result]);
-  const hasStrongInfo = !!result?.strong_symbols;
+  const strongMap = useMemo(() => vb?.strong_symbols ?? {}, [vb]);
+  const hasStrongInfo = !!vb?.strong_symbols;
   const { openChart } = useChart();
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("monthly_rsi");
   const [asc, setAsc] = useState(true);
 
-  const allSignals = useMemo(() => result?.strategies?.["Value Buy"] ?? [], [result]);
+  const allSignals = useMemo(() => vb?.strategies?.["Value Buy"] ?? [], [vb]);
   const strongCount = useMemo(() => allSignals.filter((s) => strongMap[s.symbol]).length, [allSignals, strongMap]);
   const signals = useMemo(
     () => (strongOnly && hasStrongInfo ? allSignals.filter((s) => strongMap[s.symbol]) : allSignals),
@@ -165,7 +168,7 @@ export function ValueBuyPage() {
       )}
       {error && <div className={running ? "notice-banner" : "error-banner"}>{error}</div>}
 
-      {!result && !running && !error && (
+      {!vb && !running && !error && (
         <div className="card state-block">
           <div className="state-icon">
             <ValueTagIcon width={28} height={28} />
@@ -175,12 +178,17 @@ export function ValueBuyPage() {
         </div>
       )}
 
-      {result && (
+      {vb && (
         <>
           <div className="scan-meta card">
             <div>
-              Data as of <strong>{new Date(result.finished_at).toLocaleString()}</strong>
-              {cacheAge !== null && (
+              {isEod ? (
+                <>NSE end-of-day data as of <strong>{new Date(`${(vb as ValueBuyResult & { data_as_of: string }).data_as_of}T00:00:00`).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</strong>
+                  <span className="muted small"> · every NSE stock, updated each evening — no scan needed</span></>
+              ) : (
+                <>Data as of <strong>{new Date(vb.finished_at).toLocaleString()}</strong></>
+              )}
+              {!isEod && cacheAge !== null && (
                 <span className="muted small">
                   {" "}
                   · saved result, {Math.floor(cacheAge / 3600)}h {Math.floor((cacheAge % 3600) / 60)}m old
@@ -188,15 +196,15 @@ export function ValueBuyPage() {
               )}
             </div>
             <div>
-              Stocks scanned: {result.stocks_scanned} · failed: {result.stocks_failed}
+              Stocks scanned: {vb.stocks_scanned} · failed: {vb.stocks_failed}
             </div>
             <div>
               Value Buy: <strong>{allSignals.length}</strong>
               {hasStrongInfo && <span className="muted small"> · {strongCount} in strong sectors</span>}
             </div>
-            {result.strong_sectors && (
+            {vb.strong_sectors && vb.strong_sectors.length > 0 && (
               <div className="muted small">
-                Strong sectors today: {result.strong_sectors.length ? result.strong_sectors.map((x) => x.label).join(", ") : "none"}
+                Strong sectors today: {vb.strong_sectors.length ? vb.strong_sectors.map((x) => x.label).join(", ") : "none"}
               </div>
             )}
           </div>

@@ -2057,3 +2057,5 @@ h1, .page-header h1, .app-content > h1, .app-content > div > h1:first-child { fo
 .vb-seg button.active { background: var(--bg-surface); color: var(--pt, var(--accent)); box-shadow: 0 1px 3px color-mix(in srgb, var(--pt, var(--accent)) 20%, transparent); }
 .vb-sector { padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; color: var(--pt, var(--accent)); background: color-mix(in srgb, var(--pt, var(--accent)) 10%, transparent); }
 .vb-toolbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+.eod-banner { border-color: color-mix(in srgb, var(--pt, var(--accent)) 30%, var(--border)); background: color-mix(in srgb, var(--pt, var(--accent)) 6%, var(--bg-surface)); }
