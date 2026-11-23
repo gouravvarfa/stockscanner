@@ -2187,3 +2187,27 @@ h1, .page-header h1, .app-content > h1, .app-content > div > h1:first-child { fo
 .ws-stocks-btn:hover { color: var(--pt, var(--accent)); border-color: color-mix(in srgb, var(--pt, var(--accent)) 40%, var(--border)); }
 .ws-rsi { gap: 18px; font-size: 16px; }
 .ws-rsi small { font-size: 10px; }
+
+/* Weekly Sectors cards, refined (2026-11-23): sector icon tile, RSI with a 0-100 bar and the 60 mark */
+.ws-grid { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }
+.ws-card { padding: 12px 13px; gap: 11px; }
+.ws-head { align-items: center; gap: 10px; }
+.ws-head .ws-title { flex: 1; }
+.ws-icon { flex: none; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 9px;
+  color: #b45309; background: #fef3c7; border: 1px solid #fde68a; }
+.ws-strong .ws-icon { color: var(--success); background: var(--success-soft); border-color: color-mix(in srgb, var(--success) 30%, transparent); }
+.ws-weak .ws-icon { color: var(--danger); background: var(--danger-soft); border-color: color-mix(in srgb, var(--danger) 30%, transparent); }
+:root[data-theme="dark"] .ws-mixed .ws-icon { color: #fbbf24; background: rgba(251, 191, 36, .12); border-color: rgba(251, 191, 36, .25); }
+.ws-title b { font-size: 13.5px; }
+.ws-title small { font-size: 10.5px; letter-spacing: .02em; }
+.ws-rsi { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; font-size: inherit; }
+.ws-rsi-cell { display: flex; flex-direction: column; gap: 5px; }
+.ws-rsi-top { display: flex; align-items: baseline; justify-content: space-between; gap: 4px; }
+.ws-rsi-top small { font-size: 9.5px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--text-muted); }
+.ws-rsi-top b { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.ws-bar { position: relative; height: 4px; border-radius: 999px; background: var(--bg-soft); overflow: hidden; }
+.ws-bar i { position: absolute; inset: 0 auto 0 0; border-radius: 999px; background: currentColor; }
+.ws-bar i.wk-up { background: var(--success); }
+.ws-bar i.wk-down { background: var(--danger); }
+.ws-bar i.wk-amber { background: #f59e0b; }
+.ws-bar em { position: absolute; top: -1px; bottom: -1px; left: 60%; width: 1.5px; background: var(--text-muted); opacity: .55; }

@@ -1,4 +1,5 @@
 import type React from "react";
+import { SectorIcon } from "../components/SectorIcon";
 import { useEffect, useRef, useState } from "react";
 import { useChart } from "../chart/ChartContext";
 import { TrendIcon } from "../components/icons";
@@ -432,6 +433,7 @@ export function WeeklySectorsPage() {
                     onKeyDown={(e) => { if (canChart && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); openSectorChart(s); } }}
                   >
                     <div className="ws-head">
+                      <span className="ws-icon"><SectorIcon sectorKey={s.key} /></span>
                       <div className="ws-title">
                         <b>{s.label}</b>
                         <small>{s.equal_weight ? "equal-weight of its stocks" : s.index_label}</small>
@@ -441,10 +443,12 @@ export function WeeklySectorsPage() {
                     <div className="ws-rsi">
                       {(["d", "w", "m"] as const).map((k) => {
                         const r = s.rsi[k];
+                        const cls = r === null ? "muted" : r > 60 ? "wk-up" : r < 40 ? "wk-down" : "wk-amber";
                         return (
-                          <span key={k} className={r === null ? "muted" : r > 60 ? "wk-up" : r < 40 ? "wk-down" : "wk-amber"}>
-                            <small>RSI {k.toUpperCase()}</small>{r === null ? "n/a" : r.toFixed(1)}
-                          </span>
+                          <div key={k} className="ws-rsi-cell">
+                            <span className="ws-rsi-top"><small>{k === "d" ? "Daily" : k === "w" ? "Weekly" : "Monthly"}</small><b className={cls}>{r === null ? "n/a" : r.toFixed(1)}</b></span>
+                            <span className="ws-bar"><i className={cls} style={{ width: `${r === null ? 0 : Math.max(0, Math.min(100, r))}%` }} /><em /></span>
+                          </div>
                         );
                       })}
                     </div>
