@@ -251,7 +251,18 @@ export function CupBreakoutPage() {
         motif={<CupMotif />}
       >
         <div className="hero-actions">
-          {!running ? (
+          {!running && eod ? (
+            <>
+              <span className="eod-ready">✓ Ready · NSE data of {new Date(`${eod.data_as_of}T00:00:00`).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })} · no scan needed</span>
+              <button
+                className="secondary-button"
+                title="Scans every stock live through Angel One - over an hour"
+                onClick={() => { if (window.confirm("A live Cup scan goes through Angel One and takes over an hour. The NSE end-of-day result below is already complete. Run the live scan anyway?")) void runFresh(); }}
+              >
+                Live scan (slow)
+              </button>
+            </>
+          ) : !running ? (
             <>
               <button className="primary-button" onClick={run}>Scan</button>
               <button className="secondary-button" onClick={runFresh} style={{ marginLeft: 8 }}>Fresh Scan</button>

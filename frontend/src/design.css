@@ -2059,3 +2059,5 @@ h1, .page-header h1, .app-content > h1, .app-content > div > h1:first-child { fo
 .vb-toolbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 
 .eod-banner { border-color: color-mix(in srgb, var(--pt, var(--accent)) 30%, var(--border)); background: color-mix(in srgb, var(--pt, var(--accent)) 6%, var(--bg-surface)); }
+.eod-ready { display: inline-flex; align-items: center; padding: 7px 12px; border-radius: 999px; font-size: 12.5px; font-weight: 600;
+  color: var(--success); background: var(--success-soft); border: 1px solid color-mix(in srgb, var(--success) 25%, transparent); }

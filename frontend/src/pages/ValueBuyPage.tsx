@@ -115,13 +115,28 @@ export function ValueBuyPage() {
           </p>
         </div>
         <div style={{ display: "flex", gap: 10 }}>
-          <button className="primary-button" onClick={() => void run()} disabled={running}>
-            {running ? "Scanning…" : "Run Scan"}
-          </button>
-          {!running && (
-            <button className="secondary-button" onClick={() => void runFresh()} title="Ignore the saved result and fetch fresh data">
-              Fresh Scan
-            </button>
+          {eodVb && !running ? (
+            <>
+              <span className="eod-ready">✓ Ready · NSE data of {new Date(`${eodVb.data_as_of}T00:00:00`).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })} · no scan needed</span>
+              <button
+                className="secondary-button"
+                title="Scans every stock live through Angel One - about an hour"
+                onClick={() => { if (window.confirm("A live scan goes through Angel One and takes about an hour. The NSE end-of-day result above is already complete. Run the live scan anyway?")) void runFresh(); }}
+              >
+                Live scan (slow)
+              </button>
+            </>
+          ) : (
+            <>
+              <button className="primary-button" onClick={() => void run()} disabled={running}>
+                {running ? "Scanning…" : "Run Scan"}
+              </button>
+              {!running && (
+                <button className="secondary-button" onClick={() => void runFresh()} title="Ignore the saved result and fetch fresh data">
+                  Fresh Scan
+                </button>
+              )}
+            </>
           )}
           {running && (
             <button className="secondary-button stop-scan-button" onClick={() => void cancel()}>
