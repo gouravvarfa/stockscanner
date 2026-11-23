@@ -2075,3 +2075,9 @@ h1, .page-header h1, .app-content > h1, .app-content > div > h1:first-child { fo
 .app-content td.symbol-cell { white-space: nowrap; }
 .app-content td.symbol-cell .wk-logo { display: inline-flex; vertical-align: middle; margin-right: 8px; }
 .app-content td.symbol-cell > b { vertical-align: middle; }
+.sz-note { font-size: 12.5px; font-weight: 500; color: var(--pt, var(--accent)); }
+.sz-drives { display: flex; flex-direction: column; gap: 4px; }
+.sz-drive { display: inline-flex; flex-direction: column; padding: 3px 9px; border-radius: 8px; font-size: 12px;
+  background: color-mix(in srgb, var(--pt, var(--accent)) 8%, transparent); border: 1px solid color-mix(in srgb, var(--pt, var(--accent)) 20%, transparent); }
+.sz-drive b { font-weight: 600; color: var(--pt, var(--accent)); }
+.sz-drive small { color: var(--text-muted); font-size: 11px; white-space: nowrap; }

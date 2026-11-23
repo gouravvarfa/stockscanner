@@ -45,6 +45,36 @@ def monthly_rsi_now(df: pd.DataFrame, length: int = 14) -> float | None:
     return float(100 - 100 / (1 + avg_gain / avg_loss))
 
 
+def falling_drives(bars: pd.DataFrame, k: int, recent_bars: int) -> dict | None:
+    """Consecutive falling drives (2026-11-23, user: 3, 4 or 5 drives on the daily or weekly chart): swing lows
+    (k bars each side) each LOWER than the one before, with a swing high between each pair, ending at the latest swing
+    low - which must be recent (within `recent_bars`) with price still above it. No Fibonacci ratio rules (the user
+    asked for the plain count); count = how many such lows in a row, reported when 3 or more."""
+    from backend.strategies.gann_time import find_pivots
+
+    if len(bars) < 4 * k + 10:
+        return None
+    high, low = bars["high"].to_numpy(float), bars["low"].to_numpy(float)
+    piv = find_pivots(high, low, k=k)
+    lows = [(i, float(low[i])) for i, kind in piv if kind == "L"]
+    if len(lows) < 3:
+        return None
+    last_i, last_p = lows[-1]
+    if len(bars) - 1 - last_i > recent_bars or float(bars["close"].iloc[-1]) <= last_p:
+        return None
+    run = [lows[-1]]
+    for i, p in reversed(lows[:-1]):
+        if p > run[-1][1]:
+            run.append((i, p))
+        else:
+            break
+    count = len(run)
+    if count < 3:
+        return None
+    run.reverse()
+    return {"count": min(count, 9), "lows": [{"date": bars.index[i].date().isoformat(), "price": round(p, 2)} for i, p in run[-6:]]}
+
+
 def daily_retracement(df: pd.DataFrame) -> dict | None:
     """The daily pullback inside the last up-swing (2026-11-23, the user's PFC example: low 310.30 -> high 346.37,
     then a dip to ~319 = the 78.6% zone). Swings use 5 daily bars on each side, like a chart's Fibonacci tool. The
@@ -125,7 +155,10 @@ def run(store: dict[str, pd.DataFrame], strong_map: dict[str, str] | None = None
                 if (rsi_now is not None and vb_config.monthly_rsi_support_min <= rsi_now <= vb_config.monthly_rsi_support_max
                         and month_green):
                     ret = daily_retracement(df)
+                    weekly_bars = df.resample("W-FRI").agg({"open": "first", "high": "max", "low": "min", "close": "last"}).dropna()
+                    drives = {"daily": falling_drives(df.iloc[-400:], 5, 25), "weekly": falling_drives(weekly_bars.iloc[-200:], 3, 8)}
                     support.append({
+                        "drives": drives,
                         "symbol": sym, "company_name": universe_loader.company_name_for(sym) or sym,
                         "price": round(float(result.current_price), 2), "daily_rsi": result.daily.rsi,
                         "weekly_rsi": result.weekly.rsi, "monthly_rsi": round(rsi_now, 2),

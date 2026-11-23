@@ -12,27 +12,34 @@ export type Retracement = {
   pct: number; deepest_pct: number; swing_high: number; swing_high_date: string; swing_low: number; swing_low_date: string;
   level_786: number; fib78: boolean;
 };
+export type Drives = { count: number; lows: { date: string; price: number }[] };
+const inRange = (d: Drives | null | undefined) => !!d && d.count >= 3 && d.count <= 5;
+export const hasDrives = (r: SupportRow) => inRange(r.drives?.daily) || inRange(r.drives?.weekly);
+
 export type SupportRow = {
   symbol: string; company_name: string; price: number; daily_rsi: number | null; weekly_rsi: number | null; monthly_rsi: number | null;
   conditions: Record<string, boolean>; value_buy: boolean; retracement: Retracement | null;
   month_open?: number; month_change_pct?: number;
+  drives?: { daily: Drives | null; weekly: Drives | null };
 };
 
 const num = (v: number | null | undefined, d = 1) => (v == null ? "—" : v.toFixed(d));
 const dmy = (iso: string) => new Date(`${iso}T00:00:00`).toLocaleDateString("en-IN", { day: "2-digit", month: "short" });
 
-export function SupportZoneCard({ rows, strongMap, strongOnly, query }: {
-  rows: SupportRow[]; strongMap: Record<string, string>; strongOnly: boolean; query: string;
+export function SupportZoneCard({ rows, strongMap, strongOnly, query, mode = "support" }: {
+  rows: SupportRow[]; strongMap: Record<string, string>; strongOnly: boolean; query: string; mode?: "support" | "drives";
 }) {
   const { openChart } = useChart();
-  const [only78, setOnly78] = useState(true);
+  // Drives view: the 78% pullback is a bonus, not a requirement (user) - so it starts unticked there
+  const [only78, setOnly78] = useState(mode === "support");
+  const base = mode === "drives" ? rows.filter(hasDrives) : rows;
   const list = useMemo(() => {
     const q = query.trim().toUpperCase();
-    return rows
+    return base
       .filter((r) => (!strongOnly || strongMap[r.symbol]) && (!only78 || r.retracement?.fib78) && (!q || r.symbol.includes(q)))
       .sort((a, b) => Number(!!b.retracement?.fib78) - Number(!!a.retracement?.fib78) || (a.monthly_rsi ?? 99) - (b.monthly_rsi ?? 99));
-  }, [rows, strongMap, strongOnly, only78, query]);
-  const count78 = rows.filter((r) => (!strongOnly || strongMap[r.symbol]) && r.retracement?.fib78).length;
+  }, [base, strongMap, strongOnly, only78, query]);
+  const count78 = base.filter((r) => (!strongOnly || strongMap[r.symbol]) && r.retracement?.fib78).length;
 
   return (
     <>
@@ -41,6 +48,7 @@ export function SupportZoneCard({ rows, strongMap, strongOnly, query }: {
           <input type="checkbox" checked={only78} onChange={(e) => setOnly78(e.target.checked)} />
           Only the 78% pullback <b>{count78}</b>
         </label>
+        {mode === "drives" && <span className="sz-note">3, 4 or 5 falling drives on the daily or weekly chart — each low below the last, with a bounce between</span>}
         <span className="muted small">Monthly RSI 38–45 with this month's candle (support at 40), and this month's candle green · daily pullback measured on the last swing low → high (5-day swings)</span>
       </div>
       {list.length === 0 ? (
@@ -54,6 +62,7 @@ export function SupportZoneCard({ rows, strongMap, strongOnly, query }: {
                 <th className="num-cell">Price</th>
                 <th className="num-cell" title="Including this month's candle as of the data date">Monthly RSI (this month)</th>
                 <th className="num-cell">Daily pullback</th>
+                {mode === "drives" && <th>Drives</th>}
                 <th>Swing (low → high)</th>
                 <th>Also</th>
               </tr>
@@ -86,6 +95,21 @@ export function SupportZoneCard({ rows, strongMap, strongOnly, query }: {
                         </span>
                       ) : "—"}
                     </td>
+                    {mode === "drives" && (
+                      <td>
+                        <span className="sz-drives">
+                          {(["daily", "weekly"] as const).map((tf) => {
+                            const d = r.drives?.[tf];
+                            return inRange(d) ? (
+                              <span key={tf} className="sz-drive" title={d!.lows.map((l) => `${dmy(l.date)} ₹${num(l.price, 2)}`).join("  →  ")}>
+                                <b>{d!.count} drives</b> {tf === "daily" ? "daily" : "weekly"}
+                                <small>{d!.lows.slice(-d!.count).map((l) => `₹${num(l.price, 0)}`).join(" → ")}</small>
+                              </span>
+                            ) : null;
+                          })}
+                        </span>
+                      </td>
+                    )}
                     <td className="muted small">{ret ? `₹${num(ret.swing_low, 2)} (${dmy(ret.swing_low_date)}) → ₹${num(ret.swing_high, 2)} (${dmy(ret.swing_high_date)})` : "—"}</td>
                     <td>
                       {r.value_buy ? <span className="chip chip-pass">Value Buy</span> : (

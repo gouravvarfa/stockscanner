@@ -7,7 +7,7 @@ import { useScanJob } from "../hooks/useScanJob";
 import { newerOf, useEodResult } from "../hooks/useEodResult";
 import type { ScanResult, StrategySignal } from "../services/api";
 import { StockLogo } from "../components/StockLogo";
-import { SupportZoneCard, type SupportRow } from "./valueBuy/SupportZoneCard";
+import { SupportZoneCard, hasDrives, type SupportRow } from "./valueBuy/SupportZoneCard";
 
 /** The Value Buy result also carries today's STRONG sectors and their stocks (2026-11-23). */
 type ValueBuyResult = ScanResult & {
@@ -64,7 +64,7 @@ export function ValueBuyPage() {
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("monthly_rsi");
   const [asc, setAsc] = useState(true);
-  const [view, setView] = useState<"vb" | "support">("support");
+  const [view, setView] = useState<"vb" | "support" | "drives">("support");
 
   const allSignals = useMemo(() => vb?.strategies?.["Value Buy"] ?? [], [vb]);
   const strongCount = useMemo(() => allSignals.filter((s) => strongMap[s.symbol]).length, [allSignals, strongMap]);
@@ -228,6 +228,9 @@ export function ValueBuyPage() {
                   <button type="button" role="tab" aria-selected={view === "support"} className={view === "support" ? "active" : ""} onClick={() => setView("support")}>
                     Monthly RSI 40 support <b>{vb.support_zone.length}</b>
                   </button>
+                  <button type="button" role="tab" aria-selected={view === "drives"} className={view === "drives" ? "active" : ""} onClick={() => setView("drives")}>
+                    Drives (3–5) <b>{vb.support_zone.filter(hasDrives).length}</b>
+                  </button>
                   <button type="button" role="tab" aria-selected={view === "vb"} className={view === "vb" ? "active" : ""} onClick={() => setView("vb")}>
                     Value Buy (all 3 rules) <b>{allSignals.length}</b>
                   </button>
@@ -253,8 +256,8 @@ export function ValueBuyPage() {
                 aria-label="Search a stock"
               />
             </div>
-            {view === "support" && vb.support_zone ? (
-              <SupportZoneCard rows={vb.support_zone} strongMap={strongMap} strongOnly={strongOnly && hasStrongInfo} query={query} />
+            {(view === "support" || view === "drives") && vb.support_zone ? (
+              <SupportZoneCard key={view} mode={view} rows={vb.support_zone} strongMap={strongMap} strongOnly={strongOnly && hasStrongInfo} query={query} />
             ) : rows.length === 0 ? (
               <p className="muted" style={{ marginBottom: 0 }}>
                 {signals.length === 0
