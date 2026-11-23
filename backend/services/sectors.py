@@ -18,5 +18,20 @@ def _sectors() -> dict[str, str]:
         return {}
 
 
+_INDUSTRY = Path(__file__).resolve().parent.parent / "data" / "nse_industry.csv"
+
+
+@lru_cache(maxsize=1)
+def _industries() -> dict[str, str]:
+    """NSE's industry tag for ~1,000 stocks (Nifty Total Market + Microcap 250) - the fallback for stocks outside the
+    A Group list (2026-11-23: sectors now include every NSE stock of their industry, e.g. Karnataka Bank)."""
+    try:
+        with open(_INDUSTRY, encoding="utf-8") as fh:
+            return {r["symbol"].strip().upper(): r["industry"].strip() for r in csv.DictReader(fh)}
+    except OSError:
+        return {}
+
+
 def sector_for(symbol: str) -> str | None:
-    return _sectors().get(symbol.strip().upper()) or None
+    key = symbol.strip().upper()
+    return _sectors().get(key) or _industries().get(key) or None
