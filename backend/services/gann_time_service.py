@@ -57,6 +57,21 @@ def is_commodity(symbol: str) -> bool:
     return symbol.strip().upper() in COMMODITIES
 
 
+# NSE indices (2026-11-23): Angel One's index names (the same ones Weekly Sectors uses), searchable and analysed like a
+# stock from their daily index candles.
+INDICES: dict[str, str] = {
+    "NIFTY": "Nifty 50", "BANKNIFTY": "Nifty Bank", "FINNIFTY": "Nifty Financial Services", "MIDCPNIFTY": "Nifty Midcap Select",
+    "NIFTY IT": "Nifty IT", "NIFTY PHARMA": "Nifty Pharma", "NIFTY AUTO": "Nifty Auto", "NIFTY FMCG": "Nifty FMCG",
+    "NIFTY METAL": "Nifty Metal", "NIFTY ENERGY": "Nifty Energy", "NIFTY REALTY": "Nifty Realty", "NIFTY MEDIA": "Nifty Media",
+    "NIFTY INFRA": "Nifty Infrastructure", "NIFTY PSU BANK": "Nifty PSU Bank", "NIFTY PVT BANK": "Nifty Private Bank",
+    "NIFTY PSE": "Nifty PSE", "NIFTY CPSE": "Nifty CPSE",
+}
+
+
+def is_index(symbol: str) -> bool:
+    return symbol.strip().upper() in INDICES
+
+
 # ---------------------------------------------------------------- NSE search
 @lru_cache(maxsize=1)
 def _nse_names() -> dict[str, str]:
@@ -72,6 +87,8 @@ def _nse_names() -> dict[str, str]:
 def company_name(symbol: str) -> str:
     if is_commodity(symbol):
         return f"{COMMODITIES[symbol.strip().upper()]} (MCX futures)"
+    if is_index(symbol):
+        return f"{INDICES[symbol.strip().upper()]} (NSE index)"
     return _nse_names().get(symbol) or universe_loader.company_name_for(symbol) or symbol
 
 
@@ -81,12 +98,15 @@ def _norm(text: str) -> str:
 
 def search_nse(query: str, limit: int = 20) -> list[dict]:
     """Any NSE equity (and the MCX commodities), by symbol or name, with typo tolerance."""
-    names = {s: f"{n} (MCX futures)" for s, n in COMMODITIES.items()}
+    names = {s: f"{n} (NSE index)" for s, n in INDICES.items()}
+    names.update({s: f"{n} (MCX futures)" for s, n in COMMODITIES.items()})
     names.update(_nse_names())
     for s in universe_loader.load_a_group_universe():
         names.setdefault(s, universe_loader.company_name_for(s) or s)
     nq = _norm(query.strip())
     squashed = nq.replace(" ", "")
+    # indices first when the query names one ("nifty", "bank nifty", "nifty it")
+    idx_hits = [s for s in INDICES if s.replace(" ", "").startswith(squashed) or squashed in _norm(INDICES[s]).replace(" ", "")]
     if not squashed:
         return []
     tokens = nq.split()
@@ -98,7 +118,7 @@ def search_nse(query: str, limit: int = 20) -> list[dict]:
         s for s, n in names.items()
         if s not in seen and all(any(w.startswith(t) for w in _norm(n).split()) for t in tokens)
     ]
-    found = starts + contains + by_name
+    found = idx_hits + [s for s in starts + contains + by_name if s not in idx_hits]
     if not found:
         found = difflib.get_close_matches(squashed, list(names), n=limit, cutoff=0.6)
     if not found:
@@ -139,6 +159,11 @@ async def _commodity_daily(provider: AngelOneProvider, name: str) -> pd.DataFram
 async def _daily(provider: AngelOneProvider, symbol: str) -> pd.DataFrame:
     if is_commodity(symbol):
         return await _commodity_daily(provider, symbol.strip().upper())
+    if is_index(symbol):
+        idx = await scrip_master.resolve_index(symbol.strip().upper())
+        if idx is None:
+            raise DataUnavailableError(f"Index '{symbol}' not found in the scrip master.")
+        return await provider.get_intraday_ohlc(idx.exch_seg, idx.token, "ONE_DAY", HISTORY_DAYS)
     match = await provider.resolve_equity(symbol)
     if match is None:
         raise DataUnavailableError(f"'{symbol}' has no NSE equity listing.")
@@ -316,7 +341,7 @@ async def analyse_symbol(provider: AngelOneProvider, symbol: str) -> dict:
 
     horizon_end = n - 1 + gann_time.HORIZON_BARS
     return {
-        "symbol": symbol, "company_name": company_name(symbol), "sector": "Commodity" if is_commodity(symbol) else sector_for(symbol),
+        "symbol": symbol, "company_name": company_name(symbol), "sector": "Commodity" if is_commodity(symbol) else "Index" if is_index(symbol) else sector_for(symbol),
         "last_date": res.last_date, "last_close": res.last_close, "new_swing_forming": res.new_swing_forming,
         "candles": [{"time": int(ts.timestamp()), "open": float(r.open), "high": float(r.high),
                      "low": float(r.low), "close": float(r.close)} for ts, r in tail.iterrows()],
