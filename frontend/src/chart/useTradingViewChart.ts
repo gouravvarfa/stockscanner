@@ -232,14 +232,17 @@ export function useTradingViewChart(containerRef: React.RefObject<HTMLDivElement
     driveMarkersRef.current.setMarkers([]);
     const fib = optionsRef.current.fibonacci;
     const bars = barsRef.current;
-    if (!fib || !(fib.high > fib.low) || bars.length === 0) return;
+    if (!fib || bars.length === 0) return;
+    const drawLevels = fib.levels !== false && fib.high > fib.low;
     // Like a charting app's Fibonacci tool (2026-11-23, user's reference): each level starts at the swing and runs to
     // the latest candle, labelled "61.8% (546.90)" where it starts; 78.6% is the thick orange one.
-    const t0 = Math.min(
+    let t0 = bars[Math.max(0, bars.length - 60)].time;
+    const t1 = bars[bars.length - 1].time;
+    if (drawLevels) {
+    t0 = Math.min(
       barOnDay(bars, fib.low_date) ?? bars[Math.max(0, bars.length - 60)].time,
       barOnDay(bars, fib.high_date) ?? bars[Math.max(0, bars.length - 60)].time,
     );
-    const t1 = bars[bars.length - 1].time;
     const levels: [number, string, number][] = [
       [0, "#64748b", 1], [0.382, "#0d9488", 1], [0.5, "#7c3aed", 1], [0.618, "#2563eb", 2], [0.786, "#ea580c", 3], [1, "#dc2626", 2],
     ];
@@ -264,6 +267,7 @@ export function useTradingViewChart(containerRef: React.RefObject<HTMLDivElement
       });
       band.setData([{ time: t0 as Time, value: v }, { time: t1 as Time, value: v }]);
       fibSeriesRef.current.push(band);
+    }
     }
     // green arrows under the 3-5 Drive lows
     const arrows: SeriesMarker<Time>[] = [];

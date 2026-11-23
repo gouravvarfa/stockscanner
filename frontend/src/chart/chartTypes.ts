@@ -52,6 +52,8 @@ export interface FibonacciLevels {
   high_date?: string;
   /** 3-5 Drive lows (YYYY-MM-DD) - green arrows under those candles */
   drive_dates?: string[];
+  /** false = draw only the drive arrows, no Fibonacci levels (no real 78% pullback) */
+  levels?: boolean;
 }
 
 export interface CupStructure {

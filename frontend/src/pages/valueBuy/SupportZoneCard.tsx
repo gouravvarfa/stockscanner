@@ -88,6 +88,7 @@ export function SupportZoneCard({ rows, strongMap, strongOnly, query, mode = "su
                 const ret = r.retracement;
                 return (
                   <tr key={r.symbol} className="wk-click" onClick={() => openChart(r.symbol, { strategy: "Value Buy", monthly_rsi: r.monthly_rsi, daily_rsi: r.daily_rsi, weekly_rsi: r.weekly_rsi, signal_date: null, indicators: { rsi: true, bollinger: true }, fibonacci: r.retracement ? {
+                      levels: r.retracement.fib78,
                       low: r.retracement.swing_low, high: r.retracement.swing_high, low_date: r.retracement.swing_low_date, high_date: r.retracement.swing_high_date,
                       drive_dates: inRange(r.drives?.daily) ? r.drives!.daily!.lows.slice(-r.drives!.daily!.count).map((l) => l.date) : [],
                     } : null })}>
@@ -113,8 +114,14 @@ export function SupportZoneCard({ rows, strongMap, strongOnly, query, mode = "su
                       {ret ? (
                         <span className="sz-pull">
                           {ret.fib78 && <span className="sz-78">78%</span>}
-                          <span>{num(ret.deepest_pct, 0)}% deepest</span>
-                          <small className="muted">now {num(ret.pct, 0)}% · 0.786 at ₹{num(ret.level_786, 2)}</small>
+                          {ret.deepest_pct > 100 ? (
+                            <span className="muted">swing low broken</span>
+                          ) : (
+                            <>
+                              <span>{num(ret.deepest_pct, 0)}% deepest</span>
+                              <small className="muted">now {num(ret.pct, 0)}% · 0.786 at ₹{num(ret.level_786, 2)}</small>
+                            </>
+                          )}
                         </span>
                       ) : "—"}
                     </td>
