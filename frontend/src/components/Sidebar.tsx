@@ -3,6 +3,7 @@ import { NavLink, useNavigate } from "react-router-dom";
 import { navigateSmoothly } from "../services/pageTransition";
 import {
   CalendarIcon,
+  AngleIcon,
   ChartBarIcon,
   DashboardIcon,
   HistoryIcon,
@@ -32,6 +33,7 @@ export const NAV_ITEMS: NavItem[] = [
   { to: "/value-buy", label: "Value Buy", icon: ValueTagIcon, tone: "#0d9488" },
   { to: "/astro-watch", label: "Astro Watch", icon: StarIcon, tone: "#d97706" },
   { to: "/gann-time", label: "Gann Square", icon: CalendarIcon, tone: "#be185d" },
+  { to: "/gann-angles", label: "Angle Projection", icon: AngleIcon, tone: "#4f46e5" },
   { to: "/strategies", label: "Strategies", icon: TargetIcon, tone: "#9333ea" },
   { to: "/stocks", label: "Stock Scanner", icon: ListIcon, tone: "#16a34a" },
   { to: "/history", label: "Scan History", icon: HistoryIcon, tone: "#059669" },

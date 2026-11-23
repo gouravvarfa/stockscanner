@@ -75,6 +75,14 @@ export interface GannAngleFan {
   lines: GannAngleLine[];
 }
 
+/** The colour of one angle line, the same on the chart and in the Angle Projection table. */
+export function angleColor(fraction: number, dark: boolean): string {
+  const palette = dark
+    ? ["#60a5fa", "#a78bfa", "#f472b6", "#fbbf24", "#2dd4bf", "#a3e635", "#94a3b8"]
+    : ["#1d4ed8", "#7c3aed", "#be185d", "#d97706", "#0d9488", "#65a30d", "#475569"];
+  return palette[Math.min(palette.length - 1, Math.round(Math.log2(1 / Math.abs(fraction || 1 / 64))))];
+}
+
 /** "1/2", "mirror 1/4", "flat", "full" */
 export function angleName(f: number): string {
   if (f === 0) return "flat";

@@ -9,7 +9,7 @@ import {
   type Time,
   type UTCTimestamp,
 } from "lightweight-charts";
-import type { GannStockDetail } from "../../services/gannTimeApi";
+import { angleColor, type GannStockDetail } from "../../services/gannTimeApi";
 
 const dayTs = (iso: string) => (Math.floor(Date.parse(`${iso}T00:00:00Z`) / 1000) as UTCTimestamp);
 
@@ -21,7 +21,8 @@ function isDark(): boolean {
 
 /** Candles + swing zigzag + red bands on cluster windows (±3 candles), drawn
  *  into the future on blank trading days so the dates sit on the time axis. */
-export function GannChart({ data }: { data: GannStockDetail }) {
+/** `bands`: the cluster-date windows (Gann Square); `angles`: the angle-halving fan (Angle Projection). */
+export function GannChart({ data, bands: showBands = true, angles: showAngles = true }: { data: GannStockDetail; bands?: boolean; angles?: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -59,7 +60,7 @@ export function GannChart({ data }: { data: GannStockDetail }) {
 
     // Cluster windows: ±3 trading candles around each cluster date.
     const bandColor = new Map<number, string>();
-    data.clusters.forEach((cl) => {
+    (showBands ? data.clusters : []).forEach((cl) => {
       const i = allTimes.indexOf(dayTs(cl.date));
       if (i < 0) return;
       for (let j = Math.max(0, i - 3); j <= Math.min(allTimes.length - 1, i + 3); j++) {
@@ -87,11 +88,8 @@ export function GannChart({ data }: { data: GannStockDetail }) {
 
     // Angle halving fan from the last big swing's start: one straight line per angle,
     // origin -> last bar on the axis (lines run per candle, so future blank bars count).
-    const fan = data.angles;
+    const fan = showAngles ? data.angles : null;
     if (fan) {
-      const palette = dark
-        ? ["#60a5fa", "#a78bfa", "#f472b6", "#fbbf24", "#2dd4bf", "#a3e635", "#94a3b8"]
-        : ["#1d4ed8", "#7c3aed", "#be185d", "#d97706", "#0d9488", "#65a30d", "#475569"];
       const lastCandle = candles.length - 1;
       const oTs = dayTs(fan.origin_date);
       let o = allTimes.indexOf(oTs);
@@ -99,7 +97,7 @@ export function GannChart({ data }: { data: GannStockDetail }) {
       const end = allTimes.length - 1;
       fan.lines.forEach((l) => {
         const at = (bar: number) => l.today + l.slope * (bar - lastCandle);
-        const color = palette[Math.min(palette.length - 1, Math.round(Math.log2(1 / Math.abs(l.fraction || 1 / 64))))];
+        const color = angleColor(l.fraction, dark);
         const s = chart.addSeries(LineSeries, {
           color, lineWidth: 1, lineStyle: l.fraction < 0 ? 2 : l.fraction === 0 ? 1 : 0,
           lastValueVisible: false, priceLineVisible: false, crosshairMarkerVisible: false,
@@ -112,7 +110,7 @@ export function GannChart({ data }: { data: GannStockDetail }) {
     // Show ~the last 9 months plus every future projection date (fitContent ignores blank future bars).
     chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, candles.length - 180), to: allTimes.length + 2 });
     return () => chart.remove();
-  }, [data]);
+  }, [data, showBands, showAngles]);
 
   return <div ref={ref} style={{ height: 440, width: "100%" }} />;
 }

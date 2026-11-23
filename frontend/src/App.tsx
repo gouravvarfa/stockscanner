@@ -10,6 +10,7 @@ import { Sidebar } from "./components/Sidebar";
 import { Dashboard } from "./pages/Dashboard";
 import { GFSUniversePage } from "./pages/GFSUniversePage";
 import { GannTimePage } from "./pages/GannTimePage";
+import { GannAnglesPage } from "./pages/GannAnglesPage";
 import { StockScanner } from "./pages/StockScanner";
 import { Strategies } from "./pages/Strategies";
 import { SystemOneBacktestPage } from "./pages/SystemOneBacktestPage";
@@ -84,6 +85,7 @@ export default function App() {
             <Route path="/strategies/gfs-50/stocks" element={<GFSUniversePage variant="gfs50" />} />
             <Route path="/cup-breakout" element={<CupBreakoutPage />} />
             <Route path="/gann-time" element={<GannTimePage />} />
+            <Route path="/gann-angles" element={<GannAnglesPage />} />
             <Route path="/stocks" element={<StockScanner />} />
             <Route path="/breakout-15" element={<Breakout15Page />} />
             <Route path="/range-analysis" element={<RangeAnalysisPage />} />

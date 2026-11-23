@@ -7,7 +7,6 @@ import {
   type GannStockDetail,
 } from "../services/gannTimeApi";
 import { StockLogo } from "../components/StockLogo";
-import { angleName } from "../services/gannTimeApi";
 import { GannChart } from "./gannTime/GannChart";
 import "./gannTime/gannTime.css";
 
@@ -157,12 +156,11 @@ function StockView({ symbol, onPick }: { symbol: string; onPick: (s: string) => 
               </div>
               {data.new_swing_forming && <span className="gt-warn">A new swing is forming — dates may shift</span>}
             </div>
-            <GannChart data={data} />
+            <GannChart data={data} angles={false} />
             <p className="muted small gt-legend">
               <span className="gt-key gt-key-swing" /> swings
               <span className="gt-key gt-key-band" /> cluster date
               <span className="gt-key gt-key-soft" /> ±3 candle window
-              {data.angles && <> · thin lines: angle halving (dashed = other way)</>}
             </p>
           </section>
 
@@ -191,32 +189,6 @@ function StockView({ symbol, onPick }: { symbol: string; onPick: (s: string) => 
               )}
             </div>
           </section>
-
-          {data.angles && (
-            <section className="card">
-              <div className="act-box act-weak">
-                <div className="act-head">
-                  <span className="act-name">Angle lines · from {fmtDate(data.angles.origin_date)} ({fmtPrice(data.angles.origin_price)})</span>
-                  <span className="act-count">{data.angles.lines.length}</span>
-                </div>
-                <p className="act-note">
-                  The last big swing ({fmtDate(data.angles.origin_date)} → {fmtDate(data.angles.end_date)}) makes{" "}
-                  {data.angles.degrees.toFixed(1)}° on a 1 candle = 1 ATR scale. Each line halves that angle again; dashed
-                  lines are the same angles the other way. Gold backtest: price turned at these lines no more often than at
-                  random lines, so read them as a picture, not a signal.
-                </p>
-                <ul className="act-items gt-static">
-                  {[...data.angles.lines].sort((a, b) => b.today - a.today).map((l) => (
-                    <li key={l.fraction}>
-                      <span className="act-main">{angleName(l.fraction)} · {l.degrees.toFixed(2)}°</span>
-                      <span className="act-sub">{l.today >= data.last_close ? "above price" : "below price"}</span>
-                      <span className="act-val">{fmtPrice(l.today)}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </section>
-          )}
 
           <div className="gt-grid">
             <section className="card">

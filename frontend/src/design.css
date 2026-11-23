@@ -1445,3 +1445,11 @@ h1, .page-header h1, .app-content > h1, .app-content > div > h1:first-child { fo
 .aw-use-up { background: var(--success-soft); }
 .aw-use-up b { color: var(--success); }
 .aw-hit { font-weight: 600; color: var(--success); }
+
+/* Angle Projection (2026-11-23) */
+.ga-kpi { font-size: 17px; }
+.ga-line { display: inline-flex; align-items: center; gap: 10px; font-weight: 550; color: var(--text-primary); }
+.ga-swatch { width: 22px; height: 0; border-top: 2px solid; display: inline-block; }
+.ga-swatch.ga-dashed { border-top-style: dashed; }
+.ga-table tr.ga-near td { background: color-mix(in srgb, var(--accent) 7%, transparent); }
+.ga-note { margin: 12px 0 0; }
