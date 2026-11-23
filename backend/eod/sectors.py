@@ -23,6 +23,7 @@ NSE_INDEX_NAME = {
 }
 STRONG_RSI = 60.0
 VALUE_MIN, VALUE_MAX = 38.0, 45.0
+FULL_MONTHS = 36  # a sector index needs 3 full years of daily closes (>= 10 days every month) to be judged
 CONSTITUENTS = Path(__file__).resolve().parent.parent / "data" / "sector_constituents.json"
 
 
@@ -64,10 +65,17 @@ def classify(root: Path) -> dict:
     snap = json.loads(CONSTITUENTS.read_text(encoding="utf-8")).get("sectors", {})
     sectors, members = [], {}
     for key, ser in closes.items():
+        monthly = ser.resample("ME").last()
+        recent = monthly.iloc[-FULL_MONTHS:]
+        complete = len(recent) == FULL_MONTHS and bool(recent.notna().all()) and ser.resample("ME").count().iloc[-FULL_MONTHS:].min() >= 10
         d = _rsi(ser)
         w = _rsi(ser.resample("W-FRI").last())
-        m = _rsi(ser.resample("ME").last())
+        m = _rsi(monthly)
         status = None
+        if not complete:
+            # 2026-11-23 (Capital Markets): an index missing from many NSE files has gaps - its RSI is not trustworthy,
+            # so it is never called strong or at the 40 support
+            d = w = m = None
         if None not in (d, w, m) and d > STRONG_RSI and w > STRONG_RSI and m > STRONG_RSI:
             status = "strong"
         elif m is not None and VALUE_MIN <= m <= VALUE_MAX:

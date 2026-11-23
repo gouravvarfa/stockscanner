@@ -7,7 +7,7 @@ import { useScanJob } from "../hooks/useScanJob";
 import { newerOf, useEodResult } from "../hooks/useEodResult";
 import type { ScanResult, StrategySignal } from "../services/api";
 import { StockLogo } from "../components/StockLogo";
-import { SupportZoneCard, inMode, type SupportRow, type VbMode } from "./valueBuy/SupportZoneCard";
+import { SupportZoneCard, inMode, isBest, openRowChart, type SupportRow, type VbMode } from "./valueBuy/SupportZoneCard";
 
 /** The Value Buy result also carries today's STRONG sectors and their stocks (2026-11-23). */
 type ValueBuyResult = ScanResult & {
@@ -221,6 +221,35 @@ export function ValueBuyPage() {
               </div>
             )}
           </div>
+
+          {vb.support_zone && vb.support_zone.some(isBest) && (
+            <section className="card vb-best">
+              <div className="dash-card-head">
+                <div>
+                  <h2>★ Best stocks</h2>
+                  <p className="muted small">3–5 daily drives and the 78.6% daily pullback, in a Strong sector. Tap a card to open its chart.</p>
+                </div>
+              </div>
+              <div className="vb-best-grid">
+                {vb.support_zone.filter(isBest).map((r) => (
+                  <button key={r.symbol} type="button" className="vb-best-card" onClick={() => openRowChart(openChart, r)}>
+                    <span className="vb-best-top">
+                      <span className="wk-logo"><StockLogo symbol={r.symbol} /></span>
+                      <span className="vb-best-name"><b>{r.symbol}</b><small>{r.company_name}</small></span>
+                      <span className="sz-78">78%</span>
+                    </span>
+                    <span className="vb-best-price">₹{r.price.toFixed(2)}</span>
+                    <span className="vb-best-meta">
+                      <span>Monthly RSI <b>{r.monthly_rsi?.toFixed(1)}</b></span>
+                      <span>{r.drives?.daily?.count} daily drives</span>
+                      <span>pullback <b>{r.retracement?.deepest_pct.toFixed(0)}%</b> · 0.786 ₹{r.retracement?.level_786.toFixed(2)}</span>
+                    </span>
+                    {(r.sectors ?? []).map((sc) => <span key={sc.key} className={`vb-sec vb-sec-${sc.status}`}>{sc.label}</span>)}
+                  </button>
+                ))}
+              </div>
+            </section>
+          )}
 
           {vb.sector_status && vb.sector_status.length > 0 && (
             <section className="card vbs-panel">

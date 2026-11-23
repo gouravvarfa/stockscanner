@@ -34,6 +34,15 @@ export type SupportRow = {
 const num = (v: number | null | undefined, d = 1) => (v == null ? "—" : v.toFixed(d));
 const dmy = (iso: string) => new Date(`${iso}T00:00:00`).toLocaleDateString("en-IN", { day: "2-digit", month: "short" });
 
+/** Opens a row's chart: Bollinger on, drive arrows, Fibonacci when there is a real 78% pullback. */
+export function openRowChart(openChart: ReturnType<typeof useChart>["openChart"], r: SupportRow) {
+  openChart(r.symbol, { strategy: "Value Buy", monthly_rsi: r.monthly_rsi, daily_rsi: r.daily_rsi, weekly_rsi: r.weekly_rsi, signal_date: null, indicators: { rsi: true, bollinger: true }, fibonacci: r.retracement ? {
+                      levels: r.retracement.fib78,
+                      low: r.retracement.swing_low, high: r.retracement.swing_high, low_date: r.retracement.swing_low_date, high_date: r.retracement.swing_high_date,
+                      drive_dates: inRange(r.drives?.daily) ? r.drives!.daily!.lows.slice(-r.drives!.daily!.count).map((l) => l.date) : [],
+                    } : null });
+}
+
 export function SupportZoneCard({ rows, strongMap, strongOnly, query, mode = "support" }: {
   rows: SupportRow[]; strongMap: Record<string, string>; strongOnly: boolean; query: string; mode?: VbMode;
 }) {
@@ -87,11 +96,7 @@ export function SupportZoneCard({ rows, strongMap, strongOnly, query, mode = "su
               {list.map((r) => {
                 const ret = r.retracement;
                 return (
-                  <tr key={r.symbol} className="wk-click" onClick={() => openChart(r.symbol, { strategy: "Value Buy", monthly_rsi: r.monthly_rsi, daily_rsi: r.daily_rsi, weekly_rsi: r.weekly_rsi, signal_date: null, indicators: { rsi: true, bollinger: true }, fibonacci: r.retracement ? {
-                      levels: r.retracement.fib78,
-                      low: r.retracement.swing_low, high: r.retracement.swing_high, low_date: r.retracement.swing_low_date, high_date: r.retracement.swing_high_date,
-                      drive_dates: inRange(r.drives?.daily) ? r.drives!.daily!.lows.slice(-r.drives!.daily!.count).map((l) => l.date) : [],
-                    } : null })}>
+                  <tr key={r.symbol} className="wk-click" onClick={() => openRowChart(openChart, r)}>
                     <td>
                       <span className="logo-line">
                         <span className="wk-logo"><StockLogo symbol={r.symbol} /></span>
