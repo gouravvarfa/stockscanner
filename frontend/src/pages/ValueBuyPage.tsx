@@ -118,13 +118,6 @@ export function ValueBuyPage() {
           {eodVb && !running ? (
             <>
               <span className="eod-ready">✓ Ready · NSE data of {new Date(`${eodVb.data_as_of}T00:00:00`).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })} · no scan needed</span>
-              <button
-                className="secondary-button"
-                title="Scans every stock live through Angel One - about an hour"
-                onClick={() => { if (window.confirm("A live scan goes through Angel One and takes about an hour. The NSE end-of-day result above is already complete. Run the live scan anyway?")) void runFresh(); }}
-              >
-                Live scan (slow)
-              </button>
             </>
           ) : (
             <>
