@@ -12,7 +12,6 @@ import { GFSUniversePage } from "./pages/GFSUniversePage";
 import { GannTimePage } from "./pages/GannTimePage";
 import { GannAnglesPage } from "./pages/GannAnglesPage";
 import { AnniversaryPage } from "./pages/AnniversaryPage";
-import { ThrustCheckPage } from "./pages/ThrustCheckPage";
 import { StockScanner } from "./pages/StockScanner";
 import { Strategies } from "./pages/Strategies";
 import { SystemOneBacktestPage } from "./pages/SystemOneBacktestPage";
@@ -89,7 +88,6 @@ export default function App() {
             <Route path="/gann-time" element={<GannTimePage />} />
             <Route path="/gann-angles" element={<GannAnglesPage />} />
             <Route path="/anniversary-dates" element={<AnniversaryPage />} />
-            <Route path="/thrust-check" element={<ThrustCheckPage />} />
             <Route path="/stocks" element={<StockScanner />} />
             <Route path="/breakout-15" element={<Breakout15Page />} />
             <Route path="/range-analysis" element={<RangeAnalysisPage />} />
