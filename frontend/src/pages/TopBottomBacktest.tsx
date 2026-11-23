@@ -1,4 +1,5 @@
 import { InstrumentBadge } from "../components/InstrumentBadge";
+import { PageHero, TopBottomMotif } from "../components/PageHero";
 import { useMemo, useState } from "react";
 import { EquityCurveChart } from "./topBottom/EquityCurveChart";
 import { EquitySearchBox } from "./topBottom/EquitySearchBox";
@@ -120,15 +121,16 @@ export function TopBottomBacktest() {
 
   return (
     <div className="page">
-      <div className="page-header">
-        <div>
-          <h1>Top Bottom Backtesting</h1>
-          <p className="page-subtitle">
-            Independent futures-only backtest — always-in-market trailing stop &amp; reverse on close-price Tops/Bottoms.
-            Never run on cash/equity.
-          </p>
-        </div>
-      </div>
+      <PageHero
+        tone="topbottom"
+        eyebrow="Backtest · tops and bottoms"
+        title="Top Bottom Backtesting"
+        subtitle="An always-in-the-market system: it trails a stop under each bottom and over each top, and reverses on a close beyond it."
+        motif={<TopBottomMotif />}
+      >
+        <span className="hero-pill">Close-price tops and bottoms</span>
+        <span className="hero-pill hero-pill-soft">Stop and reverse · always in the market</span>
+      </PageHero>
 
       <div className="card">
         <h2 style={{ marginTop: 0 }}>Backtest Configuration</h2>

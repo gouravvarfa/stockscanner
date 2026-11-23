@@ -8,6 +8,7 @@ import { BestStockCard } from "../components/BestStockCard";
 import { StockDetailPanel } from "../components/StockDetailPanel";
 import { InstrumentBadge } from "../components/InstrumentBadge";
 import { StockLogo } from "../components/StockLogo";
+import { DashboardMotif, PageHero } from "../components/PageHero";
 import { ChartBarIcon, TrendIcon } from "../components/icons";
 
 // PRD Forming / NRD Forming are their own tabs (placed right after PRD / NRD)
@@ -325,13 +326,13 @@ export function Dashboard() {
 
   return (
     <div className="page">
-      <div className="page-header">
-        <div>
-          <h1>Dashboard</h1>
-          <p className="page-subtitle">
-            Setups in the stocks of today&apos;s STRONG sectors only (sector index daily, weekly and monthly RSI above 60)
-          </p>
-        </div>
+      <PageHero
+        tone="dash"
+        eyebrow="Today · strong sectors only"
+        title="Dashboard"
+        subtitle="Setups in the stocks of today's strong sectors — sectors whose index RSI is above 60 on the daily, weekly and monthly charts."
+        motif={<DashboardMotif />}
+      >
         <div className="dash-actions">
           {!scanning && cacheAgeSeconds !== null && (
             <span className="dash-last-scan">Last scan {ago(cacheAgeSeconds)}</span>
@@ -350,7 +351,7 @@ export function Dashboard() {
             </button>
           )}
         </div>
-      </div>
+      </PageHero>
 
       {scanning && progress && (
         <div className="card scan-meta" style={{ marginBottom: 12 }}>

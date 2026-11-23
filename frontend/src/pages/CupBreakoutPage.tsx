@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { InstrumentBadge } from "../components/InstrumentBadge";
+import { CupMotif, PageHero } from "../components/PageHero";
 import { useChart } from "../chart/ChartContext";
 import { useLocalHistoryWriter } from "../hooks/useLocalHistoryWriter";
 import { useScanJob } from "../hooks/useScanJob";
@@ -237,12 +238,14 @@ export function CupBreakoutPage() {
 
   return (
     <div className="page">
-      <div className="page-header">
-        <div>
-          <h1>Cup Breakout Scanner</h1>
-          <p className="page-subtitle">Long-term monthly Cup structures approaching or breaking resistance</p>
-        </div>
-        <div>
+      <PageHero
+        tone="cup"
+        eyebrow="Scanner · monthly candles"
+        title="Cup Breakout"
+        subtitle="Long-term cups on the monthly chart, across all NSE stocks — the ones nearing their rim and the ones breaking out of it."
+        motif={<CupMotif />}
+      >
+        <div className="hero-actions">
           {!running ? (
             <>
               <button className="primary-button" onClick={run}>Scan</button>
@@ -252,7 +255,7 @@ export function CupBreakoutPage() {
             <button className="secondary-button stop-scan-button" onClick={cancel}>Stop Scan</button>
           )}
         </div>
-      </div>
+      </PageHero>
 
       {queued && (
         <div className="notice-banner queue-banner">

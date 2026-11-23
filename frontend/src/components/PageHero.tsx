@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
  * page's own colour (astro / gann / angle) - everything else is the app's normal card, type and theme tokens.
  */
 export function PageHero({ tone, eyebrow, title, subtitle, motif, children }: {
-  tone: "astro" | "gann" | "angle" | "outlook" | "anniv";
+  tone: "astro" | "gann" | "angle" | "outlook" | "anniv" | "dash" | "topbottom" | "cup" | "range";
   eyebrow: string;
   title: string;
   subtitle: ReactNode;
@@ -153,6 +153,64 @@ export function AnniversaryMotif() {
       })}
       <path d="M -38 -6 L -16 -6 L -4 -30 L 10 24 L 22 -2 L 40 -2" className="m-pulse" />
       <text x={0} y={46} className="m-lab" textAnchor="middle">same date, every year</text>
+    </svg>
+  );
+}
+
+/** Dashboard: a small grid of sector tiles (strong ones filled) under a rising line. */
+export function DashboardMotif() {
+  const cells = [1, 0, 1, 1, 0, 0, 1, 0, 1, 0, 0, 1];
+  return (
+    <svg viewBox="-110 -80 220 160" className="motif-svg">
+      {cells.map((on, i) => (
+        <rect key={i} x={-84 + (i % 4) * 44} y={-6 + Math.floor(i / 4) * 26} width={36} height={20} rx={5}
+          className={on ? "m-tile-on" : "m-tile"} />
+      ))}
+      <path d="M -90 -24 L -50 -36 L -14 -30 L 22 -52 L 56 -46 L 92 -70" className="m-stroke" />
+      <circle cx={92} cy={-70} r={4.5} className="m-dot-on" />
+    </svg>
+  );
+}
+
+/** Top Bottom: a zig-zag price with its tops and bottoms marked, and a trailing-stop step line. */
+export function TopBottomMotif() {
+  const pts: [number, number][] = [[-96, 30], [-62, -30], [-34, 18], [0, -52], [30, 0], [62, -62], [96, -20]];
+  return (
+    <svg viewBox="-110 -80 220 160" className="motif-svg">
+      <polyline points={pts.map((p) => p.join(",")).join(" ")} className="m-stroke" />
+      <path d="M -96 46 H -62 V 34 H -34 V 2 H 0 V -16 H 30 V -14 H 62 V -40 H 96" className="m-step" />
+      {pts.slice(1, -1).map(([x, y], i) => (
+        <circle key={i} cx={x} cy={y} r={5} className={i % 2 === 0 ? "m-top" : "m-bottom"} />
+      ))}
+      <text x={0} y={72} className="m-lab" textAnchor="middle">tops, bottoms, trailing stop</text>
+    </svg>
+  );
+}
+
+/** Cup Breakout: a rounded cup with a small handle and the breakout through the rim line. */
+export function CupMotif() {
+  return (
+    <svg viewBox="-110 -80 220 160" className="motif-svg">
+      <line x1={-96} y1={-30} x2={96} y2={-30} className="m-dash" />
+      <path d="M -92 -32 C -78 52, 22 52, 40 -26 L 50 -12 L 60 -20 L 66 -14 L 74 -32 L 96 -66" className="m-stroke" />
+      <circle cx={76} cy={-36} r={5} className="m-dot-on" />
+      <text x={-4} y={-38} className="m-lab" textAnchor="middle">rim</text>
+      <text x={-24} y={68} className="m-lab" textAnchor="middle">monthly cup and handle</text>
+    </svg>
+  );
+}
+
+/** Range Analysis: monthly high-low bars, the big-range months highlighted. */
+export function RangeMotif() {
+  const bars = [[-20, 18], [-44, 26], [-14, 22], [-58, 40], [-26, 14], [-36, 30], [-62, 44], [-18, 20], [-30, 26], [-48, 34]];
+  return (
+    <svg viewBox="-110 -80 220 160" className="motif-svg">
+      <line x1={-100} y1={52} x2={100} y2={52} className="m-faint" />
+      {bars.map(([top, len], i) => {
+        const big = len >= 34;
+        return <rect key={i} x={-94 + i * 19.5} y={top} width={11} height={len + 30} rx={3} className={big ? "m-tile-on" : "m-tile"} />;
+      })}
+      <text x={0} y={72} className="m-lab" textAnchor="middle">how far it moves each month</text>
     </svg>
   );
 }

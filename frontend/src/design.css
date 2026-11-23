@@ -1751,3 +1751,22 @@ h1, .page-header h1, .app-content > h1, .app-content > div > h1:first-child { fo
 .an-event { font-size: 12.5px; color: var(--text-primary); }
 @media (max-width: 600px) { .an-card summary { grid-template-columns: 44px minmax(0, 1fr); } .an-open { display: none; } }
 
+
+/* Page heroes for Dashboard, Top Bottom, Cup Breakout, Range Analysis (2026-11-23) */
+:root { --dash: #2563eb; --dash-2: #0891b2; --topb: #ea580c; --topb-2: #2563eb; --cup: #7c3aed; --cup-2: #16a34a; --rng: #0891b2; --rng-2: #ea580c; }
+:root[data-theme="dark"] { --dash: #60a5fa; --dash-2: #22d3ee; --topb: #fb923c; --topb-2: #60a5fa; --cup: #a78bfa; --cup-2: #4ade80; --rng: #22d3ee; --rng-2: #fb923c; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --dash: #60a5fa; --dash-2: #22d3ee; --topb: #fb923c; --topb-2: #60a5fa; --cup: #a78bfa; --cup-2: #4ade80; --rng: #22d3ee; --rng-2: #fb923c; } }
+.hero-dash { --tone: var(--dash); --tone-2: var(--dash-2); }
+.hero-topbottom { --tone: var(--topb); --tone-2: var(--topb-2); }
+.hero-cup { --tone: var(--cup); --tone-2: var(--cup-2); }
+.hero-range { --tone: var(--rng); --tone-2: var(--rng-2); }
+.motif-svg .m-stroke { fill: none; stroke: var(--tone); stroke-width: 2.2; stroke-linejoin: round; stroke-linecap: round; }
+.motif-svg .m-step { fill: none; stroke: var(--tone-2); stroke-width: 1.4; stroke-dasharray: 4 3; opacity: .8; }
+.motif-svg .m-dash { stroke: color-mix(in srgb, var(--tone) 45%, transparent); stroke-width: 1; stroke-dasharray: 5 4; }
+.motif-svg .m-tile { fill: color-mix(in srgb, var(--tone) 10%, transparent); stroke: color-mix(in srgb, var(--tone) 28%, transparent); }
+.motif-svg .m-tile-on { fill: color-mix(in srgb, var(--tone) 38%, transparent); stroke: var(--tone); }
+.motif-svg .m-dot-on { fill: var(--tone-2); stroke: var(--bg-surface); stroke-width: 2; }
+.motif-svg .m-top { fill: var(--danger); stroke: var(--bg-surface); stroke-width: 2; }
+.motif-svg .m-bottom { fill: var(--success); stroke: var(--bg-surface); stroke-width: 2; }
+.hero .dash-actions, .hero-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.hero-actions .secondary-button { margin-left: 0 !important; }

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { SearchIcon } from "../components/icons";
+import { PageHero, RangeMotif } from "../components/PageHero";
 import {
   downloadRangeXlsx,
   fetchRangeTable,
@@ -275,13 +276,16 @@ export function RangeAnalysisPage() {
 
   return (
     <div>
-      <div className="page-header">
-        <h1>Range Analysis</h1>
-        <p className="page-subtitle">
-          How far a stock moves inside each month, year after year — from the oldest daily data Angel One has. Green
-          30%+, orange 20–30%; a boxed cell is a 30%+ month in January–March.
-        </p>
-      </div>
+      <PageHero
+        tone="range"
+        eyebrow="History · monthly range"
+        title="Range Analysis"
+        subtitle="How far a stock moves inside each month, year after year — from the oldest daily data Angel One has."
+        motif={<RangeMotif />}
+      >
+        <span className="hero-pill">Green 30%+ · orange 20–30%</span>
+        <span className="hero-pill hero-pill-soft">Boxed = a 30%+ month in January–March</span>
+      </PageHero>
 
       <div className="card">
         <div className="tb-config-grid">
