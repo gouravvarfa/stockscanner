@@ -1964,3 +1964,36 @@ h1, .page-header h1, .app-content > h1, .app-content > div > h1:first-child { fo
 :root[data-page] .app-sidebar .sidebar-brand { border-bottom-color: color-mix(in srgb, var(--pt) 18%, var(--border)); }
 :root[data-page] .app-sidebar .sidebar-link:hover:not(.active) { background: color-mix(in srgb, var(--pt) 7%, transparent); }
 :root[data-page] .app-sidebar .sidebar-foot { border-top-color: color-mix(in srgb, var(--pt) 18%, var(--border)); }
+
+/* Sidebar icons, more refined (2026-11-23): same 30px tiles; each in its own colour - a soft tinted face with a hairline
+   ring and a gentle top light; the active one filled with its colour and a white icon */
+.app-sidebar .sidebar-link .nav-tile {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--tone) 12%, var(--bg-surface)), color-mix(in srgb, var(--tone) 6%, var(--bg-surface)));
+  border: 1px solid color-mix(in srgb, var(--tone) 22%, var(--border));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55), 0 1px 2px color-mix(in srgb, var(--tone) 14%, transparent);
+  color: var(--tone); transition: background .2s ease, box-shadow .2s ease, color .2s ease; }
+.app-sidebar .sidebar-link .nav-tile svg { width: 16px; height: 16px; stroke-width: 1.9; }
+.app-sidebar .sidebar-link:hover .nav-tile {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--tone) 18%, var(--bg-surface)), color-mix(in srgb, var(--tone) 9%, var(--bg-surface))); }
+.app-sidebar .sidebar-link.active .nav-tile {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--tone) 88%, #fff), var(--tone));
+  border-color: color-mix(in srgb, var(--tone) 80%, #000); color: #fff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 4px 10px -4px color-mix(in srgb, var(--tone) 70%, transparent); }
+:root[data-theme="dark"] .app-sidebar .sidebar-link .nav-tile {
+  background: color-mix(in srgb, var(--tone) 14%, transparent); border-color: color-mix(in srgb, var(--tone) 28%, transparent);
+  box-shadow: none; color: color-mix(in srgb, var(--tone) 70%, #fff); }
+:root[data-theme="dark"] .app-sidebar .sidebar-link.active .nav-tile { background: var(--tone); color: #fff; border-color: var(--tone); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .app-sidebar .sidebar-link .nav-tile {
+    background: color-mix(in srgb, var(--tone) 14%, transparent); border-color: color-mix(in srgb, var(--tone) 28%, transparent);
+    box-shadow: none; color: color-mix(in srgb, var(--tone) 70%, #fff); }
+  :root:not([data-theme="light"]) .app-sidebar .sidebar-link.active .nav-tile { background: var(--tone); color: #fff; border-color: var(--tone); }
+}
+
+/* Today's strong sectors in the page colour */
+.ds-card { background: linear-gradient(180deg, color-mix(in srgb, var(--pt, var(--accent)) 7%, var(--bg-surface)), var(--bg-surface));
+  border-color: color-mix(in srgb, var(--pt, var(--accent)) 20%, var(--border)); position: relative; overflow: hidden; }
+.ds-card::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 3px; background: var(--pt, var(--accent)); opacity: .7; }
+.ds-bar i { background: linear-gradient(90deg, color-mix(in srgb, var(--pt, var(--accent)) 45%, transparent), var(--pt, var(--accent))); }
+.ds-name { color: var(--text-primary); }
+.dash-strong .ds-stocks { color: var(--pt, var(--accent)); font-weight: 600; }
