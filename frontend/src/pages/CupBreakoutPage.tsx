@@ -360,14 +360,6 @@ export function CupBreakoutPage() {
             <TopCard title="Recent Breakout" result={mostRecentBreakout} metric={(r) => fmtDay(r.breakout_date)} />
           </div>
 
-          <div className="tabs">
-            {STATUS_TABS.map((t) => (
-              <button key={t.key} className={activeTab === t.key ? "tab active" : "tab"} onClick={() => setActiveTab(t.key)}>
-                {t.label}
-                <span className="tab-count">{counts[t.key] ?? 0}</span>
-              </button>
-            ))}
-          </div>
 
           {allResults.some((r) => (r.sectors ?? []).length > 0) && (
             <section className="card cup-strong">
@@ -397,6 +389,15 @@ export function CupBreakoutPage() {
               </div>
             </section>
           )}
+
+          <div className="tabs">
+            {STATUS_TABS.map((t) => (
+              <button key={t.key} className={activeTab === t.key ? "tab active" : "tab"} onClick={() => setActiveTab(t.key)}>
+                {t.label}
+                <span className="tab-count">{counts[t.key] ?? 0}</span>
+              </button>
+            ))}
+          </div>
 
           <div className="cup-strong-bar">
             <div className="vb-seg" role="tablist" aria-label="Sectors">
