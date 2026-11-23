@@ -5,6 +5,14 @@ import { InstrumentBadge } from "../components/InstrumentBadge";
 import { TrendIcon, ValueTagIcon } from "../components/icons";
 import { useScanJob } from "../hooks/useScanJob";
 import type { ScanResult, StrategySignal } from "../services/api";
+import { StockLogo } from "../components/StockLogo";
+
+/** The Value Buy result also carries today's STRONG sectors and their stocks (2026-11-23). */
+type ValueBuyResult = ScanResult & {
+  strong_sectors?: { key: string; label: string }[];
+  strong_symbols?: Record<string, string>;
+};
+const STRONG_KEY = "value-buy:strong-only";
 
 /**
  * Value Buy on its own page (2026-11-22): the whole A Group, checked with the Value Buy rules only (monthly RSI in the
@@ -36,13 +44,27 @@ function minutes(seconds: number | null | undefined): string {
 }
 
 export function ValueBuyPage() {
-  const { result, partial, job, running, error, cache, run, runFresh, cancel, queued } = useScanJob<ScanResult>("value_buy");
+  const { result, partial, job, running, error, cache, run, runFresh, cancel, queued } = useScanJob<ValueBuyResult>("value_buy");
+  const [strongOnly, setStrongOnly] = useState<boolean>(() => {
+    try { return localStorage.getItem(STRONG_KEY) !== "0"; } catch { return true; }
+  });
+  const toggleStrong = (on: boolean) => {
+    setStrongOnly(on);
+    try { localStorage.setItem(STRONG_KEY, on ? "1" : "0"); } catch { /* not saved */ }
+  };
+  const strongMap = useMemo(() => result?.strong_symbols ?? {}, [result]);
+  const hasStrongInfo = !!result?.strong_symbols;
   const { openChart } = useChart();
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("monthly_rsi");
   const [asc, setAsc] = useState(true);
 
-  const signals = useMemo(() => result?.strategies?.["Value Buy"] ?? [], [result]);
+  const allSignals = useMemo(() => result?.strategies?.["Value Buy"] ?? [], [result]);
+  const strongCount = useMemo(() => allSignals.filter((s) => strongMap[s.symbol]).length, [allSignals, strongMap]);
+  const signals = useMemo(
+    () => (strongOnly && hasStrongInfo ? allSignals.filter((s) => strongMap[s.symbol]) : allSignals),
+    [allSignals, strongOnly, hasStrongInfo, strongMap],
+  );
   const rows = useMemo(() => {
     const q = query.trim().toUpperCase();
     const list = q ? signals.filter((s) => s.symbol.toUpperCase().includes(q)) : [...signals];
@@ -86,7 +108,7 @@ export function ValueBuyPage() {
         <div>
           <h1>Value Buy</h1>
           <p className="page-subtitle">
-            The whole A Group: monthly RSI in the 38-45 support zone, the latest weekly candle green and a daily key reversal.
+            Every NSE stock: monthly RSI in the 38-45 support zone, the latest weekly candle green and a daily key reversal. Show only today&apos;s strong sectors, or all.
           </p>
         </div>
         <div style={{ display: "flex", gap: 10 }}>
@@ -149,7 +171,7 @@ export function ValueBuyPage() {
             <ValueTagIcon width={28} height={28} />
           </div>
           <div className="state-title">No Value Buy scan yet</div>
-          <div className="state-subtitle">Run a scan to check every A Group stock with the Value Buy rules.</div>
+          <div className="state-subtitle">Run a scan to check every NSE stock with the Value Buy rules.</div>
         </div>
       )}
 
@@ -169,13 +191,29 @@ export function ValueBuyPage() {
               Stocks scanned: {result.stocks_scanned} · failed: {result.stocks_failed}
             </div>
             <div>
-              Value Buy: <strong>{signals.length}</strong>
+              Value Buy: <strong>{allSignals.length}</strong>
+              {hasStrongInfo && <span className="muted small"> · {strongCount} in strong sectors</span>}
             </div>
+            {result.strong_sectors && (
+              <div className="muted small">
+                Strong sectors today: {result.strong_sectors.length ? result.strong_sectors.map((x) => x.label).join(", ") : "none"}
+              </div>
+            )}
           </div>
 
           <div className="card">
             <div className="vb-toolbar">
               <h2 style={{ margin: 0 }}>Value Buy stocks</h2>
+              {hasStrongInfo && (
+                <div className="vb-seg" role="tablist" aria-label="Which stocks">
+                  <button type="button" role="tab" aria-selected={strongOnly} className={strongOnly ? "active" : ""} onClick={() => toggleStrong(true)}>
+                    Strong sectors <b>{strongCount}</b>
+                  </button>
+                  <button type="button" role="tab" aria-selected={!strongOnly} className={!strongOnly ? "active" : ""} onClick={() => toggleStrong(false)}>
+                    All stocks <b>{allSignals.length}</b>
+                  </button>
+                </div>
+              )}
               <input
                 className="vb-search"
                 placeholder="Search a stock…"
@@ -186,7 +224,11 @@ export function ValueBuyPage() {
             </div>
             {rows.length === 0 ? (
               <p className="muted" style={{ marginBottom: 0 }}>
-                {signals.length === 0 ? "No A Group stock qualifies for Value Buy right now." : "No stock matches the search."}
+                {signals.length === 0
+                  ? strongOnly && hasStrongInfo && allSignals.length > 0
+                    ? `No strong-sector stock qualifies right now — ${allSignals.length} other stock${allSignals.length > 1 ? "s" : ""} do: switch to All stocks.`
+                    : "No stock qualifies for Value Buy right now."
+                  : "No stock matches the search."}
               </p>
             ) : (
               <div className="table-wrap">
@@ -209,7 +251,11 @@ export function ValueBuyPage() {
                       return (
                         <tr key={s.symbol}>
                           <td>
-                            <strong>{s.symbol}</strong> <InstrumentBadge type={s.instrument_type ?? "EQUITY"} />
+                            <span className="logo-line">
+                              <span className="wk-logo"><StockLogo symbol={s.symbol} /></span>
+                              <strong>{s.symbol}</strong> <InstrumentBadge type={s.instrument_type ?? "EQUITY"} />
+                              {strongMap[s.symbol] && <span className="vb-sector">{strongMap[s.symbol]}</span>}
+                            </span>
                           </td>
                           <td className="num-cell">{price === null ? "—" : `₹${price.toFixed(2)}`}</td>
                           <td className="num-cell">{fmt(s.daily_rsi)}</td>

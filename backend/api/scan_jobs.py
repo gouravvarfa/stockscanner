@@ -76,7 +76,7 @@ def _estimate_total(scan_type: ScanType) -> int:
         universe_size = len(load_a_group_universe())
     except Exception:  # noqa: BLE001
         return 0
-    if scan_type == "cup_breakout":
+    if scan_type in ("cup_breakout", "value_buy"):
         from backend.services.universe_loader import load_all_nse_universe
 
         return len(load_all_nse_universe())  # every NSE equity
@@ -105,19 +105,30 @@ async def _run_a_group_job(job: ScanJob) -> dict:
 
 
 async def _run_value_buy_job(job: ScanJob) -> dict:
-    """The Value Buy page: Value Buy alone over the whole A Group universe (each stock fetched once)."""
-    symbols = load_a_group_universe()
+    """The Value Buy page (2026-11-23): Value Buy alone over every NSE equity (each stock fetched once). The result
+    also carries today's STRONG sectors and their stocks, so the page can show strong-sector stocks only or all."""
+    from backend.services.universe_loader import load_all_nse_universe
+
+    symbols = load_all_nse_universe()
     job.total = len(symbols)
+    try:
+        strong = await sector_strength_service.strong_sector_universe(get_angelone_provider())
+    except Exception as exc:  # noqa: BLE001 - without the sector check the page simply shows every stock
+        logger.warning("Value Buy: strong-sector check failed: %s", exc)
+        strong = {"sectors": []}
+    strong_map = {m: sec["label"] for sec in strong.get("sectors", []) for m in sec.get("members", [])}
     outcome = await run_full_scan(
         get_angelone_provider(), config_store.get_current_config(),
         multi_strategy_config=config_store.get_current_multi_strategy_config(),
         on_progress=lambda symbol, success, error: job.record_progress(symbol, success, error),
         on_result=job.record_result,
-        symbols=[], value_buy_symbols=symbols,
+        symbols=[], value_buy_symbols=symbols, max_concurrent_stock_calls=3,
     )
 
     def finalize() -> dict:
         payload = serializers.scan_outcome_out(outcome).model_dump(mode="json")
+        payload["strong_sectors"] = [{"key": s["key"], "label": s["label"], "rsi": s.get("rsi")} for s in strong.get("sectors", [])]
+        payload["strong_symbols"] = strong_map
         set_cached_result("value_buy", payload)
         return payload
 

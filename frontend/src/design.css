@@ -2048,3 +2048,12 @@ h1, .page-header h1, .app-content > h1, .app-content > div > h1:first-child { fo
 .app-content :is(.card.filter-panel, .card:has(> .tb-config-grid), .card:has(> .filters-row), .card:has(> .gt-run), .card:has(> .run-row))::before,
 .app-content .tb-config-card::before { border-radius: 14px 14px 0 0; }
 .app-content :is(.gt-hits, .tb-search-results, .tb-search-dropdown, .rm-search-results) { z-index: 50; }
+
+/* Value Buy (2026-11-23): strong sectors / all stocks switch and the sector tag on each row */
+.vb-seg { display: inline-flex; gap: 4px; padding: 3px; border-radius: 10px; border: 1px solid color-mix(in srgb, var(--pt, var(--accent)) 18%, var(--border));
+  background: color-mix(in srgb, var(--pt, var(--accent)) 5%, var(--bg-soft)); }
+.vb-seg button { border: 0; background: transparent; padding: 6px 12px; border-radius: 8px; font: inherit; font-size: 12.5px; font-weight: 500; color: var(--text-secondary); cursor: pointer; }
+.vb-seg button b { margin-left: 4px; font-weight: 600; }
+.vb-seg button.active { background: var(--bg-surface); color: var(--pt, var(--accent)); box-shadow: 0 1px 3px color-mix(in srgb, var(--pt, var(--accent)) 20%, transparent); }
+.vb-sector { padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; color: var(--pt, var(--accent)); background: color-mix(in srgb, var(--pt, var(--accent)) 10%, transparent); }
+.vb-toolbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
