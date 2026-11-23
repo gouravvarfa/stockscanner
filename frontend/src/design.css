@@ -2011,3 +2011,32 @@ h1, .page-header h1, .app-content > h1, .app-content > div > h1:first-child { fo
 .run-row > .tb-actions { position: relative; }
 .run-row > .tb-actions .tb-config-hint { position: absolute; top: calc(100% + 6px); right: 0; flex-basis: auto; white-space: nowrap; margin: 0; }
 .run-row:has(> .tb-actions .tb-config-hint) { margin-bottom: 22px; }
+
+/* Setup Scanner live scan (2026-11-23): progress, five stats, and the stocks that qualified so far as cards */
+.live-scan { position: relative; overflow: hidden; }
+.live-scan::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 3px; background: linear-gradient(90deg, var(--pt, var(--accent)), color-mix(in srgb, var(--pt, var(--accent)) 15%, transparent)); }
+.live-scan h2 { display: flex; align-items: center; gap: 8px; }
+.live-scan .dash-card-head h2::before { display: none; }
+.live-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--pt, var(--accent)); box-shadow: 0 0 0 0 color-mix(in srgb, var(--pt, var(--accent)) 55%, transparent); animation: livePulse 1.6s ease-out infinite; }
+@keyframes livePulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--pt, var(--accent)) 55%, transparent); } 100% { box-shadow: 0 0 0 9px transparent; } }
+.live-pct { font-size: 24px; font-weight: 600; letter-spacing: -0.02em; color: var(--pt, var(--accent)); font-variant-numeric: tabular-nums; }
+.live-bar { height: 8px; border-radius: 999px; margin: 0 0 14px; background: color-mix(in srgb, var(--pt, var(--accent)) 12%, var(--bg-soft)); }
+.live-bar .active-scan-bar-fill { background: linear-gradient(90deg, color-mix(in srgb, var(--pt, var(--accent)) 70%, #fff), var(--pt, var(--accent))); border-radius: 999px; }
+.live-stats { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin-bottom: 16px; }
+.live-stats > div { padding: 10px 12px; border-radius: 10px; border: 1px solid color-mix(in srgb, var(--pt, var(--accent)) 14%, var(--border));
+  background: color-mix(in srgb, var(--pt, var(--accent)) 4%, var(--bg-surface)); display: flex; flex-direction: column; gap: 2px; }
+.live-stats span { font-size: 10.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); }
+.live-stats b { font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.live-found { border-top: 1px dashed color-mix(in srgb, var(--pt, var(--accent)) 22%, var(--border)); padding-top: 12px; }
+.live-found-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; }
+.live-found-head b { font-size: 13.5px; font-weight: 600; }
+.live-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; max-height: 320px; overflow: auto; }
+.live-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg-surface);
+  animation: softIn .3s var(--ease) both; }
+.live-item:first-child { border-color: color-mix(in srgb, var(--pt, var(--accent)) 40%, var(--border)); background: color-mix(in srgb, var(--pt, var(--accent)) 5%, var(--bg-surface)); }
+.live-item-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.live-item-sym { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; }
+.live-item-setups { display: flex; flex-wrap: wrap; gap: 4px; }
+.live-item-setups em { font-style: normal; font-size: 10.5px; font-weight: 600; padding: 1px 7px; border-radius: 999px;
+  color: var(--pt, var(--accent)); background: color-mix(in srgb, var(--pt, var(--accent)) 10%, transparent); }
+@media (max-width: 900px) { .live-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

@@ -338,37 +338,52 @@ export function Dashboard() {
       </PageHero>
 
       {scanning && progress && (
-        <div className="card scan-meta" style={{ marginBottom: 12 }}>
-          <div style={{ width: "100%" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 6 }}>
-              <span>
-                {progress.total === 0 && progress.processed === 0
-                  ? "Finding today's STRONG sectors…"
-                  : `Scanning${progress.currentSymbol ? `: ${progress.currentSymbol}` : "…"}`}
-              </span>
-              <span>
-                {progress.processed} / {progress.total || "?"} ({progress.percentage.toFixed(1)}%)
-              </span>
+        <section className="card live-scan" aria-live="polite">
+          <div className="dash-card-head">
+            <div>
+              <h2>
+                <span className="live-dot" aria-hidden="true" />
+                {progress.total === 0 && progress.processed === 0 ? "Finding today's strong sectors…" : "Scan running"}
+              </h2>
+              <p className="muted small">
+                {progress.currentSymbol ? <>Checking <b>{progress.currentSymbol}</b> · </> : null}
+                {progress.processed} of {progress.total || "?"} stocks
+              </p>
             </div>
-            <div className="active-scan-bar">
-              <div className="active-scan-bar-fill" style={{ transform: `scaleX(${Math.min(progress.percentage, 100) / 100})` }} />
-            </div>
-            <div style={{ fontSize: 12, opacity: 0.7, marginTop: 6 }}>
-              Signals found {progress.signalsFound} · Failed {progress.failed} · Elapsed {Math.floor(progress.elapsedSeconds / 60)}m {Math.round(progress.elapsedSeconds % 60)}s · ETA{" "}
-              {progress.etaSeconds === null ? "Estimating…" : `${Math.floor(progress.etaSeconds / 60)}m ${Math.round(progress.etaSeconds % 60)}s`}
+            <span className="live-pct">{progress.percentage.toFixed(0)}%</span>
+          </div>
+          <div className="active-scan-bar live-bar">
+            <div className="active-scan-bar-fill" style={{ transform: `scaleX(${Math.min(progress.percentage, 100) / 100})` }} />
+          </div>
+          <div className="live-stats">
+            <div><span>Signals found</span><b className={progress.signalsFound ? "wk-up" : ""}>{progress.signalsFound}</b></div>
+            <div><span>Stocks done</span><b>{progress.processed}</b></div>
+            <div><span>Failed</span><b className={progress.failed ? "wk-down" : ""}>{progress.failed}</b></div>
+            <div><span>Elapsed</span><b>{Math.floor(progress.elapsedSeconds / 60)}m {Math.round(progress.elapsedSeconds % 60)}s</b></div>
+            <div><span>Time left</span><b>{progress.etaSeconds === null ? "estimating…" : `${Math.floor(progress.etaSeconds / 60)}m ${Math.round(progress.etaSeconds % 60)}s`}</b></div>
+          </div>
+          <div className="live-found">
+            <div className="live-found-head">
+              <b>Qualified so far</b>
+              <span className="muted small">{partial.length ? `${partial.length} stock${partial.length > 1 ? "s" : ""} · newest first` : "stocks appear here as soon as they qualify"}</span>
             </div>
             {partial.length > 0 && (
-              <div className="live-results" title="Stocks that already qualified — updates as each stock finishes">
-                {partial.slice(-40).map((p) => (
-                  <span key={p.seq} className="live-result-chip">
-                    {p.symbol}
-                    <InstrumentBadge type={p.instrument_type} /> · {p.strategies.join(", ")}
-                  </span>
+              <div className="live-grid">
+                {[...partial].slice(-40).reverse().map((p) => (
+                  <div key={p.seq} className="live-item">
+                    <span className="wk-logo"><StockLogo symbol={p.symbol} /></span>
+                    <div className="live-item-text">
+                      <span className="live-item-sym">{p.symbol}<InstrumentBadge type={p.instrument_type} /></span>
+                      <span className="live-item-setups">
+                        {p.strategies.map((st) => <em key={st}>{strategyDisplayName(st as StrategyName)}</em>)}
+                      </span>
+                    </div>
+                  </div>
                 ))}
               </div>
             )}
           </div>
-        </div>
+        </section>
       )}
 
       {scanQueued && (
