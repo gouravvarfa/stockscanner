@@ -19,23 +19,24 @@ import {
 
 type NavItem = { to: string; label: string; end?: boolean; icon: typeof DashboardIcon; tone: string };
 
-// The menu (one flat list). Order set by the user (2026-11-22): Dashboard, Weekly Sectors (+ its Heatmap), Top
-// Bottom, Range Analysis, Cup Breakout, 15-Min Breakout, Value Buy, then the rest, Settings last. `tone`: each item's
+// The menu (one flat list). Order set by the user (2026-11-23): Dashboard, Strategies, Cup Breakout, Value Buy, Weekly
+// Sectors, Heatmap, Top Bottom, 15-Min Breakout, Gann Square, Angle Projection, Anniversary Dates, Astro Watch, then
+// the rest, Settings last. `tone`: each item's
 // own colour for its icon tile and its active tint (see design.css).
 export const NAV_ITEMS: NavItem[] = [
   { to: "/", label: "Dashboard", end: true, icon: DashboardIcon, tone: "#2563eb" },
+  { to: "/strategies", label: "Strategies", icon: TargetIcon, tone: "#9333ea" },
+  { to: "/cup-breakout", label: "Cup Breakout", icon: SectorIcon, tone: "#7c3aed" },
+  { to: "/value-buy", label: "Value Buy", icon: ValueTagIcon, tone: "#0d9488" },
   { to: "/weekly-sectors", label: "Weekly Sectors", icon: TrendIcon, tone: "#16a34a" },
   { to: "/heatmap", label: "Heatmap", icon: HeatmapIcon, tone: "#e11d48" },
   { to: "/top-bottom", label: "Top Bottom Backtesting", icon: TrendIcon, tone: "#ea580c" },
-  { to: "/range-analysis", label: "Range Analysis", icon: ChartBarIcon, tone: "#0891b2" },
-  { to: "/cup-breakout", label: "Cup Breakout", icon: SectorIcon, tone: "#7c3aed" },
   { to: "/breakout-15", label: "15-Min Breakout", icon: TrendIcon, tone: "#0284c7" },
-  { to: "/value-buy", label: "Value Buy", icon: ValueTagIcon, tone: "#0d9488" },
-  { to: "/astro-watch", label: "Astro Watch", icon: StarIcon, tone: "#d97706" },
   { to: "/gann-time", label: "Gann Square", icon: CalendarIcon, tone: "#be185d" },
   { to: "/gann-angles", label: "Angle Projection", icon: AngleIcon, tone: "#4f46e5" },
   { to: "/anniversary-dates", label: "Anniversary Dates", icon: HistoryIcon, tone: "#b45309" },
-  { to: "/strategies", label: "Strategies", icon: TargetIcon, tone: "#9333ea" },
+  { to: "/astro-watch", label: "Astro Watch", icon: StarIcon, tone: "#d97706" },
+  { to: "/range-analysis", label: "Range Analysis", icon: ChartBarIcon, tone: "#0891b2" },
   { to: "/stocks", label: "Stock Scanner", icon: ListIcon, tone: "#16a34a" },
   { to: "/history", label: "Scan History", icon: HistoryIcon, tone: "#059669" },
   { to: "/settings", label: "Settings", icon: SettingsIcon, tone: "#475b8a" },
