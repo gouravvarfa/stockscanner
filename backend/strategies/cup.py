@@ -212,6 +212,12 @@ def _find_cup_structure(monthly: pd.DataFrame, config: CupConfig) -> tuple[dict[
         )
 
     swing_highs = [p.index for p in find_swing_points(monthly["high"], monthly["low"], 2) if p.kind == "high"]
+    # 2026-11-23 (user, PAYTM): a listing-month top is a real rim too, but a 2-bar swing needs two months BEFORE it, so
+    # the first two months could never qualify. Add them when they are the highest high of the first few months.
+    for i in (0, 1):
+        if i < n and i not in swing_highs and float(monthly["high"].iloc[i]) >= float(monthly["high"].iloc[: i + 3].max()):
+            swing_highs.insert(0, i)
+    swing_highs = sorted(set(swing_highs))
     candidate_idxs = [i for i in swing_highs if i <= b_idx - effective_min_cup_months]
     if not candidate_idxs:
         return None, None
