@@ -342,8 +342,10 @@ export function useTradingViewChart(containerRef: React.RefObject<HTMLDivElement
         background: { color: colors.background }, textColor: colors.text, fontFamily: "inherit",
         panes: { separatorColor: colors.border, separatorHoverColor: colors.grid, enableResize: true },
       },
-      grid: { vertLines: { color: colors.grid }, horzLines: { color: colors.grid } },
-      rightPriceScale: { borderColor: colors.border },
+      // calmer, more professional look (2026-11-23): no vertical grid, faint horizontal lines, room above/below
+      grid: { vertLines: { visible: false }, horzLines: { color: colors.grid, style: 1 } },
+      rightPriceScale: { borderVisible: false, scaleMargins: { top: 0.08, bottom: 0.06 } },
+      kineticScroll: { mouse: true, touch: true },
       // 2026-09-28: fixRightEdge/rightOffset:0 (added the same day to chase
       // a "latest candle missing" report) turned out to be the WRONG fix —
       // that report's real cause was a stale HTTP cache + a live-merge bug
@@ -354,9 +356,9 @@ export function useTradingViewChart(containerRef: React.RefObject<HTMLDivElement
       // a small fixed gap after the last bar — same as TradingView's own
       // default — is the correct, permanent setting; never re-add
       // fixRightEdge/rightOffset:0 to "fix" a missing-candle symptom again.
-      timeScale: { borderColor: colors.border, timeVisible: true, rightOffset: 12 },
+      timeScale: { borderVisible: false, timeVisible: true, rightOffset: 12, barSpacing: 8, minBarSpacing: 2 },
       crosshair: {
-        mode: 0,
+        mode: 1, // magnet: the crosshair follows the candle closes - smoother to read
         vertLine: { color: colors.muted, width: 1, style: 3, labelBackgroundColor: colors.text },
         horzLine: { color: colors.muted, width: 1, style: 3, labelBackgroundColor: colors.text },
       },

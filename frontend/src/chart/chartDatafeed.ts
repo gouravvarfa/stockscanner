@@ -50,6 +50,15 @@ export async function fetchCandles(
     return cached.bars;
   }
 
+  // Daily / weekly / monthly come first from the end-of-day files the site ships for the listed stocks (2026-11-23,
+  // user: charts opened slowly through Render + Angel One); anything else, or a stock without a file, uses the API.
+  if (timeframe === "1D" || timeframe === "1W" || timeframe === "1M") {
+    const eodBars = await eodCandles(symbol, timeframe);
+    if (eodBars && eodBars.length) {
+      cache.set(key, { bars: eodBars, fetchedAt: Date.now() });
+      return eodBars;
+    }
+  }
   const res = await api.getChartCandles(symbol, timeframe, signal, longHistory);
   const bars = res.candles;
   cache.set(key, { bars, fetchedAt: Date.now() });
@@ -66,4 +75,45 @@ export function clearChartCache(symbol?: string): void {
       cache.delete(key);
     }
   }
+}
+
+type EodRow = [number, number, number, number, number, number];
+const eodFiles = new Map<string, Promise<{ daily: EodRow[]; monthly: EodRow[] } | null>>();
+
+function toBars(rows: EodRow[]): OHLCBar[] {
+  return rows.map(([time, open, high, low, close, volume]) => ({ time, open, high, low, close, volume }));
+}
+
+/** Weekly candles (week starting Monday) from daily ones. */
+function weekly(daily: OHLCBar[]): OHLCBar[] {
+  const out: OHLCBar[] = [];
+  for (const b of daily) {
+    const d = new Date(b.time * 1000);
+    const monday = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - ((d.getUTCDay() + 6) % 7)) / 1000;
+    const last = out[out.length - 1];
+    if (last && last.time === monday) {
+      last.high = Math.max(last.high, b.high);
+      last.low = Math.min(last.low, b.low);
+      last.close = b.close;
+      last.volume = (last.volume ?? 0) + (b.volume ?? 0);
+    } else {
+      out.push({ time: monday, open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume });
+    }
+  }
+  return out;
+}
+
+async function eodCandles(symbol: string, timeframe: Timeframe): Promise<OHLCBar[] | null> {
+  let file = eodFiles.get(symbol);
+  if (!file) {
+    file = fetch(`/eod/candles/${encodeURIComponent(symbol)}.json?d=${new Date().toISOString().slice(0, 10)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .catch(() => null);
+    eodFiles.set(symbol, file);
+  }
+  const data = await file;
+  if (!data) return null;
+  if (timeframe === "1M") return toBars(data.monthly);
+  const daily = toBars(data.daily);
+  return timeframe === "1W" ? weekly(daily) : daily;
 }

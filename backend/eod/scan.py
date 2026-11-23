@@ -208,7 +208,37 @@ def run(store: dict[str, pd.DataFrame], strong_map: dict[str, str] | None = None
     return cup_payload, vb_payload
 
 
-def write(out_dir: Path, cup_payload: dict, vb_payload: dict) -> None:
+def write_candles(out_dir: Path, store: dict[str, pd.DataFrame], symbols: set[str]) -> int:
+    """Chart data for the listed stocks (2026-11-23, user: charts opened slowly through Render/Angel): the last ~3
+    years of daily candles plus the full monthly history, as small JSON files the site serves directly. Rows are
+    [unix seconds, open, high, low, close, volume]."""
+    d = out_dir / "candles"
+    d.mkdir(parents=True, exist_ok=True)
+    for old in d.glob("*.json"):
+        if old.stem not in symbols:
+            old.unlink()
+
+    def rows(frame: pd.DataFrame) -> list:
+        return [[int(ts.timestamp()), round(float(o), 2), round(float(h), 2), round(float(l), 2), round(float(c), 2), int(v)]
+                for ts, o, h, l, c, v in zip(frame.index, frame["open"], frame["high"], frame["low"], frame["close"], frame["volume"].fillna(0))]
+
+    n = 0
+    for sym in symbols:
+        df = store.get(sym)
+        if df is None or df.empty:
+            continue
+        daily = df[df.index >= df.index[-1] - pd.Timedelta(days=3 * 366)]
+        monthly = df.resample("MS").agg({"open": "first", "high": "max", "low": "min", "close": "last", "volume": "sum"}).dropna(subset=["close"])
+        (d / f"{sym}.json").write_text(json.dumps({"symbol": sym, "as_of": df.index[-1].date().isoformat(),
+                                                   "daily": rows(daily), "monthly": rows(monthly)}, separators=(",", ":")), encoding="utf-8")
+        n += 1
+    return n
+
+
+def write(out_dir: Path, cup_payload: dict, vb_payload: dict, store: dict[str, pd.DataFrame] | None = None) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
+    if store is not None:
+        syms = {r["symbol"] for r in cup_payload.get("results", [])} | {r["symbol"] for r in vb_payload.get("support_zone", [])}
+        write_candles(out_dir, store, syms)
     (out_dir / "cup.json").write_text(json.dumps(cup_payload, separators=(",", ":"), default=str), encoding="utf-8")
     (out_dir / "value_buy.json").write_text(json.dumps(vb_payload, separators=(",", ":"), default=str), encoding="utf-8")
