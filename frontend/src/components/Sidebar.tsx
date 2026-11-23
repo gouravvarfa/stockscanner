@@ -33,7 +33,7 @@ export const NAV_ITEMS: NavItem[] = [
   { to: "/range-analysis", label: "Range Analysis", icon: ChartBarIcon, tone: "#0891b2" },
   { to: "/top-bottom", label: "Top Bottom Backtesting", icon: TrendIcon, tone: "#ea580c" },
   { to: "/breakout-15", label: "15-Min Breakout", icon: TrendIcon, tone: "#0284c7" },
-  { to: "/gann-time", label: "Gann Square", icon: CalendarIcon, tone: "#be185d" },
+  { to: "/gann-time", label: "Gann Square", icon: CalendarIcon, tone: "#0f5e9c" },
   { to: "/gann-angles", label: "Angle Projection", icon: AngleIcon, tone: "#4f46e5" },
   { to: "/anniversary-dates", label: "Anniversary Dates", icon: HistoryIcon, tone: "#b45309" },
   { to: "/astro-watch", label: "Astro Watch", icon: StarIcon, tone: "#d97706" },

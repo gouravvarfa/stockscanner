@@ -1461,18 +1461,18 @@ h1, .page-header h1, .app-content > h1, .app-content > div > h1:first-child { fo
    ========================================================================== */
 :root {
   --astro: #c2410c; --astro-2: #9f1239; --astro-gold: #b7791f; --astro-soft: #fdf1e7;
-  --gann: #be185d; --gann-2: #9d174d; --gann-soft: #fce7f1;
+  --gann: #0f5e9c; --gann-2: #0e7490; --gann-soft: #e3f0fa;
   --angle: #4f46e5; --angle-2: #0d9488; --angle-soft: #e9e8fd;
 }
 :root[data-theme="dark"] {
   --astro: #fb923c; --astro-2: #fb7185; --astro-gold: #f0b84a; --astro-soft: #2b1a10;
-  --gann: #f472b6; --gann-2: #fb7185; --gann-soft: #2d1420;
+  --gann: #7cc4fa; --gann-2: #67e8f9; --gann-soft: #0c2333;
   --angle: #8b93ff; --angle-2: #2dd4bf; --angle-soft: #1c1d3d;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --astro: #fb923c; --astro-2: #fb7185; --astro-gold: #f0b84a; --astro-soft: #2b1a10;
-    --gann: #f472b6; --gann-2: #fb7185; --gann-soft: #2d1420;
+    --gann: #7cc4fa; --gann-2: #67e8f9; --gann-soft: #0c2333;
     --angle: #8b93ff; --angle-2: #2dd4bf; --angle-soft: #1c1d3d;
   }
 }
