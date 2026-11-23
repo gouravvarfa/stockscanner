@@ -58,7 +58,8 @@ export function ValueBuyPage() {
     try { localStorage.setItem(STRONG_KEY, on ? "1" : "0"); } catch { /* not saved */ }
   };
   const strongMap = useMemo(() => vb?.strong_symbols ?? {}, [vb]);
-  const hasStrongInfo = !!vb?.strong_symbols;
+  // only when the result really carries strong sectors (the NSE end-of-day result may not): otherwise show every stock
+  const hasStrongInfo = !!vb?.strong_symbols && Object.keys(vb.strong_symbols).length > 0;
   const { openChart } = useChart();
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("monthly_rsi");
