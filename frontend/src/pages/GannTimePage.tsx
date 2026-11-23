@@ -8,6 +8,7 @@ import {
 } from "../services/gannTimeApi";
 import { StockLogo } from "../components/StockLogo";
 import { GannChart } from "./gannTime/GannChart";
+import { PageHero, SquareOfNine } from "../components/PageHero";
 import "./gannTime/gannTime.css";
 
 /**
@@ -247,16 +248,17 @@ export function GannTimePage() {
   const openStock = (s: string) => setParams({ symbol: s });
 
   return (
-    <div className="page">
-      <div className="page-header">
-        <div>
-          <h1>Gann Time Dates</h1>
-          <p className="page-subtitle">
-            Candle counts between swings, projected forward (Gann time cycle). Only cluster dates for the next 3 months are
-            shown. It tells you when a turn may come, not which way.
-          </p>
-        </div>
-      </div>
+    <div className="page gann-page">
+      <PageHero
+        tone="gann"
+        eyebrow="Gann · time cycles"
+        title="Gann Square"
+        subtitle="Candle counts between swings, projected forward on Gann ratios and the Square of Nine. Only cluster dates for the next 3 months are shown: when a turn may come, not which way."
+        motif={<SquareOfNine />}
+      >
+        <span className="hero-pill">NSE stocks · MCX commodities</span>
+        <span className="hero-pill hero-pill-soft">Clusters = 2+ projections within ±2 candles</span>
+      </PageHero>
 
       <StockView symbol={symbol} onPick={openStock} />
     </div>

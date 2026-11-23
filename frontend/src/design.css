@@ -1453,3 +1453,199 @@ h1, .page-header h1, .app-content > h1, .app-content > div > h1:first-child { fo
 .ga-swatch.ga-dashed { border-top-style: dashed; }
 .ga-table tr.ga-near td { background: color-mix(in srgb, var(--accent) 7%, transparent); }
 .ga-note { margin: 12px 0 0; }
+
+/* ==========================================================================
+   Page heroes + Astro Watch jyotish look (2026-11-23)
+   Each page keeps the app's cards, type and theme; only its own accent and motif differ:
+   astro = gold/saffron + violet (rashi chakra) · gann = rose (Square of Nine) · angle = indigo (angle fan).
+   ========================================================================== */
+:root {
+  --astro: #c2410c; --astro-2: #9f1239; --astro-gold: #b7791f; --astro-soft: #fdf1e7;
+  --gann: #be185d; --gann-2: #9d174d; --gann-soft: #fce7f1;
+  --angle: #4f46e5; --angle-2: #0d9488; --angle-soft: #e9e8fd;
+}
+:root[data-theme="dark"] {
+  --astro: #fb923c; --astro-2: #fb7185; --astro-gold: #f0b84a; --astro-soft: #2b1a10;
+  --gann: #f472b6; --gann-2: #fb7185; --gann-soft: #2d1420;
+  --angle: #8b93ff; --angle-2: #2dd4bf; --angle-soft: #1c1d3d;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --astro: #fb923c; --astro-2: #fb7185; --astro-gold: #f0b84a; --astro-soft: #2b1a10;
+    --gann: #f472b6; --gann-2: #fb7185; --gann-soft: #2d1420;
+    --angle: #8b93ff; --angle-2: #2dd4bf; --angle-soft: #1c1d3d;
+  }
+}
+
+.hero { --tone: var(--accent); --tone-2: var(--accent); position: relative; overflow: hidden; display: flex; align-items: center;
+  justify-content: space-between; gap: 20px; min-height: 172px; margin-bottom: 18px; padding: 26px 28px; border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--tone) 22%, var(--border));
+  background:
+    radial-gradient(120% 140% at 100% 0%, color-mix(in srgb, var(--tone) 13%, transparent), transparent 60%),
+    radial-gradient(90% 120% at 0% 100%, color-mix(in srgb, var(--tone-2) 9%, transparent), transparent 55%),
+    var(--bg-surface);
+  box-shadow: var(--card-shadow); }
+.hero::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 3px;
+  background: linear-gradient(90deg, var(--tone), var(--tone-2)); }
+.hero-astro { --tone: var(--astro); --tone-2: var(--astro-2); }
+.hero-gann { --tone: var(--gann); --tone-2: var(--gann-2); }
+.hero-angle { --tone: var(--angle); --tone-2: var(--angle-2); }
+/* astro: a faint field of stars */
+.hero-astro { background-image:
+    radial-gradient(circle at 12% 30%, color-mix(in srgb, var(--astro) 55%, transparent) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 38% 18%, color-mix(in srgb, var(--astro-2) 50%, transparent) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 55% 75%, color-mix(in srgb, var(--astro) 45%, transparent) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 26% 82%, color-mix(in srgb, var(--astro-2) 40%, transparent) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 66% 38%, color-mix(in srgb, var(--astro) 40%, transparent) 0 1px, transparent 1.5px),
+    radial-gradient(120% 140% at 100% 0%, color-mix(in srgb, var(--astro) 14%, transparent), transparent 60%),
+    radial-gradient(90% 120% at 0% 100%, color-mix(in srgb, var(--astro-2) 10%, transparent), transparent 55%);
+  background-color: var(--bg-surface); }
+.hero-text { position: relative; z-index: 1; max-width: 720px; }
+.hero-eyebrow { display: inline-block; margin-bottom: 6px; font-size: 11.5px; font-weight: 600; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--tone); }
+.hero h1 { margin: 0; font-size: 28px; letter-spacing: -0.03em; }
+.hero-sub { margin: 6px 0 0; color: var(--text-secondary); font-size: 13.5px; line-height: 1.55; }
+.hero-extra { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.hero-pill { display: inline-flex; align-items: center; padding: 4px 11px; border-radius: 999px; font-size: 12px; font-weight: 600;
+  color: var(--tone); background: color-mix(in srgb, var(--tone) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--tone) 28%, transparent); }
+.hero-pill-soft { color: var(--text-secondary); background: var(--bg-soft); border-color: var(--border); font-weight: 500; }
+.hero-motif { position: relative; flex: none; width: 190px; height: 150px; margin: -10px -6px -10px 0; color: var(--tone); }
+.motif-svg { width: 100%; height: 100%; overflow: visible; }
+.motif-svg .m-line { fill: none; stroke: color-mix(in srgb, var(--tone) 55%, transparent); stroke-width: 1; }
+.motif-svg .m-faint { fill: none; stroke: color-mix(in srgb, var(--tone) 22%, transparent); stroke-width: 1; }
+.motif-svg .m-glyph { font-size: 13px; fill: var(--tone); }
+.motif-svg .m-planet { font-size: 12px; fill: var(--tone-2); }
+.motif-svg .m-sun { fill: color-mix(in srgb, var(--tone) 35%, transparent); stroke: var(--tone); }
+.motif-svg .m-cross { stroke: color-mix(in srgb, var(--tone) 70%, transparent); stroke-width: 1.4; }
+.motif-svg .m-diag { stroke: color-mix(in srgb, var(--tone-2) 45%, transparent); stroke-width: 1; stroke-dasharray: 3 3; }
+.motif-svg .m-cell { fill: color-mix(in srgb, var(--tone) 6%, transparent); stroke: color-mix(in srgb, var(--tone) 18%, transparent); }
+.motif-svg .m-cell-on { fill: color-mix(in srgb, var(--tone) 18%, transparent); stroke: color-mix(in srgb, var(--tone) 45%, transparent); }
+.motif-svg .m-num { font-size: 8.5px; fill: color-mix(in srgb, var(--text-muted) 85%, transparent); }
+.motif-svg .m-num-on { font-size: 8.5px; font-weight: 700; fill: var(--tone); }
+.motif-svg .m-price { fill: none; stroke: var(--text-muted); stroke-width: 1.6; stroke-linejoin: round; }
+.motif-svg .m-ray { stroke: var(--tone); stroke-width: 1.3; }
+.motif-svg .m-ray-mirror { stroke: var(--tone-2); stroke-dasharray: 4 3; }
+.motif-svg .m-ray-flat { stroke: var(--text-muted); }
+.motif-svg .m-arc { fill: none; stroke: var(--tone-2); stroke-width: 1.2; }
+.motif-svg .m-origin { fill: var(--tone); }
+@media (max-width: 760px) {
+  .hero { padding: 20px; min-height: 0; }
+  .hero-motif { position: absolute; right: -40px; top: 8px; width: 160px; height: 130px; opacity: 0.35; }
+  .hero h1 { font-size: 24px; }
+}
+
+/* Astro Watch: segmented tabs, medallions, the feature card, timeline and hit meter */
+.aw-seg { display: inline-flex; gap: 4px; padding: 4px; margin-bottom: 16px; border-radius: 12px; background: var(--bg-surface);
+  border: 1px solid var(--border); }
+.aw-seg button { display: inline-flex; align-items: center; gap: 8px; border: 0; background: none; padding: 7px 14px; border-radius: 9px;
+  font: inherit; font-size: 13px; font-weight: 600; color: var(--text-secondary); cursor: pointer; }
+.aw-seg button:hover { color: var(--text-primary); background: var(--bg-hover); }
+.aw-seg button.active { color: var(--astro); background: color-mix(in srgb, var(--astro) 13%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--astro) 30%, transparent); }
+.aw-seg-glyph { font-size: 15px; line-height: 1; }
+
+.aw-medal { flex: none; display: inline-grid; place-items: center; width: 38px; height: 38px; border-radius: 50%;
+  font-size: 18px; font-weight: 600; color: var(--astro);
+  background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--astro) 22%, var(--bg-surface)), var(--bg-surface) 75%);
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--astro) 55%, transparent), 0 0 0 4px color-mix(in srgb, var(--astro) 8%, transparent); }
+.aw-medal-graha { color: var(--astro-2);
+  background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--astro-2) 20%, var(--bg-surface)), var(--bg-surface) 75%);
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--astro-2) 55%, transparent), 0 0 0 4px color-mix(in srgb, var(--astro-2) 8%, transparent); }
+.aw-medal-calendar { font-size: 11.5px; letter-spacing: -0.02em; color: var(--text-secondary);
+  background: var(--bg-soft); box-shadow: inset 0 0 0 1.5px var(--border); }
+.aw-medal-yuti { font-size: 15px; letter-spacing: -0.04em; }
+.aw-medal-big { width: 68px; height: 68px; font-size: 32px; }
+.aw-medal-big.aw-medal-yuti { font-size: 22px; }
+.aw-medal-big.aw-medal-calendar { font-size: 18px; }
+
+.aw-feature { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 20px; align-items: center;
+  border-color: color-mix(in srgb, var(--astro) 30%, var(--border));
+  background: linear-gradient(120deg, color-mix(in srgb, var(--astro) 7%, var(--bg-surface)), var(--bg-surface) 55%); }
+.aw-feature-main { display: flex; align-items: center; gap: 18px; min-width: 0; }
+.aw-kicker { display: block; font-size: 11.5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--astro); }
+.aw-date { margin-top: 2px; font-size: 26px; font-weight: 600; letter-spacing: -0.02em; color: var(--text-primary); }
+.aw-name { margin: 2px 0 8px; color: var(--text-secondary); font-size: 13.5px; }
+.aw-chip { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 11.5px; font-weight: 600; color: var(--astro-2);
+  background: color-mix(in srgb, var(--astro-2) 11%, transparent); border: 1px solid color-mix(in srgb, var(--astro-2) 25%, transparent); }
+.aw-chip-sm { padding: 1px 8px; font-size: 11px; }
+.aw-feature-stat { padding-left: 20px; border-left: 1px solid var(--border); }
+.aw-big-pct { font-size: 34px; font-weight: 600; letter-spacing: -0.03em; color: var(--success); line-height: 1.1; }
+.aw-record { display: flex; flex-direction: column; gap: 2px; margin-top: 10px; font-size: 12px; color: var(--text-muted); }
+.aw-feature .aw-use { max-width: none; }
+.aw-feature .aw-meter { width: 100%; margin-top: 10px; }
+
+.aw-meter { position: relative; display: inline-block; width: 120px; height: 6px; border-radius: 999px; background: var(--bg-soft);
+  box-shadow: inset 0 0 0 1px var(--border); overflow: visible; vertical-align: middle; }
+.aw-meter-fill { position: absolute; inset: 0 auto 0 0; border-radius: 999px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--astro) 70%, var(--success)), var(--success)); }
+.aw-meter-tick { position: absolute; top: -3px; width: 2px; height: 12px; border-radius: 1px; background: var(--text-secondary); }
+
+.aw-timeline { display: flex; flex-direction: column; gap: 18px; }
+.aw-month-name { margin: 0 0 6px; font-size: 11.5px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--astro); }
+.aw-item { display: grid; grid-template-columns: 52px 38px minmax(0, 1fr) auto; align-items: center; gap: 14px; padding: 10px 12px;
+  border-radius: 12px; border: 1px solid var(--border); background: var(--bg-surface); }
+.aw-item + .aw-item { margin-top: 8px; }
+.aw-item:hover { border-color: color-mix(in srgb, var(--astro) 35%, var(--border)); }
+.aw-day { display: flex; flex-direction: column; align-items: center; line-height: 1.1; }
+.aw-day b { font-size: 22px; font-weight: 600; color: var(--text-primary); }
+.aw-day span { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.aw-item-text { display: flex; flex-direction: column; min-width: 0; }
+.aw-item-name { font-weight: 550; color: var(--text-primary); }
+.aw-item-sub { font-size: 12px; color: var(--text-muted); }
+.aw-item-stat { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.aw-hit { font-weight: 600; font-size: 15px; color: var(--success); }
+.aw-foot { margin: 6px 2px 0; }
+@media (max-width: 760px) {
+  .aw-feature { grid-template-columns: 1fr; }
+  .aw-feature-stat { padding-left: 0; border-left: 0; border-top: 1px solid var(--border); padding-top: 14px; }
+  .aw-item { grid-template-columns: 44px 34px minmax(0, 1fr); }
+  .aw-item-stat { grid-column: 3; align-items: flex-start; flex-direction: row; align-items: center; }
+  .aw-meter { width: 90px; }
+}
+
+/* Gann Square and Angle Projection: their own accent on the run button, the active row and the key list */
+.gann-page .primary-button { background: var(--gann); border-color: var(--gann); }
+.gann-page .act-box.act-watch { --act: var(--gann); }
+.gann-page .gt-search input:focus { border-color: var(--gann); box-shadow: 0 0 0 3px color-mix(in srgb, var(--gann) 18%, transparent); }
+.angle-page .primary-button { background: var(--angle); border-color: var(--angle); }
+.angle-page .gt-search input:focus { border-color: var(--angle); box-shadow: 0 0 0 3px color-mix(in srgb, var(--angle) 18%, transparent); }
+.angle-page .tb-summary-tile { border-top: 3px solid color-mix(in srgb, var(--angle) 55%, var(--border)); }
+.angle-page .ga-table tr.ga-near td { background: color-mix(in srgb, var(--angle) 9%, transparent); }
+
+/* Astro Watch, Vedic look (2026-11-23): saffron, sindoor and gold; Devanagari labels; the North Indian kundali */
+.motif-svg .m-frame { fill: color-mix(in srgb, var(--astro-gold) 7%, transparent); stroke: var(--astro-gold); stroke-width: 1.6; }
+.motif-svg .m-diamond { stroke: var(--astro); stroke-width: 1.3; }
+.motif-svg .m-rashi { font-size: 10px; fill: var(--text-muted); }
+.motif-svg .m-graha { font-size: 13px; font-weight: 700; fill: var(--astro); font-family: "Nirmala UI", "Noto Sans Devanagari", "Mangal", sans-serif; }
+.motif-svg .m-bindu { fill: var(--astro-2); }
+.astro-page .hero { border-color: color-mix(in srgb, var(--astro-gold) 40%, var(--border)); }
+.astro-page .hero::after { content: ""; position: absolute; inset: 6px; border-radius: 12px; pointer-events: none;
+  border: 1px dashed color-mix(in srgb, var(--astro-gold) 30%, transparent); }
+.astro-page .hero-motif { width: 170px; height: 170px; }
+.aw-deva, .aw-deva-sm, .aw-hindi, .aw-medal { font-family: "Nirmala UI", "Noto Sans Devanagari", "Mangal", var(--font-sans); }
+.aw-deva { margin-right: 8px; color: var(--astro); font-weight: 700; }
+.aw-deva-sm { margin-right: 8px; font-size: 12.5px; font-weight: 700; color: var(--astro); }
+.aw-hindi { margin-top: 2px; font-size: 15px; font-weight: 700; color: var(--astro); }
+.aw-medal { font-size: 15px; font-weight: 700; color: var(--astro);
+  background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--astro-gold) 28%, var(--bg-surface)), var(--bg-surface) 75%);
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--astro-gold) 70%, transparent), 0 0 0 4px color-mix(in srgb, var(--astro) 8%, transparent); }
+.aw-medal-graha { color: var(--astro-2);
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--astro-2) 60%, transparent), 0 0 0 4px color-mix(in srgb, var(--astro-2) 8%, transparent); }
+.aw-medal-calendar { font-size: 12px; color: var(--astro-gold); background: var(--bg-soft);
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--astro-gold) 45%, var(--border)); }
+.aw-medal-big { font-size: 26px; }
+.aw-medal-big.aw-medal-yuti { font-size: 17px; }
+.aw-medal-big.aw-medal-calendar { font-size: 18px; }
+.aw-chip { color: var(--astro-2); background: color-mix(in srgb, var(--astro-2) 9%, transparent); border-color: color-mix(in srgb, var(--astro-2) 25%, transparent); }
+.aw-feature { border-color: color-mix(in srgb, var(--astro-gold) 45%, var(--border));
+  background: linear-gradient(120deg, color-mix(in srgb, var(--astro-gold) 9%, var(--bg-surface)), var(--bg-surface) 60%); }
+.aw-month-name { display: flex; align-items: center; gap: 10px; color: var(--astro-gold); }
+.aw-month-name::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, color-mix(in srgb, var(--astro-gold) 45%, transparent), transparent); }
+.aw-month-name::before { content: "✦"; font-size: 10px; color: var(--astro); }
+.aw-item:hover { border-color: color-mix(in srgb, var(--astro-gold) 50%, var(--border)); }
+.aw-seg button.active { color: var(--astro); background: color-mix(in srgb, var(--astro) 11%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--astro-gold) 45%, transparent); }
+.aw-seg-glyph { font-family: "Nirmala UI", "Noto Sans Devanagari", "Mangal", var(--font-sans); font-size: 13px; font-weight: 700; color: var(--astro); }
+.aw-meter-fill { background: linear-gradient(90deg, var(--astro-gold), var(--success)); }
+.hero-astro .hero-pill { color: var(--astro); background: color-mix(in srgb, var(--astro) 10%, transparent); border-color: color-mix(in srgb, var(--astro-gold) 40%, transparent); }

@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { angleColor, angleName, getGannStock, searchGannStocks, type GannStockDetail } from "../services/gannTimeApi";
 import { StockLogo } from "../components/StockLogo";
 import { GannChart } from "./gannTime/GannChart";
+import { AngleFanMotif, PageHero } from "../components/PageHero";
 import "./gannTime/gannTime.css";
 
 /**
@@ -76,16 +77,17 @@ export function GannAnglesPage() {
   const below = lines.find((l) => l.today < close) ?? null; // the highest line below price
   const pctFrom = (level: number) => `${level >= close ? "+" : ""}${(((level - close) / close) * 100).toFixed(1)}%`;
   return (
-    <div className="page">
-      <div className="page-header">
-        <div>
-          <h1>Angle Projection</h1>
-          <p className="page-subtitle">
-            Gann angle lines from the last big swing: the swing&apos;s angle, then each half of it, drawn forward. A picture
-            of where price may meet a line — not a buy or sell signal.
-          </p>
-        </div>
-      </div>
+    <div className="page angle-page">
+      <PageHero
+        tone="angle"
+        eyebrow="Gann · price angles"
+        title="Angle Projection"
+        subtitle="The last big swing's angle, then each half of it, drawn forward from the swing. A picture of where price may meet a line — not a buy or sell signal."
+        motif={<AngleFanMotif />}
+      >
+        <span className="hero-pill">1 candle = 1 ATR scale</span>
+        <span className="hero-pill hero-pill-soft">Full · 1/2 · 1/4 · 1/8 … and mirrored</span>
+      </PageHero>
 
       <section className="card gt-search-card">
         <div className="gt-run">
