@@ -4,7 +4,6 @@ import { STRATEGY_NAMES, strategyDisplayName, type StockResult, type StrategyNam
 import { TopRankedCandidates } from "../components/TopRankedCandidates";
 import { useChart } from "../chart/ChartContext";
 import { SectorLogo } from "../components/SectorIcon";
-import { newerOf, useEodResult } from "../hooks/useEodResult";
 import { useScan } from "../context/ScanContext";
 import { BestStockCard } from "../components/BestStockCard";
 import { StockDetailPanel } from "../components/StockDetailPanel";
@@ -191,7 +190,7 @@ function SkeletonRows({ columns }: { columns: number }) {
 
 export function Dashboard() {
   const {
-    latest: liveLatest,
+    latest,
     scanning,
     scanError,
     scanIssueKind,
@@ -204,9 +203,6 @@ export function Dashboard() {
     localRows,
     scanQueued,
   } = useScan();
-  // The NSE end-of-day Setup Scanner result (2026-11-23): ready at once; a live scan run later is newer and takes over
-  const eodSetup = useEodResult<NonNullable<typeof liveLatest>>("setup");
-  const latest = newerOf(scanning ? null : liveLatest, eodSetup).shown;
   const { openChart } = useChart();
 
   const [activeStrategy, setActiveStrategy] = useState<TabName>("PRD");
@@ -323,11 +319,7 @@ export function Dashboard() {
         motif={<DashboardMotif />}
       >
         <div className="dash-actions">
-          {!scanning && eodSetup ? (
-            <span className="eod-ready">✓ Ready · NSE data of {new Date(`${eodSetup.data_as_of}T00:00:00`).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })} · no scan needed</span>
-          ) : !scanning && eodSetup === undefined ? (
-            <span className="eod-ready eod-wait"><span className="spinner" /> Loading NSE results…</span>
-          ) : (
+          {(
             <>
               {!scanning && cacheAgeSeconds !== null && (
                 <span className="dash-last-scan">Last scan {ago(cacheAgeSeconds)}</span>
@@ -449,7 +441,7 @@ export function Dashboard() {
         </p>
       )}
 
-      {!latest && !scanning && !scanError && eodSetup !== undefined && (
+      {!latest && !scanning && !scanError && (
         <div className="card state-block">
           <div className="state-icon"><ChartBarIcon width={28} height={28} /></div>
           <div className="state-title">No signals found</div>
