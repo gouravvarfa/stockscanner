@@ -2162,3 +2162,28 @@ h1, .page-header h1, .app-content > h1, .app-content > div > h1:first-child { fo
 .eod-loading { display: flex; flex-direction: column; align-items: center; gap: 10px; }
 .cup-top-card { transition: border-color .15s ease; }
 .cup-top-card:hover { border-color: color-mix(in srgb, var(--pt, var(--accent)) 45%, var(--border)); }
+
+/* Weekly Sectors: scorecard as cards (2026-11-23) - tap a card for the sector chart */
+.ws-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; margin-bottom: 10px; }
+.ws-card { display: flex; flex-direction: column; gap: 9px; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg-surface);
+  transition: border-color .15s ease, background-color .15s ease; }
+.ws-card.wk-click:hover { border-color: color-mix(in srgb, var(--pt, var(--accent)) 45%, var(--border)); }
+.ws-strong { border-color: color-mix(in srgb, var(--success) 40%, var(--border)); background: linear-gradient(180deg, color-mix(in srgb, var(--success) 7%, var(--bg-surface)), var(--bg-surface)); }
+.ws-strong.wk-click:hover { border-color: var(--success); }
+.ws-weak { border-color: color-mix(in srgb, var(--danger) 30%, var(--border)); }
+.ws-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.ws-title { display: flex; flex-direction: column; min-width: 0; }
+.ws-title b { font-size: 14px; font-weight: 600; }
+.ws-title small { font-size: 11px; color: var(--text-muted); }
+.ws-returns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.ws-returns > div { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+.ws-returns span { font-size: 10.5px; font-weight: 600; color: var(--text-muted); }
+.ws-returns b { font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.ws-rsi { display: flex; gap: 12px; font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.ws-rsi small { display: block; font-size: 9.5px; font-weight: 600; color: var(--text-muted); letter-spacing: .04em; }
+.ws-foot { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding-top: 8px; border-top: 1px dashed var(--border); }
+.ws-stocks-btn { margin-left: auto; border: 1px solid var(--border); background: var(--bg-soft); border-radius: 8px; padding: 3px 9px; font: inherit;
+  font-size: 11.5px; font-weight: 600; color: var(--text-secondary); cursor: pointer; }
+.ws-stocks-btn:hover { color: var(--pt, var(--accent)); border-color: color-mix(in srgb, var(--pt, var(--accent)) 40%, var(--border)); }
+.ws-rsi { gap: 18px; font-size: 16px; }
+.ws-rsi small { font-size: 10px; }

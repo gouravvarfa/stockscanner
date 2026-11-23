@@ -79,17 +79,6 @@ function insights(r: WeeklyReport): string[] {
   return out;
 }
 
-/** A rank and how many places it moved since last week, e.g. "#3" with a small green "+2". */
-function RankCell({ rank, move }: { rank: number | null; move?: number | null }) {
-  return (
-    <>
-      {rank === null ? "—" : `#${rank}`}
-      {move ? <span className={`wk-move ${move > 0 ? "wk-up" : "wk-down"}`}>{move > 0 ? `▲${move}` : `▼${-move}`}</span> : null}
-    </>
-  );
-}
-
-const breadthClass = (label: string | null | undefined) => `wk-chip wk-breadth-${(label ?? "na").toLowerCase()}`;
 
 /** The week in four plain lines (2026-11-22): what to watch, what is about to turn STRONG, who beats the market,
  *  who is getting weaker. Everything comes from the report already on screen. */
@@ -428,73 +417,40 @@ export function WeeklySectorsPage() {
 
           <div className="card">
             <h2 style={{ marginTop: 0 }}>Sector scorecard</h2>
-            <div className="table-wrap">
-              <table className="wk-table">
-                <thead>
-                  <tr>
-                    <th>Sector</th>
-                    <th>1W %</th>
-                    <th>#</th>
-                    <th>1M %</th>
-                    <th>#</th>
-                    <th>RSI D</th>
-                    <th>RSI W</th>
-                    <th>RSI M</th>
-                    <th>Beat 1W | 1M</th>
-                    <th>Breadth</th>
-                    <th>Verdict</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {report.sectors.map((s) => (
-                    <tr
-                      key={s.key}
-                      className="wk-click"
-                      onClick={() => {
-                        setSelected(s.key);
-                        detailRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-                      }}
-                    >
-                      <td className="wk-sym">
-                        <div className="wk-sym-cell">
-                          <div className="wk-sym-text">
-                            {s.label}
-                            <span className="wk-name">{s.equal_weight ? "equal-weight of its stocks" : s.index_label}</span>
-                          </div>
-                          {((!s.equal_weight && s.index_label) || s.tv_symbol) && <ChartButton label={s.index_label ?? s.label} onOpen={() => openSectorChart(s)} />}
-                        </div>
-                      </td>
-                      <td className={tone(s.r1w)}>{pct(s.r1w)}</td>
-                      <td className="wk-nowrap"><RankCell rank={s.rank_1w} move={s.rank_change_1w} /></td>
-                      <td className={tone(s.r1m)}>{pct(s.r1m)}</td>
-                      <td className="wk-nowrap"><RankCell rank={s.rank_1m} move={s.rank_change_1m} /></td>
+            <div className="ws-grid">
+              {report.sectors.map((s) => {
+                const canChart = !!((!s.equal_weight && s.index_label) || s.tv_symbol);
+                const v = (s.verdict || "").toUpperCase();
+                return (
+                  <div
+                    key={s.key}
+                    className={`ws-card ws-${v.toLowerCase()}${canChart ? " wk-click" : ""}`}
+                    role={canChart ? "button" : undefined}
+                    tabIndex={canChart ? 0 : undefined}
+                    title={canChart ? `Open the ${s.index_label ?? s.label} chart` : undefined}
+                    onClick={() => canChart && openSectorChart(s)}
+                    onKeyDown={(e) => { if (canChart && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); openSectorChart(s); } }}
+                  >
+                    <div className="ws-head">
+                      <div className="ws-title">
+                        <b>{s.label}</b>
+                        <small>{s.equal_weight ? "equal-weight of its stocks" : s.index_label}</small>
+                      </div>
+                      <span className={verdictClass(s.verdict)}>{s.verdict}</span>
+                    </div>
+                    <div className="ws-rsi">
                       {(["d", "w", "m"] as const).map((k) => {
-                        const v = s.rsi[k];
+                        const r = s.rsi[k];
                         return (
-                          <td key={k} className={v === null ? "muted" : v > 60 ? "wk-up" : v < 40 ? "wk-down" : "wk-amber"}>
-                            {v === null ? "n/a" : v.toFixed(1)}
-                          </td>
+                          <span key={k} className={r === null ? "muted" : r > 60 ? "wk-up" : r < 40 ? "wk-down" : "wk-amber"}>
+                            <small>RSI {k.toUpperCase()}</small>{r === null ? "n/a" : r.toFixed(1)}
+                          </span>
                         );
                       })}
-                      <td>
-                        {s.beat_1w}/{s.stocks.length} | {s.beat_1m}/{s.stocks.length}
-                      </td>
-                      <td>
-                        {s.breadth?.label ? (
-                          <span className={breadthClass(s.breadth.label)} title={`${s.breadth.above_50dma}% of its stocks are above the 50-day average`}>
-                            {s.breadth.label}
-                          </span>
-                        ) : (
-                          <span className="muted">—</span>
-                        )}
-                      </td>
-                      <td>
-                        <span className={verdictClass(s.verdict)}>{s.verdict}</span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
             <p className="muted small" style={{ marginBottom: 0 }}>
               STRONG = daily, weekly and monthly RSI(14) of the sector index all above 60; WEAK = all below 40; otherwise MIXED.
