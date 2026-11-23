@@ -42,6 +42,31 @@ def _dedupe_and_sort(frames: list[pd.DataFrame]) -> pd.DataFrame:
     return combined
 
 
+# Angel One's rate limiter answers HTTP 403 / "Too many requests" when calls bunch up. That is temporary, so a chunk
+# is retried with a growing pause instead of failing the whole stock (2026-11-23: half of an all-NSE Cup scan was
+# failing on exactly this and those stocks were silently missing from the results).
+RATE_LIMIT_RETRIES = 4
+RATE_LIMIT_BACKOFF_SECONDS = (4.0, 8.0, 15.0, 30.0)
+
+
+def _is_rate_limited(exc: Exception) -> bool:
+    text = str(exc).lower()
+    return "403" in text or "too many requests" in text or "rate" in text and "limit" in text
+
+
+async def _fetch_with_retry(angelone: AngelOneProvider, exch_seg: str, token: str, start: dt.datetime, end: dt.datetime) -> pd.DataFrame:
+    for attempt in range(RATE_LIMIT_RETRIES + 1):
+        try:
+            return await angelone.get_daily_ohlc_range(exch_seg, token, start, end)
+        except Exception as exc:  # noqa: BLE001 - only rate-limit errors are retried; anything else is raised as before
+            if attempt >= RATE_LIMIT_RETRIES or not _is_rate_limited(exc):
+                raise
+            wait = RATE_LIMIT_BACKOFF_SECONDS[min(attempt, len(RATE_LIMIT_BACKOFF_SECONDS) - 1)]
+            logger.info("Cup history: rate limited (%s), retry %d in %.0fs", exc, attempt + 1, wait)
+            await asyncio.sleep(wait)
+    raise RuntimeError("unreachable")
+
+
 async def _fetch_chunked(
     angelone: AngelOneProvider, exch_seg: str, token: str, start: dt.datetime, end: dt.datetime, config: CupConfig,
 ) -> pd.DataFrame:
@@ -56,7 +81,7 @@ async def _fetch_chunked(
         if not first:
             await asyncio.sleep(config.chunk_delay_seconds)
         first = False
-        df = await angelone.get_daily_ohlc_range(exch_seg, token, cur, chunk_end)
+        df = await _fetch_with_retry(angelone, exch_seg, token, cur, chunk_end)
         frames.append(df)
         cur = chunk_end
     return _dedupe_and_sort(frames)
