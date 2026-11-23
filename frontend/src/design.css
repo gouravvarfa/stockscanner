@@ -1933,3 +1933,22 @@ h1, .page-header h1, .app-content > h1, .app-content > div > h1:first-child { fo
 .app-content :is(.secondary-button, .tb-btn-secondary):hover:not(:disabled) { border-color: color-mix(in srgb, var(--pt, var(--accent)) 45%, var(--border)); color: var(--pt, var(--accent)); }
 .app-content .strategy-card:hover { border-color: color-mix(in srgb, var(--pt, var(--accent)) 40%, var(--border)); }
 .app-content .strategy-card-cta { color: var(--pt, var(--accent)); }
+
+/* Dashboard (2026-11-23): strong sectors as small cards with D/W/M RSI bars (60 marked); one setup selector (tabs) */
+.ds-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px; }
+.ds-card { padding: 12px 14px; border-radius: 12px; border: 1px solid color-mix(in srgb, var(--pt, var(--accent)) 16%, var(--border));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--success) 6%, var(--bg-surface)), var(--bg-surface)); }
+.ds-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.ds-name { font-size: 14px; font-weight: 600; }
+.ds-stocks { font-size: 11.5px; color: var(--text-muted); white-space: nowrap; }
+.ds-rsi { display: flex; flex-direction: column; gap: 5px; }
+.ds-rsi-row { display: grid; grid-template-columns: 14px 1fr 24px; align-items: center; gap: 8px; }
+.ds-tf { font-size: 10.5px; font-weight: 600; color: var(--text-muted); }
+.ds-bar { position: relative; height: 6px; border-radius: 999px; background: var(--bg-soft); overflow: hidden; }
+.ds-bar i { position: absolute; inset: 0 auto 0 0; border-radius: 999px; background: linear-gradient(90deg, color-mix(in srgb, var(--success) 55%, transparent), var(--success)); }
+.ds-bar em { position: absolute; top: 0; bottom: 0; left: 60%; width: 1.5px; background: var(--text-muted); opacity: .5; }
+.ds-val { font-size: 12px; font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
+.ds-total { margin-left: 4px; padding: 2px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 600;
+  color: var(--pt, var(--accent)); background: color-mix(in srgb, var(--pt, var(--accent)) 10%, transparent); }
+.dash-tabs .tab.active { color: var(--pt, var(--accent)); border-color: var(--pt, var(--accent)); }
+.dash-tabs .tab.active .tab-count { background: color-mix(in srgb, var(--pt, var(--accent)) 14%, transparent); color: var(--pt, var(--accent)); }

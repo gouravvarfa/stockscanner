@@ -171,18 +171,6 @@ function FreshnessBadge({ leg }: { leg: DivergenceLeg | null }) {
   );
 }
 
-function countTimeframes(signals: StrategySignal[]): { daily: number; weekly: number; monthly: number } {
-  const counts = { daily: 0, weekly: 0, monthly: 0 };
-  for (const s of signals) {
-    for (const tf of timeframesOf(s)) {
-      if (tf === "DAILY") counts.daily++;
-      else if (tf === "WEEKLY") counts.weekly++;
-      else if (tf === "MONTHLY") counts.monthly++;
-    }
-  }
-  return counts;
-}
-
 function SkeletonRows({ columns }: { columns: number }) {
   return (
     <>
@@ -245,10 +233,6 @@ export function Dashboard() {
     return DASHBOARD_STRATEGIES.reduce((sum, name) => sum + (latest.strategies?.[name]?.length ?? 0), 0);
   }, [latest]);
 
-  const prdSignals = useMemo(() => latest?.strategies?.["PRD"] ?? [], [latest]);
-  const nrdSignals = useMemo(() => latest?.strategies?.["NRD"] ?? [], [latest]);
-  const prdBreakdown = useMemo(() => countTimeframes(prdSignals), [prdSignals]);
-  const nrdBreakdown = useMemo(() => countTimeframes(nrdSignals), [nrdSignals]);
 
   const [selected, setSelected] = useState<StrategySignal | null>(null);
 
@@ -470,15 +454,23 @@ export function Dashboard() {
               No sector is STRONG right now, so there were no stocks to scan. See <Link to="/weekly-sectors">Weekly Sectors</Link>.
             </p>
           ) : (
-            <div className="dash-strong-list">
+            <div className="ds-grid">
               {(latest.strong_sectors ?? []).map((s) => (
-                <span key={s.key} className="dash-strong-chip" title={s.index}>
-                  <b>{s.label}</b>
-                  <span className="dash-strong-sep">·</span>
-                  {s.stocks} stocks
-                  <span className="dash-strong-sep">·</span>
-                  RSI {[s.rsi.d, s.rsi.w, s.rsi.m].map((v) => (v === null ? "n/a" : v.toFixed(0))).join(" / ")}
-                </span>
+                <div key={s.key} className="ds-card" title={s.index}>
+                  <div className="ds-top">
+                    <b className="ds-name">{s.label}</b>
+                    <span className="ds-stocks">{s.stocks} stocks</span>
+                  </div>
+                  <div className="ds-rsi">
+                    {([["D", s.rsi.d], ["W", s.rsi.w], ["M", s.rsi.m]] as const).map(([tf, v]) => (
+                      <div key={tf} className="ds-rsi-row">
+                        <span className="ds-tf">{tf}</span>
+                        <span className="ds-bar"><i style={{ width: `${v === null ? 0 : Math.min(100, Math.max(0, v))}%` }} /><em /></span>
+                        <span className="ds-val">{v === null ? "—" : v.toFixed(0)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               ))}
             </div>
           )}
@@ -490,47 +482,6 @@ export function Dashboard() {
 
       {latest && (
         <>
-          {/* Every setup's count from latest.strategies (real backend counts); a tile opens its tab below. */}
-          <div className="card">
-            <div className="dash-tiles">
-              <div className="tb-summary-tile dash-tile-total">
-                <div className="tb-summary-label">TOTAL SIGNALS</div>
-                <div className="tb-summary-value">{totalSignals}</div>
-                <div className="tb-config-hint" style={{ margin: 0 }}>in the strong sectors</div>
-              </div>
-              {DASHBOARD_STRATEGIES.map((name) => {
-                const count = latest.strategies?.[name]?.length ?? 0;
-                const breakdown = name === "PRD" ? prdBreakdown : name === "NRD" ? nrdBreakdown : null;
-                return (
-                  <button
-                    type="button"
-                    key={name}
-                    className={`tb-summary-tile dash-tile${activeStrategy === name ? " active" : ""}`}
-                    onClick={() => setActiveStrategy(name)}
-                    title={`Show the ${strategyDisplayName(name)} signals`}
-                  >
-                    <div className="tb-summary-label">{strategyDisplayName(name).toUpperCase()}</div>
-                    <div className={`tb-summary-value${count ? " wk-up" : ""}`}>{count}</div>
-                    <div className="tb-config-hint dash-tile-sub" style={{ margin: 0 }}>
-                      {breakdown ? (
-                        <span
-                          className="dash-tf"
-                          title={`Daily ${breakdown.daily} · Weekly ${breakdown.weekly} · Monthly ${breakdown.monthly}`}
-                        >
-                          D <b>{breakdown.daily}</b> · W <b>{breakdown.weekly}</b> · M <b>{breakdown.monthly}</b>
-                        </span>
-                      ) : count === 1 ? (
-                        "stock"
-                      ) : (
-                        "stocks"
-                      )}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
           <TopRankedCandidates refreshKey={latest.finished_at} />
 
           {activeStrategy === "Strategy One" && <BestStockCard stock={latest.best} />}
@@ -540,8 +491,8 @@ export function Dashboard() {
           <section className="card dash-signals" aria-labelledby="dash-signals-title">
             <div className="dash-card-head">
               <div>
-                <h2 id="dash-signals-title">Signals</h2>
-                <p className="muted small">Every stock that qualified, by setup. Click a row for its details.</p>
+                <h2 id="dash-signals-title">Signals <span className="ds-total">{totalSignals} in the strong sectors</span></h2>
+                <p className="muted small">Pick a setup below. Click a row for its details.</p>
               </div>
               <div className="dash-tools">
                 {isDivergenceTab && (
