@@ -15,6 +15,7 @@ export type Retracement = {
 export type SupportRow = {
   symbol: string; company_name: string; price: number; daily_rsi: number | null; weekly_rsi: number | null; monthly_rsi: number | null;
   conditions: Record<string, boolean>; value_buy: boolean; retracement: Retracement | null;
+  month_open?: number; month_change_pct?: number;
 };
 
 const num = (v: number | null | undefined, d = 1) => (v == null ? "—" : v.toFixed(d));
@@ -40,7 +41,7 @@ export function SupportZoneCard({ rows, strongMap, strongOnly, query }: {
           <input type="checkbox" checked={only78} onChange={(e) => setOnly78(e.target.checked)} />
           Only the 78% pullback <b>{count78}</b>
         </label>
-        <span className="muted small">Monthly RSI 38–45 with this month's candle (support at 40) · daily pullback measured on the last swing low → high (5-day swings)</span>
+        <span className="muted small">Monthly RSI 38–45 with this month's candle (support at 40), and this month's candle green · daily pullback measured on the last swing low → high (5-day swings)</span>
       </div>
       {list.length === 0 ? (
         <p className="muted" style={{ marginBottom: 0 }}>{only78 ? "No stock with a 78% pullback in this list right now — untick to see every support-zone stock." : "No stock matches."}</p>
@@ -61,7 +62,7 @@ export function SupportZoneCard({ rows, strongMap, strongOnly, query }: {
               {list.map((r) => {
                 const ret = r.retracement;
                 return (
-                  <tr key={r.symbol} className="wk-click" onClick={() => openChart(r.symbol, { strategy: "Value Buy", monthly_rsi: r.monthly_rsi, daily_rsi: r.daily_rsi, weekly_rsi: r.weekly_rsi, signal_date: null, indicators: { rsi: true } })}>
+                  <tr key={r.symbol} className="wk-click" onClick={() => openChart(r.symbol, { strategy: "Value Buy", monthly_rsi: r.monthly_rsi, daily_rsi: r.daily_rsi, weekly_rsi: r.weekly_rsi, signal_date: null, indicators: { rsi: true }, fibonacci: r.retracement ? { low: r.retracement.swing_low, high: r.retracement.swing_high } : null })}>
                     <td>
                       <span className="logo-line">
                         <span className="wk-logo"><StockLogo symbol={r.symbol} /></span>
@@ -70,7 +71,12 @@ export function SupportZoneCard({ rows, strongMap, strongOnly, query }: {
                       </span>
                     </td>
                     <td className="num-cell">₹{num(r.price, 2)}</td>
-                    <td className="num-cell"><b>{num(r.monthly_rsi)}</b></td>
+                    <td className="num-cell">
+                      <span className="sz-pull">
+                        <b>{num(r.monthly_rsi)}</b>
+                        {r.month_change_pct != null && <small className="wk-up">month +{num(r.month_change_pct)}%</small>}
+                      </span>
+                    </td>
                     <td className="num-cell">
                       {ret ? (
                         <span className="sz-pull">

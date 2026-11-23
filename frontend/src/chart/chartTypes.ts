@@ -43,6 +43,12 @@ export type ChartDataStatus = "loading" | "ready" | "empty" | "error";
  * re-derived in the frontend, so the markers always match what the scanner
  * actually reported. Dates are the backend's monthly period-end ISO dates.
  */
+/** A Fibonacci retracement to draw on the price chart (2026-11-23): from the swing low (100%) to the swing high (0%). */
+export interface FibonacciLevels {
+  low: number;
+  high: number;
+}
+
 export interface CupStructure {
   trend_start_date?: string | null;
   trend_start_price?: number | null;
@@ -68,6 +74,7 @@ export interface ChartSignalContext {
   divergence_timeframe?: string | null;
   explanation?: string;
   cupStructure?: CupStructure | null;
+  fibonacci?: FibonacciLevels | null;
   /** Indicators the opening page wants switched on (e.g. Weekly Sectors: RSI, volume and Bollinger Bands). */
   indicators?: Partial<IndicatorSettings>;
 }

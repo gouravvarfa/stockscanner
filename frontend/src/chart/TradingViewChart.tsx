@@ -147,7 +147,7 @@ export function TradingViewChart({ symbol, signalContext, isMaximized, onToggleM
   }, [indicators]);
 
   const { crosshair, setData, fitContent, bollingerLatest, rsiLatest, paneTops } = useTradingViewChart(containerRef, {
-    indicators, chartType, timeframe, cupStructure: signalContext?.cupStructure ?? null,
+    indicators, chartType, timeframe, cupStructure: signalContext?.cupStructure ?? null, fibonacci: signalContext?.fibonacci ?? null,
   });
 
   useEffect(() => {

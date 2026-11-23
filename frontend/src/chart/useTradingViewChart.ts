@@ -24,7 +24,7 @@ import {
 } from "./chartConfig";
 import { calculateBollingerBands, calculateRSI } from "./chartStudies";
 import { getChartThemeColors } from "./chartTheme";
-import type { CupStructure, IndicatorSettings, OHLCBar } from "./chartTypes";
+import type { CupStructure, FibonacciLevels, IndicatorSettings, OHLCBar } from "./chartTypes";
 
 export interface CrosshairReadout {
   time: number;
@@ -59,6 +59,7 @@ interface UseTradingViewChartOptions {
   chartType?: ChartSeriesType;
   timeframe?: string;
   cupStructure?: CupStructure | null;
+  fibonacci?: FibonacciLevels | null;
 }
 
 /**
@@ -82,6 +83,7 @@ export function useTradingViewChart(containerRef: React.RefObject<HTMLDivElement
   const rsiPriceLinesRef = useRef<IPriceLine[]>([]);
   const cupMarkersRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
   const breakoutLineRef = useRef<IPriceLine | null>(null);
+  const fibLinesRef = useRef<IPriceLine[]>([]);
   const barsRef = useRef<OHLCBar[]>([]);
   const optionsRef = useRef(options);
   optionsRef.current = options;
@@ -208,6 +210,32 @@ export function useTradingViewChart(containerRef: React.RefObject<HTMLDivElement
       setRsiLatest(null);
     }
     showLatestReadout();
+  };
+
+  // Fibonacci retracement (2026-11-23): horizontal levels between the swing low and high, 78.6% emphasised -
+  // drawn when a page passes `fibonacci` (Value Buy's Monthly RSI support list).
+  const applyFibonacci = (): void => {
+    const series = candleSeriesRef.current;
+    if (!series) return;
+    for (const line of fibLinesRef.current) {
+      try { series.removePriceLine(line); } catch { /* series already disposed */ }
+    }
+    fibLinesRef.current = [];
+    const fib = optionsRef.current.fibonacci;
+    if (!fib || !(fib.high > fib.low)) return;
+    const colors = getChartThemeColors();
+    const levels: [number, string][] = [[0, "0"], [0.236, "23.6%"], [0.382, "38.2%"], [0.5, "50%"], [0.618, "61.8%"], [0.786, "78.6%"], [1, "100%"]];
+    for (const [f, label] of levels) {
+      const key = f === 0.786;
+      fibLinesRef.current.push(series.createPriceLine({
+        price: fib.high - f * (fib.high - fib.low),
+        color: key ? colors.warning : colors.muted,
+        lineWidth: key ? 2 : 1,
+        lineStyle: key ? 0 : 2,
+        axisLabelVisible: key || f === 0 || f === 1,
+        title: `Fib ${label}`,
+      }));
+    }
   };
 
   // Cup structure overlay — draws exactly the points the backend detector
@@ -358,14 +386,21 @@ export function useTradingViewChart(containerRef: React.RefObject<HTMLDivElement
       rsiPriceLinesRef.current = [];
       cupMarkersRef.current = null;
       breakoutLineRef.current = null;
+      fibLinesRef.current = [];
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     applyCupStructure();
+    applyFibonacci();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [options.cupStructure]);
+
+  useEffect(() => {
+    applyFibonacci();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [options.fibonacci]);
 
   // The x-axis date labels: `timeVisible: true` (needed for intraday, so
   // ticks show a time-of-day) was being applied to every timeframe,
@@ -535,6 +570,7 @@ export function useTradingViewChart(containerRef: React.RefObject<HTMLDivElement
     if (fit) chartRef.current?.timeScale().fitContent();
     recalcIndicators();
     applyCupStructure();
+    applyFibonacci();
   };
 
   const fitContent = (): void => {

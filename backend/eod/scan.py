@@ -119,13 +119,18 @@ def run(store: dict[str, pd.DataFrame], strong_map: dict[str, str] | None = None
             if result is not None:
                 sig = evaluate_value_buy(result, tail, vb_config)
                 rsi_now = monthly_rsi_now(df)
-                if rsi_now is not None and vb_config.monthly_rsi_support_min <= rsi_now <= vb_config.monthly_rsi_support_max:
+                last_month = df[df.index >= df.index[-1].to_period("M").to_timestamp()]
+                month_open = float(last_month["open"].iloc[0])
+                month_green = float(last_month["close"].iloc[-1]) > month_open  # this month's candle so far
+                if (rsi_now is not None and vb_config.monthly_rsi_support_min <= rsi_now <= vb_config.monthly_rsi_support_max
+                        and month_green):
                     ret = daily_retracement(df)
                     support.append({
                         "symbol": sym, "company_name": universe_loader.company_name_for(sym) or sym,
                         "price": round(float(result.current_price), 2), "daily_rsi": result.daily.rsi,
                         "weekly_rsi": result.weekly.rsi, "monthly_rsi": round(rsi_now, 2),
                         "monthly_rsi_last_close": result.monthly.rsi,
+                        "month_open": round(month_open, 2), "month_change_pct": round((float(last_month["close"].iloc[-1]) / month_open - 1) * 100, 2),
                         "conditions": sig.conditions, "value_buy": bool(sig.qualifies), "retracement": ret,
                     })
                 if sig.qualifies:
