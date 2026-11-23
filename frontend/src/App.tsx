@@ -14,7 +14,6 @@ const PAGE_KEY: Record<string, string> = {
 };
 import { BottomNav } from "./components/BottomNav";
 import { Header } from "./components/Header";
-import { LogsPanel } from "./components/LogsPanel";
 import { Sidebar } from "./components/Sidebar";
 import { Dashboard } from "./pages/Dashboard";
 import { GFSUniversePage } from "./pages/GFSUniversePage";
@@ -40,7 +39,6 @@ import { startAutoConnect } from "./services/angeloneAutoConnect";
 import { useAutoUpdate } from "./hooks/useAutoUpdate";
 
 export default function App() {
-  const [logsOpen, setLogsOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const chart = useChart();
 
@@ -89,8 +87,6 @@ export default function App() {
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <div className="app-main">
         <Header
-          onToggleLogs={() => setLogsOpen((v) => !v)}
-          logsOpen={logsOpen}
           onToggleSidebar={() => setSidebarOpen((v) => !v)}
         />
         <main className="app-content">
@@ -128,7 +124,6 @@ export default function App() {
           </Routes>
         </main>
       </div>
-      <LogsPanel open={logsOpen} onClose={() => setLogsOpen(false)} />
       <ChartDrawer state={chart.state} onToggleMaximize={chart.toggleMaximize} onClose={chart.closeChart} />
       <ActiveScansPanel />
       <BottomNav />

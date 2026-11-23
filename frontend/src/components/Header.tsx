@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { useScan } from "../context/ScanContext";
-import { BellIcon, ListIcon, MenuIcon, MoonIcon, SunIcon, UserIcon } from "./icons";
+import { MenuIcon, MoonIcon, SunIcon } from "./icons";
 import { ensureAngelOneConnected, getConnectionState, onConnectionChange } from "../services/angeloneAutoConnect";
 import { navTrail } from "./Sidebar";
 
@@ -50,15 +50,7 @@ function useTheme() {
   return { theme, toggle: () => setTheme((t) => (t === "light" ? "dark" : "light")) };
 }
 
-export function Header({
-  onToggleLogs,
-  logsOpen,
-  onToggleSidebar,
-}: {
-  onToggleLogs: () => void;
-  logsOpen: boolean;
-  onToggleSidebar: () => void;
-}) {
+export function Header({ onToggleSidebar }: { onToggleSidebar: () => void }) {
   const [ist, setIst] = useState(getIstNow());
   const { theme, toggle } = useTheme();
   const { scanning } = useScan();
@@ -116,26 +108,12 @@ export function Header({
           <span className="time">{timeLabel} (IST)</span>
         </div>
         <button
-          className={logsOpen ? "icon-button active header-desktop-only" : "icon-button header-desktop-only"}
-          onClick={onToggleLogs}
-          title="Live logs"
-          aria-label="Toggle live logs panel"
-        >
-          <ListIcon width={16} height={16} />
-        </button>
-        <button
           className="icon-button header-desktop-only"
           onClick={toggle}
           title="Toggle theme"
           aria-label="Toggle theme"
         >
           {theme === "light" ? <MoonIcon width={16} height={16} /> : <SunIcon width={16} height={16} />}
-        </button>
-        <button className="icon-button header-desktop-only" title="Notifications" aria-label="Notifications">
-          <BellIcon width={16} height={16} />
-        </button>
-        <button className="icon-button header-desktop-only" title="Account" aria-label="Account">
-          <UserIcon width={16} height={16} />
         </button>
       </div>
     </header>

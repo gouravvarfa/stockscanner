@@ -482,7 +482,6 @@ export function Dashboard() {
 
       {latest && (
         <>
-          <TopRankedCandidates refreshKey={latest.finished_at} />
 
           {activeStrategy === "Strategy One" && <BestStockCard stock={latest.best} />}
 
@@ -709,6 +708,8 @@ export function Dashboard() {
               </>
             )}
           </section>
+
+          <TopRankedCandidates refreshKey={latest.finished_at} />
         </>
       )}
 
