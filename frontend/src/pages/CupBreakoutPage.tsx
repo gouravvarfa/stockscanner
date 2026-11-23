@@ -404,7 +404,16 @@ export function CupBreakoutPage() {
                   <tr><td colSpan={18} className="muted small" style={{ padding: 16 }}>No stocks match these filters.</td></tr>
                 ) : (
                   filtered.map((r) => (
-                    <tr key={r.symbol}>
+                    <tr
+                      key={r.symbol}
+                      className="wk-click"
+                      title="Open the chart"
+                      onClick={(e) => {
+                        // the whole row opens the chart (2026-11-23); the Chart button keeps working on its own
+                        if ((e.target as HTMLElement).closest("button, a, input")) return;
+                        (e.currentTarget.querySelector("button.cup-chart-btn") as HTMLButtonElement | null)?.click();
+                      }}
+                    >
                       <td className="symbol-cell">
                         <span className="wk-logo"><StockLogo symbol={r.symbol} /></span>
                         <b>{r.symbol}</b>
@@ -433,7 +442,7 @@ export function CupBreakoutPage() {
                       <td>
                         <button
                           type="button"
-                          className="secondary-button"
+                          className="secondary-button cup-chart-btn"
                           onClick={() =>
                             openChart(r.symbol, {
                               strategy: "CUP",
