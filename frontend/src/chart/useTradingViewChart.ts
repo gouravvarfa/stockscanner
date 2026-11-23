@@ -251,8 +251,19 @@ export function useTradingViewChart(containerRef: React.RefObject<HTMLDivElement
         title: `${(f * 100).toFixed(1)}%`,
       });
       ls.setData([{ time: t0 as Time, value: price }, { time: t1 as Time, value: price }]);
-      createSeriesMarkers(ls, [{ time: t0 as Time, position: "inBar", color, shape: "circle", size: 0.1, text: `${(f * 100).toFixed(1)}% (${price.toFixed(2)})` }]);
       fibSeriesRef.current.push(ls);
+    }
+    // the 61.8%-78.6% buy zone as a soft orange band (stacked thick translucent lines between the two levels)
+    const z1 = fib.high - 0.618 * (fib.high - fib.low);
+    const z2 = fib.high - 0.786 * (fib.high - fib.low);
+    const steps = 6;
+    for (let k = 1; k < steps; k++) {
+      const v = z1 + ((z2 - z1) * k) / steps;
+      const band = chart.addSeries(LineSeries, {
+        color: "rgba(234, 88, 12, 0.10)", lineWidth: 4, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
+      });
+      band.setData([{ time: t0 as Time, value: v }, { time: t1 as Time, value: v }]);
+      fibSeriesRef.current.push(band);
     }
     // green arrows under the 3-5 Drive lows
     const arrows: SeriesMarker<Time>[] = [];
@@ -264,9 +275,9 @@ export function useTradingViewChart(containerRef: React.RefObject<HTMLDivElement
     driveMarkersRef.current.setMarkers(arrows);
     // zoom to the last ~6 months so the swing and its levels are easy to see
     const n = bars.length;
-    if (n > 130) {
-      try { chart.timeScale().setVisibleLogicalRange({ from: n - 130, to: n + 4 }); } catch { /* chart not ready */ }
-    }
+    const startIdx = bars.findIndex((b) => b.time >= t0);
+    const from = Math.max(0, Math.min(n - 40, (startIdx < 0 ? n - 60 : startIdx) - 25));
+    try { chart.timeScale().setVisibleLogicalRange({ from, to: n + 3 }); } catch { /* chart not ready */ }
   };
 
   // Cup structure overlay — draws exactly the points the backend detector
