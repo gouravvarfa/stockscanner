@@ -243,6 +243,11 @@ export function useTradingViewChart(containerRef: React.RefObject<HTMLDivElement
         title: label,
       }));
     }
+    // zoom to the last ~6 months so the swing and its levels are easy to see
+    const n = barsRef.current.length;
+    if (n > 130) {
+      try { chartRef.current?.timeScale().setVisibleLogicalRange({ from: n - 130, to: n + 4 }); } catch { /* chart not ready */ }
+    }
   };
 
   // Cup structure overlay — draws exactly the points the backend detector
