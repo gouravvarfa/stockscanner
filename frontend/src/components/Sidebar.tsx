@@ -24,12 +24,12 @@ type NavItem = { to: string; label: string; end?: boolean; icon: typeof Dashboar
 // the rest, Settings last. `tone`: each item's
 // own colour for its icon tile and its active tint (see design.css).
 export const NAV_ITEMS: NavItem[] = [
-  { to: "/", label: "Dashboard", end: true, icon: DashboardIcon, tone: "#2563eb" },
-  { to: "/strategies", label: "Backtesting", icon: TargetIcon, tone: "#9333ea" },
-  { to: "/cup-breakout", label: "Cup Breakout", icon: SectorIcon, tone: "#7c3aed" },
+  { to: "/", label: "Setup Scanner", end: true, icon: DashboardIcon, tone: "#2563eb" },
+  { to: "/strategies", label: "Backtesting", icon: TargetIcon, tone: "#0f766e" },
+  { to: "/cup-breakout", label: "Cup Breakout", icon: SectorIcon, tone: "#ca8a04" },
   { to: "/value-buy", label: "Value Buy", icon: ValueTagIcon, tone: "#0d9488" },
   { to: "/weekly-sectors", label: "Weekly Sectors", icon: TrendIcon, tone: "#16a34a" },
-  { to: "/heatmap", label: "Heatmap", icon: HeatmapIcon, tone: "#e11d48" },
+  { to: "/heatmap", label: "Heatmap", icon: HeatmapIcon, tone: "#65a30d" },
   { to: "/range-analysis", label: "Range Analysis", icon: ChartBarIcon, tone: "#0891b2" },
   { to: "/top-bottom", label: "Top Bottom Backtesting", icon: TrendIcon, tone: "#ea580c" },
   { to: "/breakout-15", label: "15-Min Breakout", icon: TrendIcon, tone: "#0284c7" },

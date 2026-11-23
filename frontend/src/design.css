@@ -1753,9 +1753,9 @@ h1, .page-header h1, .app-content > h1, .app-content > div > h1:first-child { fo
 
 
 /* Page heroes for Dashboard, Top Bottom, Cup Breakout, Range Analysis (2026-11-23) */
-:root { --dash: #2563eb; --dash-2: #0891b2; --topb: #ea580c; --topb-2: #2563eb; --cup: #7c3aed; --cup-2: #16a34a; --rng: #0891b2; --rng-2: #ea580c; }
-:root[data-theme="dark"] { --dash: #60a5fa; --dash-2: #22d3ee; --topb: #fb923c; --topb-2: #60a5fa; --cup: #a78bfa; --cup-2: #4ade80; --rng: #22d3ee; --rng-2: #fb923c; }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --dash: #60a5fa; --dash-2: #22d3ee; --topb: #fb923c; --topb-2: #60a5fa; --cup: #a78bfa; --cup-2: #4ade80; --rng: #22d3ee; --rng-2: #fb923c; } }
+:root { --dash: #2563eb; --dash-2: #0891b2; --topb: #ea580c; --topb-2: #2563eb; --cup: #ca8a04; --cup-2: #2563eb; --rng: #0891b2; --rng-2: #ea580c; }
+:root[data-theme="dark"] { --dash: #60a5fa; --dash-2: #22d3ee; --topb: #fb923c; --topb-2: #60a5fa; --cup: #facc15; --cup-2: #60a5fa; --rng: #22d3ee; --rng-2: #fb923c; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --dash: #60a5fa; --dash-2: #22d3ee; --topb: #fb923c; --topb-2: #60a5fa; --cup: #facc15; --cup-2: #60a5fa; --rng: #22d3ee; --rng-2: #fb923c; } }
 .hero-dash { --tone: var(--dash); --tone-2: var(--dash-2); }
 .hero-topbottom { --tone: var(--topb); --tone-2: var(--topb-2); }
 .hero-cup { --tone: var(--cup); --tone-2: var(--cup-2); }
@@ -1772,9 +1772,9 @@ h1, .page-header h1, .app-content > h1, .app-content > div > h1:first-child { fo
 .hero-actions .secondary-button { margin-left: 0 !important; }
 
 /* Backtesting hero + inline logos (2026-11-23) */
-:root { --bt: #7c3aed; --bt-2: #16a34a; }
-:root[data-theme="dark"] { --bt: #a78bfa; --bt-2: #4ade80; }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bt: #a78bfa; --bt-2: #4ade80; } }
+:root { --bt: #0f766e; --bt-2: #2563eb; }
+:root[data-theme="dark"] { --bt: #2dd4bf; --bt-2: #60a5fa; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bt: #2dd4bf; --bt-2: #60a5fa; } }
 .hero-backtest { --tone: var(--bt); --tone-2: var(--bt-2); }
 .motif-svg .m-area { fill: color-mix(in srgb, var(--tone) 12%, transparent); stroke: none; }
 .logo-line { display: inline-flex; align-items: center; gap: 8px; }

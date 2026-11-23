@@ -313,7 +313,7 @@ export function Dashboard() {
       <PageHero
         tone="dash"
         eyebrow="Today · strong sectors only"
-        title="Dashboard"
+        title="Setup Scanner"
         subtitle="Setups in the stocks of today's strong sectors — sectors whose index RSI is above 60 on the daily, weekly and monthly charts."
         motif={<DashboardMotif />}
       >

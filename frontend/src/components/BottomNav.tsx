@@ -7,7 +7,7 @@ import { DashboardIcon, HistoryIcon, SettingsIcon, TargetIcon } from "./icons";
 // Backtesting, the raw Stock Scanner list) stays reachable through the
 // hamburger menu / sidebar, not crowded into the bottom bar.
 const BOTTOM_NAV_ITEMS = [
-  { to: "/", label: "Dashboard", end: true, icon: DashboardIcon },
+  { to: "/", label: "Scanner", end: true, icon: DashboardIcon },
   { to: "/strategies", label: "Backtesting", icon: TargetIcon },
   { to: "/history", label: "Scan History", icon: HistoryIcon },
   { to: "/settings", label: "Settings", icon: SettingsIcon },
