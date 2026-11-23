@@ -121,8 +121,8 @@ def _http() -> httpx.AsyncClient:
 # being refused for a while). Measured after a 60 s rest: ~1.5/s gets no 403s. So requests start at least
 # CANDLE_GAP_S apart (~1.7 per second in total, whatever runs at the same time - the old speed), and a 403 pushes
 # every caller back a little so the burst can clear.
-CANDLE_GAP_S = 0.6
-RATE_LIMIT_BACKOFF_S = 1.0
+CANDLE_GAP_S = 0.7
+RATE_LIMIT_BACKOFF_S = 3.0
 _next_slot = 0.0
 
 

@@ -74,13 +74,16 @@ async def test_invalidated_session_triggers_one_relogin_and_recovers(monkeypatch
 
     monkeypatch.setattr(angelone_provider_module, "login", fake_login)
     monkeypatch.setattr(angelone_provider_module, "get_candle_data", fake_get_candle_data)
+    monkeypatch.setattr(angelone_provider_module, "RATE_LIMIT_PAUSE_S", 0)
 
     provider = AngelOneProvider()
     df = await provider.get_intraday_ohlc("NSE", "3045", "ONE_DAY", days_back=5)
 
     assert not df.empty
     assert login_calls["count"] == 2  # initial login + exactly one forced re-login
-    assert candle_attempts == ["jwt-login-1", "jwt-login-2"]
+    # a 403 first gets one pause-and-retry on the SAME session (it is usually just the rate limit); only when that
+    # fails too is the session treated as dead and replaced (2026-11-23)
+    assert candle_attempts == ["jwt-login-1", "jwt-login-1", "jwt-login-2"]
 
 
 async def test_failure_after_relogin_still_surfaces_the_real_error(monkeypatch):

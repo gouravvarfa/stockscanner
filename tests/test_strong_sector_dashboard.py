@@ -150,7 +150,7 @@ def test_an_old_whole_a_group_result_is_never_served_from_the_cache(client, monk
     assert client.post("/api/scan/start", json={"scan_type": "a_group"}).json()["status"] == "cached"
 
 
-def test_value_buy_job_runs_value_buy_over_the_whole_a_group(client, monkeypatch):
+def test_value_buy_job_runs_over_every_nse_stock_with_the_strong_sector_map(client, monkeypatch):
     seen = {}
 
     async def fake_scan(provider, config, **kw):
@@ -160,12 +160,22 @@ def test_value_buy_job_runs_value_buy_over_the_whole_a_group(client, monkeypatch
     monkeypatch.setattr(scan_jobs_module, "run_full_scan", fake_scan)
     monkeypatch.setattr(scan_jobs_module, "get_angelone_provider", lambda: FakeAngelOneProvider())
     monkeypatch.setattr(scan_jobs_module, "load_a_group_universe", lambda: ["AAA", "BBB", "CCC"])
+    # Value Buy now runs over every NSE equity and carries today's strong-sector map (2026-11-23)
+    from backend.services import universe_loader
+    monkeypatch.setattr(universe_loader, "load_all_nse_universe", lambda: ["AAA", "BBB", "CCC"])
+
+    async def fake_strong(provider, as_of=None):
+        return {"sectors": [{"key": "it", "label": "IT", "rsi": {}, "members": ["BBB"]}], "symbols": ["BBB"]}
+
+    monkeypatch.setattr(scan_jobs_module.sector_strength_service, "strong_sector_universe", fake_strong)
     started = client.post("/api/scan/fresh", json={"scan_type": "value_buy"}).json()
     assert started["job"]["scan_type"] == "value_buy"
     final = _wait(client, started["job"]["job_id"])
     assert final["status"] == "completed" and final["total"] == 3 and final["processed"] == 3
     assert seen["symbols"] == [] and seen["value_buy_symbols"] == ["AAA", "BBB", "CCC"]
-    assert client.get("/api/scan/cache/value_buy").status_code == 200
+    cached = client.get("/api/scan/cache/value_buy")
+    assert cached.status_code == 200
+    assert cached.json()["result"]["strong_symbols"] == {"BBB": "IT"}
 
 
 async def test_a_stock_refused_by_the_rate_limit_is_tried_again(monkeypatch):
