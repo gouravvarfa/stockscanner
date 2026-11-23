@@ -12,6 +12,11 @@ export type Retracement = {
   pct: number; deepest_pct: number; swing_high: number; swing_high_date: string; swing_low: number; swing_low_date: string;
   level_786: number; fib78: boolean;
 };
+export type VbMode = "all" | "drives" | "strong" | "value" | "support";
+export const sectorIs = (r: SupportRow, st: "strong" | "value") => (r.sectors ?? []).some((x) => x.status === st);
+export const inMode = (r: SupportRow, mode: VbMode) =>
+  mode === "drives" ? hasDrives(r) : mode === "strong" ? sectorIs(r, "strong") : mode === "value" ? sectorIs(r, "value") : true;
+
 export type Drives = { count: number; lows: { date: string; price: number }[] };
 const inRange = (d: Drives | null | undefined) => !!d && d.count >= 3 && d.count <= 5;
 export const hasDrives = (r: SupportRow) => inRange(r.drives?.daily) || inRange(r.drives?.weekly);
@@ -23,20 +28,21 @@ export type SupportRow = {
   conditions: Record<string, boolean>; value_buy: boolean; retracement: Retracement | null;
   month_open?: number; month_change_pct?: number;
   drives?: { daily: Drives | null; weekly: Drives | null };
+  sectors?: { key: string; label: string; status: "strong" | "value" }[];
 };
 
 const num = (v: number | null | undefined, d = 1) => (v == null ? "—" : v.toFixed(d));
 const dmy = (iso: string) => new Date(`${iso}T00:00:00`).toLocaleDateString("en-IN", { day: "2-digit", month: "short" });
 
 export function SupportZoneCard({ rows, strongMap, strongOnly, query, mode = "support" }: {
-  rows: SupportRow[]; strongMap: Record<string, string>; strongOnly: boolean; query: string; mode?: "support" | "drives";
+  rows: SupportRow[]; strongMap: Record<string, string>; strongOnly: boolean; query: string; mode?: VbMode;
 }) {
   const { openChart } = useChart();
   // Drives view: the 78% pullback is a bonus, not a requirement (user) - so it starts unticked there
   // Value Buy is the monthly 40 support only (user, 2026-11-23): the daily 78% pullback is an extra tag, not a filter
   const [only78, setOnly78] = useState(false);
   const [onlyBest, setOnlyBest] = useState(false);
-  const base = mode === "drives" ? rows.filter(hasDrives) : rows;
+  const base = rows.filter((r) => inMode(r, mode));
   const list = useMemo(() => {
     const q = query.trim().toUpperCase();
     return base
@@ -52,7 +58,7 @@ export function SupportZoneCard({ rows, strongMap, strongOnly, query, mode = "su
           <input type="checkbox" checked={only78} onChange={(e) => setOnly78(e.target.checked)} />
           Only the 78% pullback <b>{count78}</b>
         </label>
-        {mode === "drives" && (
+        {(
           <label className="sz-only sz-only-best">
             <input type="checkbox" checked={onlyBest} onChange={(e) => setOnlyBest(e.target.checked)} />
             ★ Best only <b>{base.filter((r) => (!strongOnly || strongMap[r.symbol]) && isBest(r)).length}</b>
@@ -72,7 +78,7 @@ export function SupportZoneCard({ rows, strongMap, strongOnly, query, mode = "su
                 <th className="num-cell">Price</th>
                 <th className="num-cell" title="Including this month's candle as of the data date">Monthly RSI (this month)</th>
                 <th className="num-cell">Daily pullback</th>
-                {mode === "drives" && <th>Drives</th>}
+                <th>Drives</th>
                 <th>Swing (low → high)</th>
                 <th>Also</th>
               </tr>
@@ -90,6 +96,9 @@ export function SupportZoneCard({ rows, strongMap, strongOnly, query, mode = "su
                         <span className="wk-logo"><StockLogo symbol={r.symbol} /></span>
                         <span className="dash-two"><b>{r.symbol}</b><small>{r.company_name}</small></span>
                         {strongMap[r.symbol] && <span className="vb-sector">{strongMap[r.symbol]}</span>}
+                        {(r.sectors ?? []).map((sc) => (
+                          <span key={sc.key} className={`vb-sec vb-sec-${sc.status}`}>{sc.label}{sc.status === "strong" ? " · Strong" : " · 40"}</span>
+                        ))}
                         {isBest(r) && <span className="sz-best" title="3-5 daily drives + the 78.6% daily pullback">★ Best</span>}
                       </span>
                     </td>
@@ -109,7 +118,7 @@ export function SupportZoneCard({ rows, strongMap, strongOnly, query, mode = "su
                         </span>
                       ) : "—"}
                     </td>
-                    {mode === "drives" && (
+                    {(
                       <td>
                         <span className="sz-drives">
                           {(["daily", "weekly"] as const).map((tf) => {

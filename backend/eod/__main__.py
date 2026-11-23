@@ -21,10 +21,12 @@ def main() -> None:
     elif cmd == "daily":
         # the evening job: today's file, then the scan, results into the site's public folder
         got = cache.fetch_range(today - dt.timedelta(days=10), today)
+        cache.fetch_index_range(today - dt.timedelta(days=10), today)
         cache.refresh_symbol_changes(ROOT)
         from backend.eod import scan, store
         hist = store.build(ROOT)
-        cup, vb = scan.run(hist)
+        from backend.eod import sectors
+        cup, vb = scan.run(hist, sector_info=sectors.classify(ROOT))
         out = Path(sys.argv[2]) if len(sys.argv) > 2 else Path("frontend/public/eod")
         scan.write(out, cup, vb)
         print(f"daily: {got} new day files; data to {cup['data_as_of']}; {len(cup['results'])} cups, {len(vb['strategies']['Value Buy'])} value buy -> {out}")
@@ -32,7 +34,8 @@ def main() -> None:
     elif cmd == "scan":
         from backend.eod import scan, store
         hist = store.load(ROOT) if (ROOT / "history.pkl").exists() and "--rebuild" not in sys.argv else store.build(ROOT)
-        cup, vb = scan.run(hist)
+        from backend.eod import sectors
+        cup, vb = scan.run(hist, sector_info=sectors.classify(ROOT))
         out = Path(sys.argv[2]) if len(sys.argv) > 2 else ROOT / "out"
         scan.write(out, cup, vb)
         print(f"scan: {cup['stocks_scanned']} stocks, {len(cup['results'])} cups, {len(vb['strategies']['Value Buy'])} value buy -> {out}")

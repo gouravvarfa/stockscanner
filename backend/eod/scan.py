@@ -131,7 +131,8 @@ def _signal_json(sig) -> dict:
     return strategy_signal_out(sig).model_dump(mode="json")
 
 
-def run(store: dict[str, pd.DataFrame], strong_map: dict[str, str] | None = None, strong_sectors: list | None = None) -> tuple[dict, dict]:
+def run(store: dict[str, pd.DataFrame], strong_map: dict[str, str] | None = None, strong_sectors: list | None = None,
+        sector_info: dict | None = None) -> tuple[dict, dict]:
     from backend.services.config_store import get_current_config, get_current_multi_strategy_config
 
     config = get_current_config()
@@ -170,12 +171,14 @@ def run(store: dict[str, pd.DataFrame], strong_map: dict[str, str] | None = None
                 last_month = df[df.index >= df.index[-1].to_period("M").to_timestamp()]
                 month_open = float(last_month["open"].iloc[0])
                 month_green = float(last_month["close"].iloc[-1]) > month_open  # this month's candle so far
+                sector_tags = (sector_info or {}).get("members", {}).get(sym) if sector_info is not None else None
                 if (rsi_now is not None and vb_config.monthly_rsi_support_min <= rsi_now <= vb_config.monthly_rsi_support_max
-                        and month_green):
+                        and month_green and (sector_info is None or sector_tags)):
                     ret = daily_retracement(df)
                     weekly_bars = df.resample("W-FRI").agg({"open": "first", "high": "max", "low": "min", "close": "last"}).dropna()
                     drives = {"daily": falling_drives(df.iloc[-400:], 3, 30, 5), "weekly": falling_drives(weekly_bars.iloc[-200:], 2, 10, 3)}
                     support.append({
+                        "sectors": sector_tags or [],
                         "drives": drives,
                         "symbol": sym, "company_name": universe_loader.company_name_for(sym) or sym,
                         "price": round(float(result.current_price), 2), "daily_rsi": result.daily.rsi,
@@ -198,7 +201,8 @@ def run(store: dict[str, pd.DataFrame], strong_map: dict[str, str] | None = None
                    "results": cup_results}
     vb_payload = {**common, "started_at": started.isoformat(), "finished_at": finished.isoformat(),
                   "stocks_scanned": scanned, "stocks_failed": len([f for f in failed if f["error"].startswith("value_buy")]),
-                  "strategies": {"Value Buy": vb_signals}, "support_zone": support, "strong_symbols": strong_map or {}, "strong_sectors": strong_sectors or []}
+                  "strategies": {"Value Buy": vb_signals}, "support_zone": support, "strong_symbols": strong_map or {}, "strong_sectors": strong_sectors or [],
+                  "sector_status": (sector_info or {}).get("sectors", [])}
     logger.info("EOD scan: %d stocks, %d cups, %d value buy, %d failed", scanned, len(cup_results), len(vb_signals), len(failed))
     return cup_payload, vb_payload
 

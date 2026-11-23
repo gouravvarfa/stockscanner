@@ -135,5 +135,41 @@ class BhavcopyCache:
         except httpx.HTTPError as exc:
             logger.warning("symbol changes: %s", exc)
 
+    # ---- NSE index closes (2026-11-23): one file a day with every NSE index (sector strength from end-of-day data)
+    def index_path(self, day: dt.date) -> Path:
+        return self.raw.parent / "raw_idx" / f"{day:%Y}" / f"{day:%Y%m%d}.csv"
+
+    def fetch_index(self, day: dt.date, pause: float = 0.3) -> bool:
+        out = self.index_path(day)
+        if out.exists():
+            return True
+        if day.weekday() >= 5 or (day.isoformat() in self.missing):
+            return False
+        url = f"{BASE}/content/indices/ind_close_all_{day:%d%m%Y}.csv"
+        for attempt in range(3):
+            try:
+                resp = self.client.get(url)
+            except httpx.HTTPError:
+                time.sleep(2 + attempt * 3)
+                continue
+            time.sleep(pause)
+            if resp.status_code == 404:
+                return False
+            if resp.status_code != 200 or b"Index Name" not in resp.content[:200]:
+                time.sleep(3)
+                continue
+            out.parent.mkdir(parents=True, exist_ok=True)
+            out.write_bytes(resp.content)
+            return True
+        return False
+
+    def fetch_index_range(self, start: dt.date, end: dt.date) -> int:
+        got, day = 0, start
+        while day <= end:
+            if day.weekday() < 5 and not self.index_path(day).exists() and self.fetch_index(day):
+                got += 1
+            day += dt.timedelta(days=1)
+        return got
+
     def days(self) -> list[dt.date]:
         return sorted(dt.datetime.strptime(p.stem, "%Y%m%d").date() for p in self.raw.glob("*/*.csv"))

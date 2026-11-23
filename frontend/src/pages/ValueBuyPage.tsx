@@ -7,13 +7,14 @@ import { useScanJob } from "../hooks/useScanJob";
 import { newerOf, useEodResult } from "../hooks/useEodResult";
 import type { ScanResult, StrategySignal } from "../services/api";
 import { StockLogo } from "../components/StockLogo";
-import { SupportZoneCard, hasDrives, type SupportRow } from "./valueBuy/SupportZoneCard";
+import { SupportZoneCard, inMode, type SupportRow, type VbMode } from "./valueBuy/SupportZoneCard";
 
 /** The Value Buy result also carries today's STRONG sectors and their stocks (2026-11-23). */
 type ValueBuyResult = ScanResult & {
   strong_sectors?: { key: string; label: string }[];
   strong_symbols?: Record<string, string>;
   support_zone?: SupportRow[];
+  sector_status?: { key: string; label: string; rsi: { d: number | null; w: number | null; m: number | null }; status: "strong" | "value" | null }[];
 };
 const STRONG_KEY = "value-buy:strong-only";
 
@@ -64,7 +65,7 @@ export function ValueBuyPage() {
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("monthly_rsi");
   const [asc, setAsc] = useState(true);
-  const [view, setView] = useState<"vb" | "support" | "drives">("support");
+  const [view, setView] = useState<VbMode | "vb">("all");
 
   const allSignals = useMemo(() => vb?.strategies?.["Value Buy"] ?? [], [vb]);
   const strongCount = useMemo(() => allSignals.filter((s) => strongMap[s.symbol]).length, [allSignals, strongMap]);
@@ -115,7 +116,7 @@ export function ValueBuyPage() {
         <div>
           <h1>Value Buy</h1>
           <p className="page-subtitle">
-            Every NSE stock at the monthly RSI 40 support (38–45, this month&apos;s candle) with this month&apos;s candle green. Daily drives and the 78% pullback are shown as extra tags.
+            Stocks at the monthly RSI 40 support (38–45, this month&apos;s candle, green) from your sectors that are Strong or themselves at the 40 support, with 3–5 drives. The 78% pullback and ★ Best are tags.
           </p>
         </div>
         <div style={{ display: "flex", gap: 10 }}>
@@ -221,16 +222,56 @@ export function ValueBuyPage() {
             )}
           </div>
 
+          {vb.sector_status && vb.sector_status.length > 0 && (
+            <section className="card vbs-panel">
+              <div className="dash-card-head">
+                <div>
+                  <h2>Your sectors today</h2>
+                  <p className="muted small">Value Buy takes stocks only from sectors that are Strong (daily, weekly and monthly RSI above 60) or themselves at the monthly 40 support.</p>
+                </div>
+              </div>
+              <div className="vbs-groups">
+                {(["strong", "value"] as const).map((st) => {
+                  const list = vb.sector_status!.filter((x) => x.status === st);
+                  return (
+                    <div key={st} className={`vbs-group vbs-${st}`}>
+                      <div className="vbs-group-head">
+                        <span className="vbs-dot" />
+                        <b>{st === "strong" ? "Strong sectors" : "Sectors at the 40 support"}</b>
+                        <span className="vbs-count">{list.length}</span>
+                      </div>
+                      {list.length === 0 ? (
+                        <p className="muted small vbs-empty">{st === "strong" ? "No sector is strong today." : "No sector is at its monthly 40 support today."}</p>
+                      ) : (
+                        <div className="vbs-cards">
+                          {list.map((x) => (
+                            <div key={x.key} className="vbs-card">
+                              <span className="vbs-name">{x.label}</span>
+                              <span className="vbs-rsi">
+                                {(["d", "w", "m"] as const).map((k) => (
+                                  <span key={k}><small>{k.toUpperCase()}</small>{x.rsi[k] ?? "—"}</span>
+                                ))}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
           <div className="card">
             <div className="vb-toolbar">
               {vb.support_zone ? (
                 <div className="vb-seg vb-view" role="tablist" aria-label="List">
-                  <button type="button" role="tab" aria-selected={view === "support"} className={view === "support" ? "active" : ""} onClick={() => setView("support")}>
-                    Monthly RSI 40 support <b>{vb.support_zone.length}</b>
-                  </button>
-                  <button type="button" role="tab" aria-selected={view === "drives"} className={view === "drives" ? "active" : ""} onClick={() => setView("drives")}>
-                    Drives (3–5) <b>{vb.support_zone.filter(hasDrives).length}</b>
-                  </button>
+                  {([["all", "All"], ["drives", "3–5 Drive"], ["strong", "Strong sector"], ["value", "Sector at 40"]] as const).map(([k, label]) => (
+                    <button key={k} type="button" role="tab" aria-selected={view === k} className={view === k ? "active" : ""} onClick={() => setView(k)}>
+                      {label} <b>{vb.support_zone!.filter((r) => inMode(r, k)).length}</b>
+                    </button>
+                  ))}
                 </div>
               ) : (
                 <h2 style={{ margin: 0 }}>Value Buy stocks</h2>
@@ -253,7 +294,7 @@ export function ValueBuyPage() {
                 aria-label="Search a stock"
               />
             </div>
-            {(view === "support" || view === "drives") && vb.support_zone ? (
+            {view !== "vb" && vb.support_zone ? (
               <SupportZoneCard key={view} mode={view} rows={vb.support_zone} strongMap={strongMap} strongOnly={strongOnly && hasStrongInfo} query={query} />
             ) : rows.length === 0 ? (
               <p className="muted" style={{ marginBottom: 0 }}>
