@@ -1,5 +1,5 @@
 import type React from "react";
-import { SectorIcon } from "../components/SectorIcon";
+import { SectorLogo } from "../components/SectorIcon";
 import { useEffect, useRef, useState } from "react";
 import { useChart } from "../chart/ChartContext";
 import { TrendIcon } from "../components/icons";
@@ -433,7 +433,7 @@ export function WeeklySectorsPage() {
                     onKeyDown={(e) => { if (canChart && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); openSectorChart(s); } }}
                   >
                     <div className="ws-head">
-                      <span className="ws-icon"><SectorIcon sectorKey={s.key} /></span>
+                      <SectorLogo sectorKey={s.key} />
                       <div className="ws-title">
                         <b>{s.label}</b>
                         <small>{s.equal_weight ? "equal-weight of its stocks" : s.index_label}</small>

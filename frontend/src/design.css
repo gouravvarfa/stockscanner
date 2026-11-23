@@ -2211,3 +2211,5 @@ h1, .page-header h1, .app-content > h1, .app-content > div > h1:first-child { fo
 .ws-bar i.wk-down { background: var(--danger); }
 .ws-bar i.wk-amber { background: #f59e0b; }
 .ws-bar em { position: absolute; top: -1px; bottom: -1px; left: 60%; width: 1.5px; background: var(--text-muted); opacity: .55; }
+.sector-logo { flex: none; display: grid; place-items: center; border-radius: 10px; color: #fff;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.25), 0 2px 6px -2px rgba(15, 23, 42, .35); }

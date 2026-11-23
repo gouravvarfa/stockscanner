@@ -26,6 +26,27 @@ const PATHS: Record<string, string> = {
   consumer_durables: "M5 3h14v18H5zM5 8h14M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z",
 };
 
+/** Each sector's own colours (2026-11-23, user: colourful like the stock logos) - a gradient tile with a white icon. */
+export const SECTOR_COLORS: Record<string, [string, string]> = {
+  bank: ["#2563eb", "#1e40af"], psu_bank: ["#1d4ed8", "#172554"], pvt_bank: ["#0284c7", "#075985"],
+  fin_service: ["#0d9488", "#115e59"], capital_markets: ["#4f46e5", "#3730a3"], pharma: ["#10b981", "#047857"],
+  healthcare: ["#f43f5e", "#be123c"], realty: ["#b45309", "#78350f"], infra: ["#f97316", "#c2410c"],
+  auto: ["#ef4444", "#991b1b"], fmcg: ["#22c55e", "#15803d"], metal: ["#64748b", "#334155"],
+  energy: ["#f59e0b", "#d97706"], oil_gas: ["#0f172a", "#334155"], it: ["#8b5cf6", "#6d28d9"],
+  media: ["#ec4899", "#be185d"], pse: ["#ea580c", "#9a3412"], cpse: ["#dc2626", "#7f1d1d"],
+  defence: ["#4d7c0f", "#365314"], chemicals: ["#06b6d4", "#0e7490"], consumer_durables: ["#a855f7", "#7e22ce"],
+};
+
+/** The coloured tile with the sector's icon. */
+export function SectorLogo({ sectorKey, size = 34 }: { sectorKey: string; size?: number }) {
+  const [a, b] = SECTOR_COLORS[sectorKey] ?? ["#64748b", "#334155"];
+  return (
+    <span className="sector-logo" style={{ width: size, height: size, background: `linear-gradient(135deg, ${a}, ${b})` }}>
+      <SectorIcon sectorKey={sectorKey} size={Math.round(size * 0.55)} />
+    </span>
+  );
+}
+
 export function SectorIcon({ sectorKey, size = 18 }: { sectorKey: string; size?: number }) {
   const d = PATHS[sectorKey] ?? "M4 20V10M10 20V4M16 20v-7M22 20H2";
   return (
