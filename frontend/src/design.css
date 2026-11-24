@@ -2282,3 +2282,14 @@ h1, .page-header h1, .app-content > h1, .app-content > div > h1:first-child { fo
   .app-content .hero-motif { display: none; }
   .app-content :is(.page-hero, .hero) { overflow: hidden; }
 }
+
+/* Phone (2026-11-24): GFS / Advanced GFS / System One headers - back links, title and text stacked, not squeezed side by side. */
+@media (max-width: 640px) {
+  .app-content .page-header { display: block !important; }
+  .app-content .page-header > * { width: 100%; min-width: 0; max-width: 100%; }
+  .app-content .page-header > div:has(> h1) { display: block !important; }
+  .app-content .page-header > div > div:first-child { align-items: center; margin-bottom: 8px; }
+  .app-content .page-header .so-back-link { height: auto; min-height: 34px; align-self: center; flex: none; }
+  .app-content .page-header h1 { margin: 6px 0 4px; }
+  .app-content .page-header .rules-details { margin-top: 10px; }
+}
