@@ -2264,7 +2264,8 @@ h1, .page-header h1, .app-content > h1, .app-content > div > h1:first-child { fo
   .run-row > .tb-config-grid { min-width: 0 !important; flex-basis: 100% !important; grid-template-columns: 1fr !important; }
   .run-row > .tb-actions { width: 100%; }
   .run-row > .tb-actions { flex-direction: column; align-items: stretch; }
-  .run-row > .tb-actions > * { width: 100%; text-align: left; }
+  .run-row > .tb-actions > * { width: 100%; text-align: center; justify-content: center; }
+  .run-row > .tb-actions > .tb-config-hint { text-align: left; }
   .run-row > .tb-actions .tb-btn { justify-content: center; text-align: center; }
   .rm-seg { width: 100%; display: flex; }
   .rm-seg button { flex: 1 1 0; min-width: 0; white-space: nowrap; }
@@ -2274,4 +2275,10 @@ h1, .page-header h1, .app-content > h1, .app-content > div > h1:first-child { fo
   .app-content .card.filters-row.filter-panel > label :is(select, input) { width: 100%; min-width: 0; }
   .app-content .card.filters-row.filter-panel > :is(button, .secondary-button) { grid-column: 1 / -1; width: 100%; justify-content: center; text-align: center; }
   .app-content .card.filters-row.filter-panel > span { grid-column: 1 / -1; }
+}
+
+/* Phone (2026-11-24): the hero's side drawing spilled past the card and over the text - hide it on small screens. */
+@media (max-width: 640px) {
+  .app-content .hero-motif { display: none; }
+  .app-content :is(.page-hero, .hero) { overflow: hidden; }
 }
