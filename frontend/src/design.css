@@ -2254,3 +2254,24 @@ h1, .page-header h1, .app-content > h1, .app-content > div > h1:first-child { fo
 .ds-title { display: flex; flex-direction: column; min-width: 0; flex: 1; }
 .ds-title small { font-size: 10.5px; color: var(--text-muted); letter-spacing: .02em; }
 .ds-card.wk-click:hover { border-color: color-mix(in srgb, var(--pt, var(--accent)) 45%, var(--border)); transform: none; box-shadow: none; }
+
+/* Phone layout (2026-11-24): Cup KPIs in 2 columns, Range/15-Min forms full width, no clipped fields. */
+@media (max-width: 640px) {
+  .app-content .cup-kpis { grid-template-columns: 1fr 1fr !important; gap: 10px !important; }
+  .app-content .cup-kpis .card { min-width: 0; padding: 12px; margin: 0; }
+  .app-content .cup-kpis .card * { overflow-wrap: anywhere; }
+  .app-content .tabs { width: auto; }
+  .run-row > .tb-config-grid { min-width: 0 !important; flex-basis: 100% !important; grid-template-columns: 1fr !important; }
+  .run-row > .tb-actions { width: 100%; }
+  .run-row > .tb-actions { flex-direction: column; align-items: stretch; }
+  .run-row > .tb-actions > * { width: 100%; text-align: left; }
+  .run-row > .tb-actions .tb-btn { justify-content: center; text-align: center; }
+  .rm-seg { width: 100%; display: flex; }
+  .rm-seg button { flex: 1 1 0; min-width: 0; white-space: nowrap; }
+  .tb-search-field, .tb-search-field input { width: 100%; min-width: 0; }
+  .app-content .card.filters-row.filter-panel { display: grid !important; grid-template-columns: 1fr 1fr; gap: 10px !important; align-items: end; justify-items: stretch; }
+  .app-content .card.filters-row.filter-panel > label { width: 100%; min-width: 0; text-align: left; justify-self: stretch; }
+  .app-content .card.filters-row.filter-panel > label :is(select, input) { width: 100%; min-width: 0; }
+  .app-content .card.filters-row.filter-panel > :is(button, .secondary-button) { grid-column: 1 / -1; width: 100%; justify-content: center; text-align: center; }
+  .app-content .card.filters-row.filter-panel > span { grid-column: 1 / -1; }
+}

@@ -350,7 +350,7 @@ export function CupBreakoutPage() {
 
       {allResults.length > 0 && (
         <>
-          <div className="grid-4" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 16 }}>
+          <div className="grid-4 cup-kpis" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 16 }}>
             <TopCard onOpen={openCupChart} title="Closest to Breakout" result={closestToBreakout} metric={(r) => fmtPct(r.distance_to_breakout_percent)} />
             <TopCard onOpen={openCupChart} title="Deepest Cup" result={deepestCup} metric={(r) => fmtPct(r.cup_depth_percent)} />
             <TopCard onOpen={openCupChart} title="Highest Recovery" result={highestRecovery} metric={(r) => fmtPct(r.recovery_percent)} />
