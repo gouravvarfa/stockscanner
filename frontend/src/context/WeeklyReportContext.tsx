@@ -24,6 +24,34 @@ interface WeeklyReportValue {
   error: string | null;
   /** asOf: YYYY-MM-DD, or "" for the latest close. */
   run: (asOf?: string) => Promise<void>;
+  /** Runs the latest report on its own when the one on this device is stale (once per app session). */
+  ensureFresh: () => void;
+}
+
+/** IST wall clock as a Date whose UTC fields are IST. */
+const istNow = (now: Date) => new Date(now.getTime() + 330 * 60_000);
+/** The latest NSE close (15:30 IST on a weekday) at or before now, as a real timestamp. */
+export function lastClose(now = new Date()): Date {
+  const d = istNow(now);
+  for (let i = 0; i < 8; i++) {
+    const day = d.getUTCDay();
+    const close = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 15, 30) - 330 * 60_000;
+    if (day !== 0 && day !== 6 && close <= now.getTime()) return new Date(close);
+    d.setUTCDate(d.getUTCDate() - 1);
+  }
+  return new Date(0);
+}
+/** 2026-11-24 (user: Heatmap and Weekly Sectors update by themselves): a report is stale when it was made before the
+ *  last close, or - while the market is open - when it is over an hour old. */
+export function isStale(generatedAt: string | undefined, now = new Date()): boolean {
+  if (!generatedAt) return true;
+  const made = new Date(generatedAt).getTime();
+  if (!Number.isFinite(made)) return true;
+  if (made < lastClose(now).getTime()) return true;
+  const ist = istNow(now);
+  const mins = ist.getUTCHours() * 60 + ist.getUTCMinutes();
+  const open = ist.getUTCDay() !== 0 && ist.getUTCDay() !== 6 && mins >= 9 * 60 + 15 && mins < 15 * 60 + 30;
+  return open && now.getTime() - made > 60 * 60_000;
 }
 
 const WeeklyReportContext = createContext<WeeklyReportValue | undefined>(undefined);
@@ -98,6 +126,14 @@ export function WeeklyReportProvider({ children }: { children: ReactNode }) {
     [finish, watch],
   );
 
+  const autoTried = useRef(false);
+  const ensureFresh = useCallback(() => {
+    if (autoTried.current || job?.status === "running" || watching.current) return;
+    if (!isStale(report?.generated_at)) return;
+    autoTried.current = true;
+    void run("");
+  }, [job?.status, report?.generated_at, run]);
+
   // A run that was still going when this page was last open (or refreshed): pick it up again.
   useEffect(() => {
     let id: string | null = null;
@@ -117,7 +153,7 @@ export function WeeklyReportProvider({ children }: { children: ReactNode }) {
   }, [watch]);
 
   return (
-    <WeeklyReportContext.Provider value={{ report, job, running: job?.status === "running", error, run }}>
+    <WeeklyReportContext.Provider value={{ report, job, running: job?.status === "running", error, run, ensureFresh }}>
       {children}
     </WeeklyReportContext.Provider>
   );

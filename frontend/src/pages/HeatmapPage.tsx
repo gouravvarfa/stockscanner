@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useChart } from "../chart/ChartContext";
 import { HeatmapIcon } from "../components/icons";
@@ -114,7 +114,9 @@ function WatchBox({ tone: boxTone, title, note, rows, empty, onPick }: {
 
 export function HeatmapPage() {
   // The same report run as Weekly Sectors (app level): it keeps going while another page is open.
-  const { report, job, running, error, run } = useWeeklyReport();
+  const { report, job, running, error, run, ensureFresh } = useWeeklyReport();
+  // opens up to date on its own; Refresh runs it again any time
+  useEffect(() => { const t = setTimeout(ensureFresh, 600); return () => clearTimeout(t); }, [ensureFresh]);
   const [period, setPeriod] = useState<Period>(() =>
     report?.benchmark.r1d !== undefined ? "r1d" : "r1w",
   );
@@ -256,14 +258,14 @@ export function HeatmapPage() {
           onClick={() => void run()}
           disabled={running}
         >
-          {running ? "Running…" : report ? "Refresh" : "Run Report"}
+          {running ? "Updating…" : "↻ Refresh"}
         </button>
         <span className="tb-config-hint" style={{ margin: 0 }}>
           {running
             ? `${job?.phase} · ${job?.done}/${job?.total}`
             : report
               ? `Week ending ${new Date(report.end_date ?? report.as_of).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })} · from the Weekly Sectors report`
-              : "Uses the Weekly Sectors report: press Run Report (a few minutes)."}
+              : "Getting the latest sector data… (a few minutes)"}
         </span>
       </div>
 
@@ -284,7 +286,7 @@ export function HeatmapPage() {
           </div>
           <div className="state-title">No report yet</div>
           <div className="state-subtitle">
-            Press Run Report here, or run it on{" "}
+            It is being fetched now, or run it on{" "}
             <Link to="/weekly-sectors">Weekly Sectors</Link> - both pages share
             it.
           </div>

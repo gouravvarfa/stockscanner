@@ -273,7 +273,9 @@ function StockTable({ rows, withSector, sectorLabel, endDate }: {
 
 export function WeeklySectorsPage() {
   // The run lives at app level (context/WeeklyReportContext): it keeps going while another page is open.
-  const { report, job, running, error: runError, run: runReport } = useWeeklyReport();
+  const { report, job, running, error: runError, run: runReport, ensureFresh } = useWeeklyReport();
+  // opens up to date on its own; Refresh runs it again any time
+  useEffect(() => { const t = setTimeout(ensureFresh, 600); return () => clearTimeout(t); }, [ensureFresh]);
   const [asOf, setAsOf] = useState("");
   const [dlError, setDlError] = useState<string | null>(null);
   const error = runError ?? dlError;
@@ -340,7 +342,7 @@ export function WeeklySectorsPage() {
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 12 }}>
           <button className="primary-button" onClick={() => void run()} disabled={running}>
-            {running ? "Running…" : "Run Report"}
+            {running ? "Updating…" : asOf ? "Run Report" : "↻ Refresh"}
           </button>
           <button className="secondary-button" onClick={() => dl("pdf")} disabled={!report || !!busy}>
             {busy === "pdf" ? "Preparing PDF…" : "Download PDF"}
@@ -353,7 +355,7 @@ export function WeeklySectorsPage() {
               ? `${job?.phase} · ${job?.done}/${job?.total}${job?.current ? ` · ${job.current}` : ""}`
               : report
                 ? `Showing the report for the week ending ${niceDate(report.end_date)} (made ${new Date(report.generated_at).toLocaleString("en-IN")}).`
-                : "Leave the date empty for the latest close, then press Run Report (about 2–4 minutes: every sector and stock)."}
+                : "Getting the latest sector data… (about 2–4 minutes: every sector and stock). Pick a date to see an older week."}
           </span>
         </div>
         {running && (
