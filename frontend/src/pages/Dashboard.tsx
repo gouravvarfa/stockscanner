@@ -10,7 +10,7 @@ import { StockDetailPanel } from "../components/StockDetailPanel";
 import { InstrumentBadge } from "../components/InstrumentBadge";
 import { StockLogo } from "../components/StockLogo";
 import { DashboardMotif, PageHero } from "../components/PageHero";
-import { ChartBarIcon, TrendIcon } from "../components/icons";
+import { ChartBarIcon } from "../components/icons";
 
 // PRD Forming / NRD Forming are their own tabs (placed right after PRD / NRD)
 // but are deliberately NOT among the six strategies in STRATEGY_NAMES, so
@@ -607,7 +607,7 @@ export function Dashboard() {
                           const price = s.extra.current_price as number | undefined;
                           const sector = typeof s.extra.sector === "string" ? s.extra.sector : "";
                           return (
-                            <tr key={pageRowKeys[rowIndex]} onClick={() => setSelected(s)} className="clickable-row">
+                            <tr key={pageRowKeys[rowIndex]} onClick={() => openChart(s.symbol, {                                       strategy: s.strategy,                                       daily_rsi: s.daily_rsi,                                       weekly_rsi: s.weekly_rsi,                                       monthly_rsi: s.monthly_rsi,                                       signal_date: s.signal_date,                                       divergence_timeframe: tfs.length > 0 ? tfs.join(" + ") : null,                                       explanation: s.explanation,                                     })} className="clickable-row" title="Open chart">
                               <td>
                                 <div className="dash-stock">
                                   <span className="wk-logo">
@@ -685,20 +685,11 @@ export function Dashboard() {
                                   className="wk-chart-btn"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    openChart(s.symbol, {
-                                      strategy: s.strategy,
-                                      daily_rsi: s.daily_rsi,
-                                      weekly_rsi: s.weekly_rsi,
-                                      monthly_rsi: s.monthly_rsi,
-                                      signal_date: s.signal_date,
-                                      divergence_timeframe: tfs.length > 0 ? tfs.join(" + ") : null,
-                                      explanation: s.explanation,
-                                    });
+                                    setSelected(s);
                                   }}
-                                  aria-label={`Open the ${s.symbol} chart`}
+                                  aria-label={`${s.symbol} details`}
                                 >
-                                  <TrendIcon width={13} height={13} aria-hidden="true" />
-                                  Chart
+                                  Details
                                 </button>
                               </td>
                             </tr>
