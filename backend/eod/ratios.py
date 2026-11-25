@@ -29,6 +29,13 @@ PRESETS = [
 ]
 
 
+def _weekly(close: pd.Series) -> pd.Series:
+    """The last close of each week, dated on that week's last TRADING day (2026-11-25: a Friday label showed
+    27 Nov on the 25th while the data ended on the 23rd)."""
+    close = close.dropna()
+    return close.groupby(close.index.to_period("W-FRI")).tail(1)
+
+
 def _rows(s: pd.Series) -> list:
     return [[int(ts.timestamp()), float(f"{v:.6g}")] for ts, v in s.items() if pd.notna(v) and v > 0]
 
@@ -40,8 +47,8 @@ def write(out_dir: Path, store: dict[str, pd.DataFrame]) -> int:
     for key, label, a, b, an, bn in PRESETS:
         if a not in store or b not in store:
             continue
-        wa = store[a]["close"].astype(float).resample("W-FRI").last().dropna()
-        wb = store[b]["close"].astype(float).resample("W-FRI").last().dropna()
+        wa = _weekly(store[a]["close"].astype(float))
+        wb = _weekly(store[b]["close"].astype(float))
         presets.append({"key": key, "label": label, "a": a, "b": b, "a_name": an, "b_name": bn, "a_rows": _rows(wa), "b_rows": _rows(wb)})
     (out_dir / "ratios.json").write_text(json.dumps({"data_as_of": last.date().isoformat(), "presets": presets}, separators=(",", ":")), encoding="utf-8")
 
