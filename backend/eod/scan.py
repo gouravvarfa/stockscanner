@@ -303,5 +303,7 @@ def write(out_dir: Path, cup_payload: dict, vb_payload: dict, store: dict[str, p
         if setup_payload is not None:
             syms |= {sig["symbol"] for sigs in setup_payload.get("strategies", {}).values() for sig in sigs}
         write_candles(out_dir, store, syms)
+        from backend.eod import ratios
+        ratios.write(out_dir, store)
     (out_dir / "cup.json").write_text(json.dumps(cup_payload, separators=(",", ":"), default=str), encoding="utf-8")
     (out_dir / "value_buy.json").write_text(json.dumps(vb_payload, separators=(",", ":"), default=str), encoding="utf-8")

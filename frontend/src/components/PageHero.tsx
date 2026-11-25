@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
  * page's own colour (astro / gann / angle) - everything else is the app's normal card, type and theme tokens.
  */
 export function PageHero({ tone, eyebrow, title, subtitle, motif, children }: {
-  tone: "astro" | "gann" | "angle" | "outlook" | "anniv" | "dash" | "topbottom" | "cup" | "range" | "backtest" | "b15";
+  tone: "astro" | "gann" | "angle" | "outlook" | "anniv" | "dash" | "topbottom" | "cup" | "range" | "ratio" | "backtest" | "b15";
   eyebrow: string;
   title: string;
   subtitle: ReactNode;

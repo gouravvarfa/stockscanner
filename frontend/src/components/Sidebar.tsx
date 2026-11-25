@@ -31,6 +31,7 @@ export const NAV_ITEMS: NavItem[] = [
   { to: "/weekly-sectors", label: "Weekly Sectors", icon: TrendIcon, tone: "#16a34a" },
   { to: "/heatmap", label: "Heatmap", icon: HeatmapIcon, tone: "#65a30d" },
   { to: "/range-analysis", label: "Range Analysis", icon: ChartBarIcon, tone: "#0891b2" },
+  { to: "/ratio-charts", label: "Ratio Charts", icon: AngleIcon, tone: "#155e75" },
   { to: "/top-bottom", label: "Top Bottom Backtesting", icon: TrendIcon, tone: "#ea580c" },
   { to: "/breakout-15", label: "15-Min Breakout", icon: TrendIcon, tone: "#0284c7" },
   { to: "/gann-time", label: "Gann Square", icon: CalendarIcon, tone: "#0f5e9c" },

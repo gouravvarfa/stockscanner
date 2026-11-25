@@ -1,3 +1,4 @@
+import { RatioChartsPage } from "./pages/RatioChartsPage";
 import { useEffect, useState } from "react";
 import { Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { ChartDrawer } from "./chart/ChartDrawer";
@@ -7,7 +8,7 @@ import { NAV_ITEMS } from "./components/Sidebar";
 
 /** Menu route -> the page key used by the page-colour styles (hero pages share their hero's name). */
 const PAGE_KEY: Record<string, string> = {
-  "/": "dash", "/strategies": "backtest", "/cup-breakout": "cup", "/value-buy": "value", "/weekly-sectors": "weekly",
+  "/": "dash", "/strategies": "backtest", "/cup-breakout": "cup", "/value-buy": "value", "/ratio-charts": "ratio", "/weekly-sectors": "weekly",
   "/heatmap": "heat", "/range-analysis": "range", "/top-bottom": "topbottom", "/breakout-15": "b15", "/gann-time": "gann",
   "/gann-angles": "angle", "/anniversary-dates": "anniv", "/astro-watch": "astro", "/stocks": "scanner", "/history": "history",
   "/settings": "settings",
@@ -107,6 +108,7 @@ export default function App() {
             <Route path="/stocks" element={<StockScanner />} />
             <Route path="/breakout-15" element={<Breakout15Page />} />
             <Route path="/range-analysis" element={<RangeAnalysisPage />} />
+            <Route path="/ratio-charts" element={<RatioChartsPage />} />
             <Route path="/weekly-sectors" element={<WeeklySectorsPage />} />
             <Route path="/value-buy" element={<ValueBuyPage />} />
             <Route path="/heatmap" element={<HeatmapPage />} />

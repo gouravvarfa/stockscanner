@@ -2293,3 +2293,45 @@ h1, .page-header h1, .app-content > h1, .app-content > div > h1:first-child { fo
   .app-content .page-header h1 { margin: 6px 0 4px; }
   .app-content .page-header .rules-details { margin-top: 10px; }
 }
+
+/* Ratio Charts (2026-11-25) */
+:root { --rto: #155e75; --rto-2: #ca8a04; }
+:root[data-theme="dark"] { --rto: #22d3ee; --rto-2: #facc15; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --rto: #22d3ee; --rto-2: #facc15; } }
+.hero-ratio { --tone: var(--rto); --tone-2: var(--rto-2); }
+.rt-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.rt-card { display: grid; gap: 6px; text-align: left; padding: 14px; cursor: pointer; font: inherit; color: inherit; border: 1px solid var(--border); transition: border-color .15s ease; margin: 0; }
+.rt-card:hover { border-color: color-mix(in srgb, var(--pt) 45%, var(--border)); }
+.rt-card.active { border-color: var(--pt); box-shadow: 0 0 0 1px var(--pt) inset; }
+.rt-card-title { font-weight: 600; font-size: 14px; }
+.rt-card-now { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.rt-card-now b { font-size: 20px; font-weight: 600; }
+.rt-bar { position: relative; display: block; height: 6px; border-radius: 3px; background: linear-gradient(90deg, #16a34a 0 15%, color-mix(in srgb, var(--text-muted) 25%, transparent) 15% 85%, #ea580c 85% 100%); }
+.rt-bar > i { position: absolute; top: -3px; width: 4px; height: 12px; margin-left: -2px; border-radius: 2px; background: var(--text-primary); }
+.rt-zone { display: inline-block; padding: 4px 10px; border-radius: 999px; font-size: 13px; font-weight: 600; border: 1px solid transparent; }
+.rt-zone-sm { font-size: 11.5px; padding: 2px 8px; justify-self: start; }
+.rt-z-high { color: #c2410c; background: color-mix(in srgb, #ea580c 12%, transparent); border-color: color-mix(in srgb, #ea580c 30%, transparent); }
+.rt-z-low { color: #15803d; background: color-mix(in srgb, #16a34a 12%, transparent); border-color: color-mix(in srgb, #16a34a 30%, transparent); }
+.rt-z-mid { color: var(--text-secondary); background: var(--bg-hover); border-color: var(--border); }
+.rt-detail { display: grid; gap: 14px; }
+.rt-detail-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.rt-detail-head h2 { margin: 0 0 2px; font-size: 20px; font-weight: 600; }
+.rt-chart { width: 100%; height: 420px; }
+.rt-legend { margin: -6px 0 0; }
+.rt-key { display: inline-block; width: 14px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 4px; }
+.rt-key-high { background: #ea580c; } .rt-key-low { background: #16a34a; }
+.rt-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
+.rt-stat { display: grid; gap: 4px; padding: 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg-surface); }
+.rt-stat > span { font-size: 12px; color: var(--text-secondary); }
+.rt-stat > b { font-size: 18px; font-weight: 600; }
+.rt-stat > small { font-size: 12px; color: var(--text-muted); }
+.rt-two { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.rt-box { border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; overflow-x: auto; }
+.rt-box h3 { margin: 0 0 8px; font-size: 15px; font-weight: 600; }
+.rt-box table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.rt-box th, .rt-box td { padding: 7px 8px; border-bottom: 1px solid var(--border); text-align: left; white-space: nowrap; }
+.rt-box th { font-weight: 600; color: var(--text-secondary); font-size: 12px; }
+.rt-best td { font-weight: 600; color: var(--pt); }
+@media (max-width: 900px) { .rt-two { grid-template-columns: 1fr; } }
+@media (max-width: 640px) { .rt-grid { grid-template-columns: 1fr 1fr; gap: 8px; } .rt-card { padding: 10px; } .rt-card-now b { font-size: 16px; } .rt-chart { height: 300px; } }
+@media (max-width: 640px) { .run-row > .tb-actions .tb-config-hint { white-space: normal; overflow-wrap: anywhere; } }
