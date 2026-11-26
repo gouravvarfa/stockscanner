@@ -16,6 +16,7 @@ import {
 
 const JOB_KEY = "weekly-sectors:job";
 const POLL_MS = 1500;
+const AUTO_GAP_MS = 45 * 60_000;
 
 interface WeeklyReportValue {
   report: WeeklyReport | null;
@@ -24,7 +25,7 @@ interface WeeklyReportValue {
   error: string | null;
   /** asOf: YYYY-MM-DD, or "" for the latest close. */
   run: (asOf?: string) => Promise<void>;
-  /** Runs the latest report on its own when the one on this device is stale (once per app session). */
+  /** Runs the latest report on its own when the one on this device is stale (at most every 45 minutes). */
   ensureFresh: () => void;
 }
 
@@ -126,11 +127,14 @@ export function WeeklyReportProvider({ children }: { children: ReactNode }) {
     [finish, watch],
   );
 
-  const autoTried = useRef(false);
+  // 2026-11-26: not once per app session - the app stays open all day, so a report from the morning was never
+  // refreshed after the close. Any stale report runs again, at most once per AUTO_GAP_MS.
+  const lastAuto = useRef(0);
   const ensureFresh = useCallback(() => {
-    if (autoTried.current || job?.status === "running" || watching.current) return;
+    if (job?.status === "running" || watching.current) return;
     if (!isStale(report?.generated_at)) return;
-    autoTried.current = true;
+    if (Date.now() - lastAuto.current < AUTO_GAP_MS) return;
+    lastAuto.current = Date.now();
     void run("");
   }, [job?.status, report?.generated_at, run]);
 

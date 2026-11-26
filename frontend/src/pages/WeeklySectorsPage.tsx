@@ -275,7 +275,12 @@ export function WeeklySectorsPage() {
   // The run lives at app level (context/WeeklyReportContext): it keeps going while another page is open.
   const { report, job, running, error: runError, run: runReport, ensureFresh } = useWeeklyReport();
   // opens up to date on its own; Refresh runs it again any time
-  useEffect(() => { const t = setTimeout(ensureFresh, 600); return () => clearTimeout(t); }, [ensureFresh]);
+  useEffect(() => {
+    // on open, then every 5 minutes while the page is open (the close at 15:30 makes the report stale)
+    const t = setTimeout(ensureFresh, 600);
+    const iv = setInterval(ensureFresh, 5 * 60_000);
+    return () => { clearTimeout(t); clearInterval(iv); };
+  }, [ensureFresh]);
   const [asOf, setAsOf] = useState("");
   const [dlError, setDlError] = useState<string | null>(null);
   const error = runError ?? dlError;
