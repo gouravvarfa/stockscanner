@@ -138,6 +138,24 @@ export function WeeklyReportProvider({ children }: { children: ReactNode }) {
     void run("");
   }, [job?.status, report?.generated_at, run]);
 
+  // 2026-11-26: the evening job builds the report from NSE end-of-day data (/eod/weekly.json), so it is up to date
+  // even when nobody opened the app. Used when it is newer than the report on this device.
+  useEffect(() => {
+    let alive = true;
+    fetch(`/eod/weekly.json?d=${new Date().toISOString().slice(0, 10)}`, { cache: "no-cache" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((eod: WeeklyReport | null) => {
+        if (!alive || !eod?.generated_at) return;
+        setReport((cur) => {
+          if (cur && new Date(cur.generated_at).getTime() >= new Date(eod.generated_at).getTime()) return cur;
+          saveLastReport(eod);
+          return eod;
+        });
+      })
+      .catch(() => undefined);
+    return () => { alive = false; };
+  }, []);
+
   // A run that was still going when this page was last open (or refreshed): pick it up again.
   useEffect(() => {
     let id: string | null = null;

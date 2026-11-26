@@ -31,6 +31,11 @@ def main() -> None:
         setup = scan.run_setup(hist, info)
         out = Path(sys.argv[2]) if len(sys.argv) > 2 else Path("frontend/public/eod")
         scan.write(out, cup, vb, hist, setup)
+        try:  # Weekly Sectors / Heatmap report (2026-11-26); a failure here never stops the rest of the evening job
+            from backend.eod import weekly
+            weekly.write(out, ROOT, hist)
+        except Exception:  # noqa: BLE001
+            logging.exception("weekly sectors report from EOD data failed")
         print(f"daily: {got} new day files; data to {cup['data_as_of']}; {len(cup['results'])} cups, {len(vb['strategies']['Value Buy'])} value buy -> {out}")
         return
     elif cmd == "scan":
@@ -42,6 +47,11 @@ def main() -> None:
         setup = scan.run_setup(hist, info)
         out = Path(sys.argv[2]) if len(sys.argv) > 2 else ROOT / "out"
         scan.write(out, cup, vb, hist, setup)
+        try:  # Weekly Sectors / Heatmap report (2026-11-26); a failure here never stops the rest of the evening job
+            from backend.eod import weekly
+            weekly.write(out, ROOT, hist)
+        except Exception:  # noqa: BLE001
+            logging.exception("weekly sectors report from EOD data failed")
         print(f"scan: {cup['stocks_scanned']} stocks, {len(cup['results'])} cups, {len(vb['strategies']['Value Buy'])} value buy -> {out}")
         return
     else:
